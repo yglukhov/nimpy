@@ -18,7 +18,7 @@ nim c --threads:on --tlsEmulation:off --app:lib --out:mymodule.so mymodule
 ```py
 # test.py
 import mymodule
-assert(simple.greet("world") == "Hello, world!")
+assert(mymodule.greet("world") == "Hello, world!")
 ```
 
 # Misc
