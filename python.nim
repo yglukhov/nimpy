@@ -210,8 +210,25 @@ proc toString*(b: Py_buffer): string =
 
 template pySignatureForType(t: typedesc[string]): string = "s*"
 template pySignatureForType(t: typedesc[PyObject]): string = "o"
+template pySignatureForType(t: typedesc[int32]): string = "i"
+template pySignatureForType(t: typedesc[int64]): string = "L"
+template pySignatureForType(t: typedesc[int]): string =
+    when sizeof(int) == sizeof(int32):
+        pySignatureForType(int32)
+    elif sizeof(int) == sizeof(int64):
+        pySignatureForType(int64)
+    else:
+        {.error: "Unexpected int size".}
 
-proc pyValueToNim(v: PyValue[string]): string {.inline.} = v.buf.toString()
+template pySignatureForType(t: typedesc[float32]): string = "f"
+template pySignatureForType(t: typedesc[float64]): string = "d"
+
+
+proc pyValueToNim[T](v: PyValue[T]): T {.inline.} =
+    when T is string:
+        v.buf.toString()
+    else:
+        v.val
 
 proc strToPyObject(s: string): PyObject {.inline.} =
     var cs: cstring
