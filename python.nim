@@ -221,6 +221,10 @@ type # Python3
         PyFloat_AsDouble*: proc(l: PyObject): cdouble {.cdecl.}
         PyBool_FromLong*: proc(v: clong): PyObject {.cdecl.}
 
+        PyComplex_AsCComplex*: proc(op: PyObject): Complex {.cdecl.}
+        PyComplex_RealAsDouble*: proc(op: PyObject): cdouble {.cdecl.}
+        PyComplex_ImagAsDouble*: proc(op: PyObject): cdouble {.cdecl.}
+
 var PyArg_ParseTuple*: proc(f: PyObject, fmt: cstring): cint {.cdecl, varargs.}
 
     #  PyBufferProcs contains bf_getcharbuffer
@@ -375,6 +379,11 @@ proc initCommon(m: var PyModuleDesc) =
     load PyFloat_AsDouble, "PyFloat_AsDouble"
     load PyBool_FromLong, "PyBool_FromLong"
 
+    load PyComplex_AsCComplex, "PyComplex_AsCComplex"
+    if pyLib.PyComplex_AsCComplex.isNil:
+        load PyComplex_RealAsDouble, "PyComplex_RealAsDouble"
+        load PyComplex_ImagAsDouble, "PyComplex_ImagAsDouble"
+
     m.methods.add(PyMethodDef()) # Add sentinel
 
 proc initModuleTypes2(p: PyObject, m: var PyModuleDesc) = discard
@@ -512,12 +521,20 @@ template pySignatureForType(t: typedesc[float32]): string = "f"
 template pySignatureForType(t: typedesc[float64]): string = "d"
 template pySignatureForType(t: typedesc[seq]): string = "O"
 template pySignatureForType(t: typedesc[array]): string = "O"
+template pySignatureForType(t: typedesc[Complex]): string = "D"
 
 proc pyObjToNim[T: int|int32|int64|int16|uint32|uint64|uint16|uint](o: PyObject, r: var T) {.inline.} =
     r = T(pyLib.PyLong_AsLongLong(o))
 
 proc pyObjToNim[T: float|float32|float64](o: PyObject, r: var T) {.inline.} =
     r = T(pyLib.PyFloat_AsDouble(o))
+
+proc pyObjToNim(o: PyObject; s: var Complex) =
+    if unlikely pyLib.PyComplex_AsCComplex.isNil:
+        s.re = pyLib.PyComplex_RealAsDouble(o)
+        s.im = pyLib.PyComplex_ImagAsDouble(o)
+    else:
+        s = pyLib.PyComplex_AsCComplex(o)
 
 proc pyObjToNim[T](o: PyObject, s: var seq[T]) =
     # assert(PyList_Check(o) != 0)
@@ -603,6 +620,9 @@ template nimValueToPy[T](v: T): PyObject =
         nimArrToPy(v)
     elif T is bool:
         pyLib.PyBool_FromLong(clong(v))
+    elif T is Complex:
+        var c = v
+        pyLib.Py_BuildValue("D", addr c)
     else:
         {.error: "Unkown return type".}
 
