@@ -346,43 +346,44 @@ proc incRef(p: PyObject) {.inline.} =
     inc p.to(PyObjectObj).ob_refcnt
 
 proc initCommon(m: var PyModuleDesc) =
-    pyLib.new()
-    pyLib.module = loadLib()
+    if pyLib.isNil:
+        pyLib.new()
+        pyLib.module = loadLib()
 
-    if not (pyLib.module.symAddr("PyModule_Create2").isNil or
-            pyLib.module.symAddr("Py_InitModule4_64").isNil or
-            pyLib.module.symAddr("Py_InitModule4").isNil):
-        traceRefs = true
+        if not (pyLib.module.symAddr("PyModule_Create2").isNil or
+                pyLib.module.symAddr("Py_InitModule4_64").isNil or
+                pyLib.module.symAddr("Py_InitModule4").isNil):
+            traceRefs = true
 
-    template load(v: untyped, name: cstring) =
-        pyLib.v = cast[type(pyLib.v)](pyLib.module.symAddr(name))
-        if pyLib.v.isNil:
-            raise newException(Exception, "Symbol not loaded: " & $name)
+        template load(v: untyped, name: cstring) =
+            pyLib.v = cast[type(pyLib.v)](pyLib.module.symAddr(name))
+            if pyLib.v.isNil:
+                raise newException(Exception, "Symbol not loaded: " & $name)
 
-    load Py_BuildValue, "_Py_BuildValue_SizeT"
-    load PyTuple_Size, "PyTuple_Size"
-    load PyTuple_GetItem, "PyTuple_GetItem"
-    PyArg_ParseTuple = cast[type(PyArg_ParseTuple)](pyLib.module.symAddr("_PyArg_ParseTuple_SizeT"))
-    if PyArg_ParseTuple.isNil:
-        raise newException(Exception, "Symbol not loaded: " & "PyArg_ParseTuple")
+        load Py_BuildValue, "_Py_BuildValue_SizeT"
+        load PyTuple_Size, "PyTuple_Size"
+        load PyTuple_GetItem, "PyTuple_GetItem"
+        PyArg_ParseTuple = cast[type(PyArg_ParseTuple)](pyLib.module.symAddr("_PyArg_ParseTuple_SizeT"))
+        if PyArg_ParseTuple.isNil:
+            raise newException(Exception, "Symbol not loaded: " & "PyArg_ParseTuple")
 
-    load Py_None, "_Py_NoneStruct"
-    load PyType_Ready, "PyType_Ready"
-    load PyType_GenericNew, "PyType_GenericNew"
-    load PyModule_AddObject, "PyModule_AddObject"
-    # load PyList_Check, "PyList_Check"
-    load PyList_New, "PyList_New"
-    load PyList_Size, "PyList_Size"
-    load PyList_GetItem, "PyList_GetItem"
-    load PyList_SetItem, "PyList_SetItem"
-    load PyLong_AsLongLong, "PyLong_AsLongLong"
-    load PyFloat_AsDouble, "PyFloat_AsDouble"
-    load PyBool_FromLong, "PyBool_FromLong"
+        load Py_None, "_Py_NoneStruct"
+        load PyType_Ready, "PyType_Ready"
+        load PyType_GenericNew, "PyType_GenericNew"
+        load PyModule_AddObject, "PyModule_AddObject"
+        # load PyList_Check, "PyList_Check"
+        load PyList_New, "PyList_New"
+        load PyList_Size, "PyList_Size"
+        load PyList_GetItem, "PyList_GetItem"
+        load PyList_SetItem, "PyList_SetItem"
+        load PyLong_AsLongLong, "PyLong_AsLongLong"
+        load PyFloat_AsDouble, "PyFloat_AsDouble"
+        load PyBool_FromLong, "PyBool_FromLong"
 
-    load PyComplex_AsCComplex, "PyComplex_AsCComplex"
-    if pyLib.PyComplex_AsCComplex.isNil:
-        load PyComplex_RealAsDouble, "PyComplex_RealAsDouble"
-        load PyComplex_ImagAsDouble, "PyComplex_ImagAsDouble"
+        load PyComplex_AsCComplex, "PyComplex_AsCComplex"
+        if pyLib.PyComplex_AsCComplex.isNil:
+            load PyComplex_RealAsDouble, "PyComplex_RealAsDouble"
+            load PyComplex_ImagAsDouble, "PyComplex_ImagAsDouble"
 
     m.methods.add(PyMethodDef()) # Add sentinel
 
@@ -439,12 +440,16 @@ proc initModule3(m: var PyModuleDesc): PyObject {.inline.} =
 proc NimMain() {.importc.}
 
 {.push stackTrace: off.}
+template initNimIfNeeded() =
+    if pyLib.isNil:
+        NimMain()
+
 proc initModuleAux2(m: var PyModuleDesc) =
-    NimMain()
+    initNimIfNeeded()
     initModule2(m)
 
 proc initModuleAux3(m: var PyModuleDesc): PyObject =
-    NimMain()
+    initNimIfNeeded()
     initModule3(m)
 {.pop.}
 
