@@ -11,7 +11,13 @@ type
         ml_flags: cint
         ml_doc: cstring
 
-type # Python3
+    PyMemberDef = object
+        name: cstring
+        typ: cint
+        offset: Py_ssize_t
+        flags: cint
+        doc: cstring
+
     PyModuleDef_Slot = object
         slot: cint
         value: pointer
@@ -77,6 +83,8 @@ type # Python3
     Initproc = proc(a, b, c: PyObject): cint {.cdecl.}
     Newfunc = proc(typ: PyTypeObject, a, b: PyObject): PyObject {.cdecl.}
     Allocfunc = proc(typ: PyTypeObject, sz: Py_ssize_t): PyObject {.cdecl.}
+    Freefunc = proc(p: pointer) {.cdecl.}
+    Cmpfunc = proc(a, b: PyObject): cint {.cdecl.}
 
     # 3
     # typedef PyObject *(*getattrfunc)(PyObject *, char *);
@@ -168,7 +176,7 @@ type # Python3
 
         # Attribute descriptor and subclassing stuff
         tp_methods: ptr PyMethodDef
-        tp_members: pointer # ptr PyMemberDef
+        tp_members:  ptr PyMemberDef
         tp_getset: pointer # ptr PyGetSetDef
 
         tp_base: PyTypeObject3
@@ -182,7 +190,7 @@ type # Python3
         tp_alloc: Allocfunc
         tp_new: Newfunc
 
-        tp_free: pointer # freefunc
+        tp_free: Freefunc
         tp_is_gc: pointer # inquiry /* For PyObject_IS_GC */
 
         tp_bases: ptr PyObjectObj
@@ -196,6 +204,84 @@ type # Python3
         # Type attribute cache version tag. Added in version 2.6 */
         tp_version_tag: cuint
         tp_finalize: Destructor
+
+    PyTypeObject2 = ptr PyTypeObject2Obj
+    PyTypeObject2Obj = object of PyObjectVarHeadObj
+        tp_name: cstring
+        tp_basicsize, tp_itemsize: cint
+
+        # Methods to implement standard operations
+        tp_dealloc: Destructor
+        tp_print: Printfunc
+
+        tp_getattr: Getattrfunc
+        tp_setattr: Setattrfunc
+        tp_compare: Cmpfunc
+        tp_repr: Reprfunc
+
+        # Method suites for standard classes
+
+        tp_as_number: pointer
+        tp_as_sequence: pointer
+        tp_as_mapping: pointer
+
+
+        # More standard operations (here for binary compatibility)
+
+        tp_hash: pointer # hashfunc
+        tp_call: pointer # ternaryfunc
+        tp_str: Reprfunc
+        tp_getattro: Getattrofunc
+        tp_setattro: Setattrofunc
+
+        # Functions to access object as input/output buffer
+        tp_as_buffer: pointer
+
+        # Flags to define presence of optional/expanded features
+        tp_flags: culong
+
+        tp_doc: cstring
+
+        # call function for all accessible objects
+        tp_traverse: pointer
+
+        # delete references to contained objects
+        tp_clear: pointer # inquiry
+
+        # rich comparisons
+        tp_richcompare: Richcmpfunc
+
+        # weak reference enabler
+        tp_weaklistoffset: clong
+
+        # Iterators
+        tp_iter: Getiterfunc
+        tp_iternext: Iternextfunc
+
+        # Attribute descriptor and subclassing stuff
+        tp_methods: ptr PyMethodDef
+        tp_members: ptr PyMemberDef
+        tp_getset: pointer # ptr PyGetSetDef
+
+        tp_base: PyTypeObject2
+        tp_dict: PyObject
+
+        tp_descr_get: Descrgetfunc
+        tp_descr_set: Descrsetfunc
+        tp_dictoffset: clong
+
+        tp_init: Initproc
+        tp_alloc: Allocfunc
+        tp_new: Newfunc
+
+        tp_free: Freefunc
+        tp_is_gc: pointer # inquiry /* For PyObject_IS_GC */
+
+        tp_bases: ptr PyObjectObj
+        tp_mro: PyObject # method resolution order. array?
+        tp_cache: PyObject # array?
+        tp_subclasses: ptr PyObjectObj
+        tp_weaklist: ptr PyObjectObj
 
     PyTypeObject = PyTypeObject3
 
@@ -224,6 +310,12 @@ type # Python3
         PyComplex_AsCComplex*: proc(op: PyObject): Complex {.cdecl.}
         PyComplex_RealAsDouble*: proc(op: PyObject): cdouble {.cdecl.}
         PyComplex_ImagAsDouble*: proc(op: PyObject): cdouble {.cdecl.}
+
+    PyNimObject = ref object {.inheritable.}
+        py_extra_dont_use: PyObject_HEAD_EXTRA
+        py_object: PyObjectObj
+
+    PyNimObjectBaseToInheritFromForAnExportedType* = PyNimObject
 
 var PyArg_ParseTuple*: proc(f: PyObject, fmt: cstring): cint {.cdecl, varargs.}
 
@@ -314,19 +406,41 @@ proc isNil*(p: PyObject): bool {.borrow.}
 
 var pyLib: PyLib
 
-type PyModuleDesc = object
-    name: cstring
-    doc: cstring
-    methods: seq[PyMethodDef]
-    types: seq[PyTypeObject]
+type
+    PyModuleDesc = object
+        name: cstring
+        doc: cstring
+        methods: seq[PyMethodDef]
+        types: seq[PyTypeDesc]
+
+    PyTypeDesc = object
+        module: ptr PyModuleDesc
+        name: cstring
+        doc: cstring
+        fullName: string
+        newFunc: Newfunc
+        methods: seq[PyMethodDef]
+        members: seq[PyMemberDef]
+        origSize: int
 
 proc addMethod(m: var PyModuleDesc, name, doc: cstring, f: PyCFunction) =
     m.methods.add(PyMethodDef(ml_name: name, ml_meth: f, ml_flags: 1, ml_doc: doc))
+
+proc newNimObjToPyObj(typ: PyTypeObject, o: PyNimObject): PyObject =
+    # echo "New called"
+    GC_ref(o)
+    result = cast[PyObject](addr o.py_object)
+    o.py_object.ob_type = typ
+    o.py_object.ob_refcnt = 1
+
+proc newPyNimObject[T](typ: PyTypeObject, args, kwds: PyObject): PyObject {.cdecl.} =
+    newNimObjToPyObj(typ, T.new())
 
 proc initPythonModuleDesc(m: var PyModuleDesc, name, doc: cstring) =
     m.name = name
     m.doc = doc
     m.methods = @[]
+    m.types = @[]
 
 var traceRefs: bool
 
@@ -341,6 +455,9 @@ proc to(p: PyObject, t: typedesc): ptr t {.inline.} =
         result = cast[ptr t](cast[uint](p) + sizeof(PyObject_HEAD_EXTRA).uint)
     else:
         result = cast[ptr t](p)
+
+proc toNim(p: PyObject, t: typedesc): t {.inline.} =
+    result = cast[t](cast[uint](p) - uint(sizeof(PyObject_HEAD_EXTRA) + sizeof(pointer)))
 
 proc incRef(p: PyObject) {.inline.} =
     inc p.to(PyObjectObj).ob_refcnt
@@ -387,21 +504,32 @@ proc initCommon(m: var PyModuleDesc) =
 
     m.methods.add(PyMethodDef()) # Add sentinel
 
-proc initModuleTypes2(p: PyObject, m: var PyModuleDesc) = discard
+proc destructNimObj(o: PyObject) {.cdecl.} =
+    let n = toNim(o, PyNimObject)
+    GC_unref(n)
+    # echo "Destruct called"
 
-proc initModuleTypes3(p: PyObject, m: var PyModuleDesc) =
-    when false:
-        let typ = pyAlloc(sizeof(PyTypeObject3Obj))
-        let ty = typ.to(PyTypeObject3Obj)
-        ty.tp_name = "simple.TestType"
-        ty.tp_basicsize = 4
+proc freeNimObj(p: pointer) {.cdecl.} =
+    raise newException(Exception, "Internal pynim error. Free called on Nim object.")
+
+proc initModuleTypes[PyTypeObj](p: PyObject, m: var PyModuleDesc) =
+    for i in 0 ..< m.types.len:
+        let typ = pyAlloc(sizeof(PyTypeObj))
+        let ty = typ.to(PyTypeObj)
+        ty.tp_name = m.types[i].fullName
+
+        # Nim objects have an m_type* in front, we're stripping that away for python,
+        # so we're telling python that the size is less by one pointer
+        ty.tp_basicsize = m.types[i].origSize.cint - sizeof(pointer).cint
         ty.tp_flags = Py_TPFLAGS_DEFAULT_EXTERNAL
-        ty.tp_doc = "TestType docs..."
-        ty.tp_new = pyLib.PyType_GenericNew
+        ty.tp_doc = m.types[i].doc
+        ty.tp_new = m.types[i].newFunc
+        ty.tp_free = freeNimObj
+        ty.tp_dealloc = destructNimObj
 
         discard pyLib.PyType_Ready(cast[PyTypeObject](typ))
         incRef(typ)
-        discard pyLib.PyModule_AddObject(p, "TestType", typ)
+        discard pyLib.PyModule_AddObject(p, m.types[i].name, typ)
 
 proc initModule2(m: var PyModuleDesc) {.inline.} =
     initCommon(m)
@@ -413,7 +541,7 @@ proc initModule2(m: var PyModuleDesc) {.inline.} =
         Py_InitModule4 = cast[type(Py_InitModule4)](pyLib.module.symAddr("Py_InitModule4_64"))
     if not Py_InitModule4.isNil:
         let py = Py_InitModule4(m.name, addr m.methods[0], m.doc, nil, PYTHON_ABI_VERSION)
-        initModuleTypes2(py, m)
+        initModuleTypes[PyTypeObject3Obj](py, m) # Why does PyTypeObject3Obj work here and PyTypeObject2Obj does not???
 
 proc initPyModule(p: ptr PyModuleDef, m: var PyModuleDesc) {.inline.} =
     p.m_base.ob_base.ob_refcnt = 1
@@ -435,7 +563,7 @@ proc initModule3(m: var PyModuleDesc): PyObject {.inline.} =
         var pymod = pyAlloc(sizeof(PyModuleDef))
         initPyModule(pymod.to(PyModuleDef), m)
         result = PyModule_Create2(pymod, PYTHON_ABI_VERSION)
-        initModuleTypes3(result, m)
+        initModuleTypes[PyTypeObject3Obj](result, m)
 
 proc NimMain() {.importc.}
 
@@ -453,7 +581,7 @@ proc initModuleAux3(m: var PyModuleDesc): PyObject =
     initModule3(m)
 {.pop.}
 
-template declarePyModuleIfNeeded(name: untyped) =
+template declarePyModuleIfNeededAux(name: untyped) =
     when not declared(gPythonLocalModuleDesc):
         const nameStr = astToStr(name)
 
@@ -466,6 +594,13 @@ template declarePyModuleIfNeeded(name: untyped) =
         proc `py3init name`(): PyObject {.exportc: "PyInit_" & nameStr.} =
             initModuleAux3(gPythonLocalModuleDesc)
         {.pop.}
+
+macro declarePyModuleIfNeededAuxMacro(modulename: static[string]): typed =
+    let modulename = modulename.splitFile.name
+    result = newCall(bindSym("declarePyModuleIfNeededAux"), newIdentNode(modulename))
+
+template declarePyModuleIfNeeded() =
+    declarePyModuleIfNeededAuxMacro(instantiationInfo(0).filename)
 
 ################################################################################
 ################################################################################
@@ -679,7 +814,6 @@ proc exportProc(prc: NimNode, modulename: string, wrap: bool): NimNode =
         prc.addPragma(newIdentNode("cdecl"))
 
     result = newStmtList(prc)
-    result.add(newCall(bindSym("declarePyModuleIfNeeded"), newIdentNode(modulename)))
 
     var procIdent = prc.name
     let procName = $procIdent
@@ -691,14 +825,30 @@ proc exportProc(prc: NimNode, modulename: string, wrap: bool): NimNode =
     # echo "procname: ", procName
     # echo repr result
 
-macro exportType(typ: typed, modulename: static[string], wrap: static[bool]): untyped =
-    discard
-
 macro exportpyAux(prc: untyped, modulename: static[string], wrap: static[bool]): untyped =
     exportProc(prc, modulename, wrap)
 
 
-template exportpyraw*(prc: untyped) = exportpyAux(prc, instantiationInfo().filename, false)
-# template exportpy*(typ: typedesc) = exportType(typ, instantiationInfo().filename, true)
-template exportpy*(prc: untyped{nkProcDef}) = exportpyAux(prc, instantiationInfo().filename, true)
+template exportpyraw*(prc: untyped) =
+    declarePyModuleIfNeeded()
+    exportpyAux(prc, instantiationInfo().filename, false)
 
+template exportpy*(prc: untyped{nkProcDef}) =
+    declarePyModuleIfNeeded()
+    exportpyAux(prc, instantiationInfo().filename, true)
+
+template addType(m: var PyModuleDesc, T: typed) =
+    block:
+        const name = astToStr(T)
+        const cname: cstring = name
+        m.types.setLen(m.types.len + 1)
+        m.types[^1].name = cname
+        m.types[^1].doc = "TestType docs..."
+        m.types[^1].newFunc = newPyNimObject[T]
+        var t: T
+        m.types[^1].origSize = sizeof(t[])
+        m.types[^1].fullName = $m.name & "." & name
+
+template pyexportTypeExperimental*(T: typed) =
+    declarePyModuleIfNeeded()
+    addType(gPythonLocalModuleDesc, T)
