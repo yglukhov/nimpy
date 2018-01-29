@@ -1,4 +1,4 @@
-import ../python
+import ../nimpy
 import algorithm, complex
 
 proc greet(name: string): string {.exportpy.} =

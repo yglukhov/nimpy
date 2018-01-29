@@ -1,10 +1,10 @@
-# python [![Build Status](https://travis-ci.org/yglukhov/python.svg?branch=master)](https://travis-ci.org/yglukhov/python)
+# python [![Build Status](https://travis-ci.org/yglukhov/nimpy.svg?branch=master)](https://travis-ci.org/yglukhov/nimpy)
 
 Native language integration with Python has never been easier!
 
 ```nim
 # mymodule.nim
-import python
+import nimpy
 
 proc greet(name: string): string {.exportpy.} =
     return "Hello, " & name & "!"
