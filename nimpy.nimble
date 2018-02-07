@@ -12,11 +12,13 @@ requires "nim >= 0.17.0"
 import oswalkdir, ospaths, strutils
 
 task tests, "Run tests":
+    let pluginExtension = when defined(windows): "pyd" else: "so"
+
     for f in walkDir("tests"):
         # Compile all nim modules, except those starting with "t"
         let sf = f.path.splitFile()
         if sf.ext == ".nim" and not sf.name.startsWith("t"):
-            exec "nim c --threads:on --tlsEmulation:off --app:lib --out:" & f.path.changeFileExt("so") & " " & f.path
+            exec "nim c --threads:on --tlsEmulation:off --app:lib --out:" & f.path.changeFileExt(pluginExtension) & " " & f.path
 
     for f in walkDir("tests"):
         # Run all python modules starting with "t"

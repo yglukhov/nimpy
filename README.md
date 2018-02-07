@@ -11,7 +11,9 @@ proc greet(name: string): string {.exportpy.} =
 ```
 
 ```
-# Compile:
+# Compile on Windows:
+nim c --threads:on --tlsEmulation:off --app:lib --out:mymodule.pyd mymodule
+# Compile on everything else:
 nim c --threads:on --tlsEmulation:off --app:lib --out:mymodule.so mymodule
 ```
 
