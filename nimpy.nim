@@ -462,10 +462,43 @@ proc toNim(p: PyObject, t: typedesc): t {.inline.} =
 proc incRef(p: PyObject) {.inline.} =
     inc p.to(PyObjectObj).ob_refcnt
 
+when defined(windows):
+    import winlean
+    proc getModuleHandle(path: cstring): LibHandle {.
+        importc: "GetModuleHandle", header: "<windows.h>", stdcall.}
+
+    proc enumProcessModules(hProcess: HANDLE, lphModule: ptr Handle, cb: DWORD, cbNeeded: ptr DWORD): WINBOOL {.
+        importc: "K32EnumProcessModules", dynlib: "kernel32", stdcall.}
+
+    proc getModuleFileName(handle: Handle, buf: cstring, size: int32): int32 {.
+        importc: "GetModuleFileNameA", dynlib: "kernel32", stdcall.}
+
+    proc findPythonDLL(): string =
+        var mods: array[1024, Handle]
+        var sz: DWORD
+        let pr = getCurrentProcess()
+        if enumProcessModules(pr, addr mods[0], 1024, addr sz) != 0:
+            var fn = newString(1024)
+            for i in 0 ..< sz:
+                fn.setLen(1024)
+                let ln = getModuleFileName(mods[i], cstring(addr fn[0]), 1024)
+                if ln != 0:
+                    if ln < 1024:
+                        fn.setLen(ln)
+                    const suffixLen = "\\pythonXX.dll".len
+                    if fn.endsWith(".dll") and fn.find("\\python") == fn.len - suffixLen:
+                        return fn
+        raise newException(Exception, "Could not find pythonXX.dll")
+
+
 proc initCommon(m: var PyModuleDesc) =
     if pyLib.isNil:
         pyLib.new()
-        pyLib.module = loadLib()
+        when defined(windows):
+            pyLib.module = getModuleHandle(findPythonDLL())
+        else:
+            pyLib.module = loadLib()
+        assert(not pyLib.module.isNil)
 
         if not (pyLib.module.symAddr("PyModule_Create2").isNil or
                 pyLib.module.symAddr("Py_InitModule4_64").isNil or
@@ -497,7 +530,7 @@ proc initCommon(m: var PyModuleDesc) =
         load PyFloat_AsDouble, "PyFloat_AsDouble"
         load PyBool_FromLong, "PyBool_FromLong"
 
-        load PyComplex_AsCComplex, "PyComplex_AsCComplex"
+        pyLib.PyComplex_AsCComplex = cast[type(pyLib.PyComplex_AsCComplex)](pyLib.module.symAddr("PyComplex_AsCComplex"))
         if pyLib.PyComplex_AsCComplex.isNil:
             load PyComplex_RealAsDouble, "PyComplex_RealAsDouble"
             load PyComplex_ImagAsDouble, "PyComplex_ImagAsDouble"
@@ -588,10 +621,10 @@ template declarePyModuleIfNeededAux(name: untyped) =
         var gPythonLocalModuleDesc {.inject.}: PyModuleDesc
         initPythonModuleDesc(gPythonLocalModuleDesc, nameStr, nil)
         {.push stackTrace: off.}
-        proc `py2init name`() {.exportc: "init" & nameStr.} =
+        proc `py2init name`() {.exportc: "init" & nameStr, dynlib.} =
             initModuleAux2(gPythonLocalModuleDesc)
 
-        proc `py3init name`(): PyObject {.exportc: "PyInit_" & nameStr.} =
+        proc `py3init name`(): PyObject {.exportc: "PyInit_" & nameStr, dynlib.} =
             initModuleAux3(gPythonLocalModuleDesc)
         {.pop.}
 
