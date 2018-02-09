@@ -13,4 +13,6 @@ assert(simple.flipBool(True) == False)
 assert(simple.complexSqrt(complex(1, -1)) == cmath.sqrt(complex(1, -1)))
 assert(simple.complexSeqSqrt([complex(1, -1), complex(1, 1)]) == [cmath.sqrt(complex(1, -1)), cmath.sqrt(complex(1, 1))])
 
+assert(simple.sum_ints(3, 4) == 7)
+
 assert(simple.TestType() != None)

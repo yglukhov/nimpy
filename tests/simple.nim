@@ -21,6 +21,8 @@ proc complexSeqSqrt(a: seq[Complex]): seq[Complex] {.exportpy.} =
     result = newSeq[Complex](a.len)
     for i, aa in a: result[i] = sqrt(aa)
 
+proc sumIntsWithCustomName(a, b: int32): int {.exportpy: "sum_ints".} = a + b
+
 type TestType = ref object of PyNimObjectBaseToInheritFromForAnExportedType
 
 pyexportTypeExperimental(TestType)

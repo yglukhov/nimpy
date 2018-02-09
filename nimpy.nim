@@ -834,7 +834,7 @@ proc makeWrapper(name, prc: NimNode): NimNode =
             return nil
         nimValueToPy(`origCall`)
 
-proc exportProc(prc: NimNode, modulename: string, wrap: bool): NimNode =
+proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode =
     let modulename = modulename.splitFile.name
 
     var comment: NimNode
@@ -849,26 +849,40 @@ proc exportProc(prc: NimNode, modulename: string, wrap: bool): NimNode =
     result = newStmtList(prc)
 
     var procIdent = prc.name
-    let procName = $procIdent
+    var procName = procName
+    if procName.isNil:
+        procName = $procIdent
     if wrap:
-        procIdent = newIdentNode(procName & "Py_wrapper")
+        procIdent = newIdentNode($procIdent & "Py_wrapper")
         result.add(makeWrapper(procIdent, prc))
 
     result.add(newCall(bindSym"addMethod", newIdentNode("gPythonLocalModuleDesc"), newLit(procName), comment, procIdent))
     # echo "procname: ", procName
     # echo repr result
 
-macro exportpyAux(prc: untyped, modulename: static[string], wrap: static[bool]): untyped =
-    exportProc(prc, modulename, wrap)
+macro exportpyAux(prc: untyped, modulename, procName: static[string], wrap: static[bool]): untyped =
+    exportProc(prc, modulename, procName, wrap)
 
+template exportpyAuxAux(prc: untyped{nkProcDef}, procName: static[string]) =
+    declarePyModuleIfNeeded()
+    exportpyAux(prc, instantiationInfo().filename, procName, true)
 
 template exportpyraw*(prc: untyped) =
     declarePyModuleIfNeeded()
-    exportpyAux(prc, instantiationInfo().filename, false)
+    exportpyAux(prc, instantiationInfo().filename, nil, false)
 
-template exportpy*(prc: untyped{nkProcDef}) =
-    declarePyModuleIfNeeded()
-    exportpyAux(prc, instantiationInfo().filename, true)
+macro exportpy*(nameOrProc: untyped, maybeProc: untyped = nil): untyped =
+    var procDef: NimNode
+    var procName: string
+    if maybeProc.kind == nnkNilLit:
+        procDef = nameOrProc
+        procName = $procDef.name
+    else:
+        procDef = maybeProc
+        procName = $nameOrProc
+
+    expectKind(procDef, nnkProcDef)
+    result = newCall(bindSym"exportpyAuxAux", procDef, newLit(procName))
 
 template addType(m: var PyModuleDesc, T: typed) =
     block:
