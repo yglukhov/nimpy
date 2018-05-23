@@ -23,6 +23,17 @@ proc complexSeqSqrt(a: seq[Complex]): seq[Complex] {.exportpy.} =
 
 proc sumIntsWithCustomName(a, b: int32): int {.exportpy: "sum_ints".} = a + b
 
+type MyObj = object
+    a, b: int
+    c: string
+
+proc getMyObj(): MyObj {.exportpy.} =
+    result.a = 5
+    result.c = "hello"
+
+proc validateMyObj(o: MyObj): bool {.exportpy.} =
+    o.a == 5 and o.c == "hello"
+
 type TestType = ref object of PyNimObjectBaseToInheritFromForAnExportedType
 
 pyexportTypeExperimental(TestType)

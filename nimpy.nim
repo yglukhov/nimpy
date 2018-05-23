@@ -303,6 +303,9 @@ type
         PyList_GetItem*: proc(l: PyObject, index: Py_ssize_t): PyObject {.cdecl.}
         PyList_SetItem*: proc(l: PyObject, index: Py_ssize_t, i: PyObject): cint {.cdecl.}
 
+        PyObject_CallObject*: proc(callable_object: PyObject, args: PyObject): PyObject{.cdecl.}
+        PyObject_IsTrue*: proc(o: PyObject): cint {.cdecl.}
+
         PyLong_AsLongLong*: proc(l: PyObject): int64 {.cdecl.}
         PyFloat_AsDouble*: proc(l: PyObject): cdouble {.cdecl.}
         PyBool_FromLong*: proc(v: clong): PyObject {.cdecl.}
@@ -310,6 +313,20 @@ type
         PyComplex_AsCComplex*: proc(op: PyObject): Complex {.cdecl.}
         PyComplex_RealAsDouble*: proc(op: PyObject): cdouble {.cdecl.}
         PyComplex_ImagAsDouble*: proc(op: PyObject): cdouble {.cdecl.}
+
+        PyUnicode_AsUTF8String*: proc(o: PyObject): PyObject {.cdecl.}
+        PyBytes_AsStringAndSize*: proc(o: PyObject, s: ptr ptr char, len: ptr Py_ssize_t): cint {.cdecl.}
+
+        PyDict_Type*: PyTypeObject
+        PyDict_GetItemString*: proc(o: PyObject, k: cstring): PyObject {.cdecl.}
+        PyDict_SetItemString*: proc(o: PyObject, k: cstring, v: PyObject): cint {.cdecl.}
+
+        PyDealloc*: proc(o: PyObject) {.nimcall.}
+
+        PyErr_Clear*: proc() {.cdecl.}
+
+        when not defined(release):
+            PyErr_Print: proc() {.cdecl.}
 
     PyNimObject = ref object {.inheritable.}
         py_extra_dont_use: PyObject_HEAD_EXTRA
@@ -462,6 +479,12 @@ proc toNim(p: PyObject, t: typedesc): t {.inline.} =
 proc incRef(p: PyObject) {.inline.} =
     inc p.to(PyObjectObj).ob_refcnt
 
+proc decRef(p: PyObject) {.inline.} =
+    let o = p.to(PyObjectObj)
+    dec o.ob_refcnt
+    if o.ob_refcnt == 0:
+        pyLib.PyDealloc(p)
+
 when defined(windows):
     import winlean
     proc getModuleHandle(path: cstring): LibHandle {.
@@ -491,6 +514,11 @@ when defined(windows):
         raise newException(Exception, "Could not find pythonXX.dll")
 
 
+proc deallocPythonObj[TypeObjectType](p: PyObject) =
+    let ob = p.to(PyObjectObj)
+    let t = cast[TypeObjectType](ob.ob_type)
+    t.tp_dealloc(cast[PyObject](p))
+
 proc initCommon(m: var PyModuleDesc) =
     if pyLib.isNil:
         pyLib.new()
@@ -505,8 +533,11 @@ proc initCommon(m: var PyModuleDesc) =
                 pyLib.module.symAddr("Py_InitModule4").isNil):
             traceRefs = true
 
-        template load(v: untyped, name: cstring) =
+        template maybeLoad(v: untyped, name: cstring) =
             pyLib.v = cast[type(pyLib.v)](pyLib.module.symAddr(name))
+
+        template load(v: untyped, name: cstring) =
+            maybeLoad(v, name)
             if pyLib.v.isNil:
                 raise newException(Exception, "Symbol not loaded: " & $name)
 
@@ -526,14 +557,45 @@ proc initCommon(m: var PyModuleDesc) =
         load PyList_Size, "PyList_Size"
         load PyList_GetItem, "PyList_GetItem"
         load PyList_SetItem, "PyList_SetItem"
+
+        load PyObject_CallObject, "PyObject_CallObject"
+        load PyObject_IsTrue, "PyObject_IsTrue"
+
         load PyLong_AsLongLong, "PyLong_AsLongLong"
         load PyFloat_AsDouble, "PyFloat_AsDouble"
         load PyBool_FromLong, "PyBool_FromLong"
 
-        pyLib.PyComplex_AsCComplex = cast[type(pyLib.PyComplex_AsCComplex)](pyLib.module.symAddr("PyComplex_AsCComplex"))
+        maybeLoad PyComplex_AsCComplex, "PyComplex_AsCComplex"
         if pyLib.PyComplex_AsCComplex.isNil:
             load PyComplex_RealAsDouble, "PyComplex_RealAsDouble"
             load PyComplex_ImagAsDouble, "PyComplex_ImagAsDouble"
+
+        maybeLoad PyUnicode_AsUTF8String, "PyUnicode_AsUTF8String"
+        if pyLib.PyUnicode_AsUTF8String.isNil:
+            maybeLoad PyUnicode_AsUTF8String, "PyUnicodeUCS4_AsUTF8String"
+            if pyLib.PyUnicode_AsUTF8String.isNil:
+                load PyUnicode_AsUTF8String, "PyUnicodeUCS2_AsUTF8String"
+
+        var pythonVersion = 3
+
+        maybeLoad PyBytes_AsStringAndSize, "PyBytes_AsStringAndSize"
+        if pyLib.PyBytes_AsStringAndSize.isNil:
+            load PyBytes_AsStringAndSize, "PyString_AsStringAndSize"
+            pythonVersion = 2
+
+        load PyDict_Type, "PyDict_Type"
+        load PyDict_GetItemString, "PyDict_GetItemString"
+        load PyDict_SetItemString, "PyDict_SetItemString"
+
+        if pythonVersion == 3:
+            pyLib.PyDealloc = deallocPythonObj[PyTypeObject3]
+        else:
+            pyLib.PyDealloc = deallocPythonObj[PyTypeObject2]
+
+        load PyErr_Clear, "PyErr_Clear"
+
+        when not defined(release):
+            load PyErr_Print, "PyErr_Print"
 
     m.methods.add(PyMethodDef()) # Add sentinel
 
@@ -639,20 +701,6 @@ template declarePyModuleIfNeeded() =
 ################################################################################
 ################################################################################
 
-template staticJoin(s: varargs[string]): cstring =
-    const r: cstring = s.join()
-    r
-
-type PyValue[T] = object
-    when T is string:
-        buf: Py_buffer
-    elif T is seq|array:
-        val: PyObject
-    elif T is int8|bool:
-        val: int16
-    else:
-        val: T
-
 proc toString*(b: Py_buffer): string =
     if not b.buf.isNil:
         let ln = b.len
@@ -660,79 +708,37 @@ proc toString*(b: Py_buffer): string =
         if ln != 0:
             copyMem(addr result[0], b.buf, ln)
 
+proc pyObjToNimSeq[T](o: PyObject, v: var seq[T])
+proc pyObjToNimArray[T, I](o: PyObject, s: var array[I, T])
+proc pyObjToNimStr(o: PyObject, v: var string) =
+    var s: ptr char
+    var l: Py_ssize_t
+    var b: PyObject
 
-template pySignatureForType(t: typedesc[string]): string = "s*"
-template pySignatureForType(t: typedesc[PyObject]): string = "O"
+    if pyLib.PyBytes_AsStringAndSize(o, addr s, addr l) != 0:
+        # TODO: This requires more elaborate type checking to avoid raising and clearing errors
+        pyLib.PyErr_Clear()
+        # pyLib.PyErr_Print()
 
-template pySignatureForType(t: typedesc[bool]): string = "h"
-template pySignatureForType(t: typedesc[int8]): string = "h"
-template pySignatureForType(t: typedesc[int16]): string = "h"
-template pySignatureForType(t: typedesc[int32]): string = "i"
-template pySignatureForType(t: typedesc[int64]): string = "L"
-template pySignatureForType(t: typedesc[int]): string =
-    when sizeof(int) == sizeof(int32):
-        pySignatureForType(int32)
-    elif sizeof(int) == sizeof(int64):
-        pySignatureForType(int64)
-    else:
-        {.error: "Unexpected int size".}
+        b = pyLib.PyUnicode_AsUTF8String(o)
+        if b.isNil:
+            # pyLib.PyErr_Print()
+            raise newException(Exception, "Can't convert python obj to string")
 
-template pySignatureForType(t: typedesc[uint8]): string = "B"
-template pySignatureForType(t: typedesc[uint16]): string = "H"
-template pySignatureForType(t: typedesc[uint32]): string = "I"
-template pySignatureForType(t: typedesc[uint64]): string = "K"
-template pySignatureForType(t: typedesc[uint]): string =
-    when sizeof(uint) == sizeof(uint32):
-        pySignatureForType(uint32)
-    elif sizeof(uint) == sizeof(uint64):
-        pySignatureForType(uint64)
-    else:
-        {.error: "Unexpected int size".}
+        if pyLib.PyBytes_AsStringAndSize(b, addr s, addr l) != 0:
+            decRef b
+            raise newException(Exception, "Can't convert python obj to string")
 
+    v = newString(l)
+    if l != 0:
+        copyMem(addr v[0], s, l)
 
-template pySignatureForType(t: typedesc[float32]): string = "f"
-template pySignatureForType(t: typedesc[float64]): string = "d"
-template pySignatureForType(t: typedesc[seq]): string = "O"
-template pySignatureForType(t: typedesc[array]): string = "O"
-template pySignatureForType(t: typedesc[Complex]): string = "D"
+    if not b.isNil:
+        decRef b
 
-proc pyObjToNim[T: int|int32|int64|int16|uint32|uint64|uint16|uint](o: PyObject, r: var T) {.inline.} =
-    r = T(pyLib.PyLong_AsLongLong(o))
+proc unknownType() {.inline.} = discard
 
-proc pyObjToNim[T: float|float32|float64](o: PyObject, r: var T) {.inline.} =
-    r = T(pyLib.PyFloat_AsDouble(o))
-
-proc pyObjToNim(o: PyObject; s: var Complex) =
-    if unlikely pyLib.PyComplex_AsCComplex.isNil:
-        s.re = pyLib.PyComplex_RealAsDouble(o)
-        s.im = pyLib.PyComplex_ImagAsDouble(o)
-    else:
-        s = pyLib.PyComplex_AsCComplex(o)
-
-proc pyObjToNim[T](o: PyObject, s: var seq[T]) =
-    # assert(PyList_Check(o) != 0)
-    let sz = int(pyLib.PyList_Size(o))
-    assert(sz >= 0)
-    s = newSeq[T](sz)
-    for i in 0 ..< sz:
-        pyObjToNim(pyLib.PyList_GetItem(o, i), s[i])
-
-proc pyObjToNim[T, I](o: PyObject, s: var array[I, T]) =
-    # assert(PyList_Check(o) != 0)
-    let sz = int(pyLib.PyList_Size(o))
-    assert(sz == s.len)
-    for i in 0 ..< sz:
-        pyObjToNim(pyLib.PyList_GetItem(o, i), s[i])
-
-proc pyValueToNim[T](v: PyValue[T]): T {.inline.} =
-    when T is string:
-        v.buf.toString()
-    elif T is seq|array:
-        pyObjToNim(v.val, result)
-    elif T is int8|bool:
-        T(v.val)
-    else:
-        v.val
+proc pyObjToNim[T](o: PyObject, v: var T)
 
 proc strToPyObject(s: string): PyObject {.inline.} =
     var cs: cstring
@@ -741,6 +747,55 @@ proc strToPyObject(s: string): PyObject {.inline.} =
         cs = s
         ln = cint(s.xlen)
     pyLib.Py_BuildValue("s#", cs, ln)
+
+proc pyObjToNimObj(o: PyObject, vv: var object) =
+    for k, v in fieldPairs(vv):
+        let f = pyLib.PyDict_GetItemString(o, k)
+        pyObjToNim(f, v)
+        # No DECREF here. PyDict_GetItemString returns a boorowed ref.
+
+proc pyObjToNim[T](o: PyObject, v: var T) =
+    when T is int|int32|int64|int16|uint32|uint64|uint16|uint8|int8:
+        v = T(pyLib.PyLong_AsLongLong(o))
+    elif T is float|float32|float64:
+        v = T(pyLib.PyFloat_AsDouble(o))
+    elif T is bool:
+        v = bool(pyLib.PyObject_IsTrue(o))
+    elif T is PyObject:
+        v = o
+    elif T is Complex:
+        if unlikely pyLib.PyComplex_AsCComplex.isNil:
+            v.re = pyLib.PyComplex_RealAsDouble(o)
+            v.im = pyLib.PyComplex_ImagAsDouble(o)
+        else:
+            v = pyLib.PyComplex_AsCComplex(o)
+    elif T is string:
+        pyObjToNimStr(o, v)
+    elif T is seq:
+        pyObjToNimSeq(o, v)
+    elif T is array:
+        pyObjToNimArray(o, v)
+    elif T is object:
+        pyObjToNimObj(o, v)
+    else:
+        unknownType(v)
+
+proc pyObjToNimSeq[T](o: PyObject, v: var seq[T]) =
+    # assert(PyList_Check(o) != 0)
+    let sz = int(pyLib.PyList_Size(o))
+    assert(sz >= 0)
+    v = newSeq[T](sz)
+    for i in 0 ..< sz:
+        pyObjToNim(pyLib.PyList_GetItem(o, i), v[i])
+        # PyList_GetItem # No DECREF. Returns borrowed ref.
+
+proc pyObjToNimArray[T, I](o: PyObject, s: var array[I, T]) =
+    # assert(PyList_Check(o) != 0)
+    let sz = int(pyLib.PyList_Size(o))
+    assert(sz == s.len)
+    for i in 0 ..< sz:
+        pyObjToNim(pyLib.PyList_GetItem(o, i), s[i])
+        # PyList_GetItem # No DECREF. Returns borrowed ref.
 
 iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
     let p = prc.params
@@ -752,8 +807,9 @@ iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
             inc iParam
 
 proc nimArrToPy[T](s: openarray[T]): PyObject
+proc nimObjToPy[T](o: T): PyObject
 
-template nimValueToPy[T](v: T): PyObject =
+proc nimValueToPy[T](v: T): PyObject {.inline.} =
     when T is void:
         v
         incRef(pyLib.Py_None)
@@ -794,10 +850,11 @@ template nimValueToPy[T](v: T): PyObject =
     elif T is bool:
         pyLib.PyBool_FromLong(clong(v))
     elif T is Complex:
-        var c = v
-        pyLib.Py_BuildValue("D", addr c)
+        pyLib.Py_BuildValue("D", unsafeAddr v)
+    elif T is object:
+        nimObjToPy(v)
     else:
-        {.error: "Unkown return type".}
+        unknownType(v)
 
 proc nimArrToPy[T](s: openarray[T]): PyObject =
     let sz = s.len
@@ -805,6 +862,23 @@ proc nimArrToPy[T](s: openarray[T]): PyObject =
     for i in 0 ..< sz:
         let o = nimValueToPy(s[i])
         discard pyLib.PyList_SetItem(result, i, o)
+
+proc nimObjToPy[T](o: T): PyObject =
+    result = pyLib.PyObject_CallObject(cast[PyObject](pyLib.PyDict_Type), nil)
+    for k, v in fieldPairs(o):
+        let kk = strToPyObject(k)
+        let vv = nimValueToPy(v)
+        let ret = pyLib.PyDict_SetItemString(result, k, vv)
+        decRef kk
+        decRef vv
+        if ret != 0:
+            raise newException(Exception, "Could not serialize object key: " & k)
+
+proc parseArg[T](argTuple: PyObject, argIdx: int, result: var T) =
+    pyObjToNim(pyLib.PyTuple_GetItem(argTuple, argIdx), result)
+
+proc verifyArgs(argTuple: PyObject, argsLen: int) =
+    discard # TODO: ...
 
 proc makeWrapper(name, prc: NimNode): NimNode =
     let selfIdent = newIdentNode("self")
@@ -817,21 +891,21 @@ proc makeWrapper(name, prc: NimNode): NimNode =
     let pyValueVarSection = newNimNode(nnkVarSection)
     result.body.add(pyValueVarSection)
 
-    let format = newCall(bindSym"staticJoin")
-
-    let parseCall = newCall(bindSym"PyArg_ParseTuple", argsIdent, format)
+    let parseArgsStmts = newNimNode(nnkStmtList)
     let origCall = newCall(prc.name)
 
+    var numArgs = 0
     for a in prc.arguments:
         let argIdent = newIdentNode("arg" & $a.idx & $a.name)
-        pyValueVarSection.add(newIdentDefs(argIdent, newNimNode(nnkBracketExpr).add(bindSym"PyValue", a.typ)))
-        format.add(newCall(bindSym"pySignatureForType", a.typ))
-        parseCall.add(newCall(bindSym"addr", argIdent))
-        origCall.add(newCall(bindSym"pyValueToNim", argIdent))
+        pyValueVarSection.add(newIdentDefs(argIdent, a.typ))
+        parseArgsStmts.add(newCall(bindSym"parseArg", argsIdent, newLit(a.idx), argIdent))
+        origCall.add(argIdent)
+        inc numArgs
 
+    let argsLen = newLit(numArgs)
     result.body.add quote do:
-        if `parseCall` == 0:
-            return nil
+        verifyArgs(`argsIdent`, `argsLen`)
+        `parseArgsStmts`
         nimValueToPy(`origCall`)
 
 proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode =

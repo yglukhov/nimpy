@@ -11,7 +11,7 @@ requires "nim >= 0.17.0"
 
 import oswalkdir, ospaths, strutils
 
-task tests, "Run tests":
+task test, "Run tests":
     let pluginExtension = when defined(windows): "pyd" else: "so"
 
     for f in walkDir("tests"):

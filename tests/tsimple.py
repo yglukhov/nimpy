@@ -1,5 +1,4 @@
 import simple,cmath
-
 assert(simple.greet("world") == "Hello, world!")
 assert(simple.somethingThatReturnsNilString() == None)
 assert(simple.sumInts(4, 5) == 9)
@@ -16,3 +15,9 @@ assert(simple.complexSeqSqrt([complex(1, -1), complex(1, 1)]) == [cmath.sqrt(com
 assert(simple.sum_ints(3, 4) == 7)
 
 assert(simple.TestType() != None)
+
+assert(simple.getMyObj()["a"] == 5)
+assert(simple.getMyObj()["c"] == "hello")
+assert(simple.validateMyObj(simple.getMyObj()))
+
+print("Tests complete!")
