@@ -861,10 +861,8 @@ proc nimArrToPy[T](s: openarray[T]): PyObject =
 proc nimObjToPy[T](o: T): PyObject =
     result = pyLib.PyObject_CallObject(cast[PyObject](pyLib.PyDict_Type), nil)
     for k, v in fieldPairs(o):
-        let kk = strToPyObject(k)
         let vv = nimValueToPy(v)
         let ret = pyLib.PyDict_SetItemString(result, k, vv)
-        decRef kk
         decRef vv
         if ret != 0:
             raise newException(Exception, "Could not serialize object key: " & k)
