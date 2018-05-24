@@ -35,4 +35,7 @@ except TypeError as e:
 
 assert(excMsg == "sumInts() takes exactly 2 arguments (3 given)")
 
+assert(simple.someFunc1(__builtins__) == 10)
+assert(simple.someFunc2(__builtins__) == 10)
+
 print("Tests complete!")

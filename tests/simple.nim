@@ -53,6 +53,9 @@ proc validateNilObj(o: MyRefObj): bool {.exportpy.} = o.isNil
 proc voidProc() {.exportpy.} =
     discard
 
+proc someFunc1(o: PyObject): PyObject {.exportpy.} = o.sum(o.range(1, 5))
+proc someFunc2(o: PyObject): PyObject {.exportpy.} = o.callMethod("sum", o.callMethod("range", 1, 5))
+
 type TestType = ref object of PyNimObjectBaseToInheritFromForAnExportedType
 
 pyexportTypeExperimental(TestType)

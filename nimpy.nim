@@ -289,8 +289,10 @@ type
         module: LibHandle
 
         Py_BuildValue*: proc(f: cstring): PyObject {.cdecl, varargs.}
+        PyTuple_New*: proc(sz: Py_ssize_t): PyObject {.cdecl.}
         PyTuple_Size*: proc(f: PyObject): Py_ssize_t {.cdecl.}
         PyTuple_GetItem*: proc(f: PyObject, i: Py_ssize_t): PyObject {.cdecl.}
+        PyTuple_SetItem*: proc(f: PyObject, i: Py_ssize_t, v: PyObject): cint {.cdecl.}
 
         Py_None*: PyObject
         PyType_Ready*: proc(f: PyTypeObject): cint {.cdecl.}
@@ -303,8 +305,11 @@ type
         PyList_GetItem*: proc(l: PyObject, index: Py_ssize_t): PyObject {.cdecl.}
         PyList_SetItem*: proc(l: PyObject, index: Py_ssize_t, i: PyObject): cint {.cdecl.}
 
-        PyObject_CallObject*: proc(callable_object: PyObject, args: PyObject): PyObject{.cdecl.}
+        PyObject_Call*: proc(callable_object, args, kw: PyObject): PyObject {.cdecl.}
         PyObject_IsTrue*: proc(o: PyObject): cint {.cdecl.}
+        # PyObject_HasAttrString*: proc(o: PyObject, name: cstring): cint {.cdecl.}
+        PyObject_GetAttrString*: proc(o: PyObject, name: cstring): PyObject {.cdecl.}
+        PyObject_SetAttrString*: proc(o: PyObject, name: cstring, v: PyObject): cint {.cdecl.}
 
         PyLong_AsLongLong*: proc(l: PyObject): int64 {.cdecl.}
         PyFloat_AsDouble*: proc(l: PyObject): cdouble {.cdecl.}
@@ -548,8 +553,10 @@ proc initCommon(m: var PyModuleDesc) =
         template load(v: untyped) = load(v, astToStr(v))
 
         load Py_BuildValue, "_Py_BuildValue_SizeT"
+        load PyTuple_New
         load PyTuple_Size
         load PyTuple_GetItem
+        load PyTuple_SetItem
 
         load Py_None, "_Py_NoneStruct"
         load PyType_Ready
@@ -561,8 +568,11 @@ proc initCommon(m: var PyModuleDesc) =
         load PyList_GetItem
         load PyList_SetItem
 
-        load PyObject_CallObject
+        load PyObject_Call
         load PyObject_IsTrue
+        # load PyObject_HasAttrString
+        load PyObject_GetAttrString
+        load PyObject_SetAttrString
 
         load PyLong_AsLongLong
         load PyFloat_AsDouble
@@ -593,7 +603,7 @@ proc initCommon(m: var PyModuleDesc) =
         if pythonVersion == 3:
             pyLib.PyDealloc = deallocPythonObj[PyTypeObject3]
         else:
-            pyLib.PyDealloc = deallocPythonObj[PyTypeObject2]
+            pyLib.PyDealloc = deallocPythonObj[PyTypeObject3] # Why does PyTypeObject3Obj work here and PyTypeObject2Obj does not???
 
         load PyErr_Clear
         load PyErr_SetString
@@ -893,8 +903,13 @@ proc nimArrToPy[T](s: openarray[T]): PyObject =
         let o = nimValueToPy(s[i])
         discard pyLib.PyList_SetItem(result, i, o)
 
+proc PyObject_CallObject(o: PyObject): PyObject =
+    let args = pyLib.PyTuple_New(0)
+    result = pyLib.PyObject_Call(o, args, nil)
+    decRef args
+
 proc nimObjToPy[T](o: T): PyObject =
-    result = pyLib.PyObject_CallObject(cast[PyObject](pyLib.PyDict_Type), nil)
+    result = PyObject_CallObject(cast[PyObject](pyLib.PyDict_Type))
     for k, v in fieldPairs(o):
         let vv = nimValueToPy(v)
         let ret = pyLib.PyDict_SetItemString(result, k, vv)
@@ -1018,3 +1033,27 @@ template addType(m: var PyModuleDesc, T: typed) =
 template pyexportTypeExperimental*(T: typed) =
     declarePyModuleIfNeeded()
     addType(gPythonLocalModuleDesc, T)
+
+
+template toPyObject*[T](v: T): PyObject = nimValueToPy(v)
+
+################################################################################
+################################################################################
+################################################################################
+# Calling functions
+
+proc callMethod*(o: PyObject, name: cstring, args: varargs[PyObject, toPyObject]): PyObject =
+    let callable = pyLib.PyObject_GetAttrString(o, name)
+    if callable.isNil:
+        raise newException(Exception, "No callable attribute: " & $name)
+
+    let argTuple = pyLib.PyTuple_New(args.len)
+    for i, v in args:
+        discard pyLib.PyTuple_SetItem(argTuple, i, v)
+
+    result = pyLib.PyObject_Call(callable, argTuple, nil)
+    decRef argTuple
+    decRef callable
+
+template `.()`*(o: PyObject, field: untyped, args: varargs[untyped]): PyObject =
+    callMethod(o, astToStr(field), args)
