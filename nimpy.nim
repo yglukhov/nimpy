@@ -334,8 +334,6 @@ type
 
     PyNimObjectBaseToInheritFromForAnExportedType* = PyNimObject
 
-var PyArg_ParseTuple*: proc(f: PyObject, fmt: cstring): cint {.cdecl, varargs.}
-
     #  PyBufferProcs contains bf_getcharbuffer
 const Py_TPFLAGS_HAVE_GETCHARBUFFER  =(1 shl 0)
 
@@ -544,9 +542,6 @@ proc initCommon(m: var PyModuleDesc) =
         load Py_BuildValue, "_Py_BuildValue_SizeT"
         load PyTuple_Size, "PyTuple_Size"
         load PyTuple_GetItem, "PyTuple_GetItem"
-        PyArg_ParseTuple = cast[type(PyArg_ParseTuple)](pyLib.module.symAddr("_PyArg_ParseTuple_SizeT"))
-        if PyArg_ParseTuple.isNil:
-            raise newException(Exception, "Symbol not loaded: " & "PyArg_ParseTuple")
 
         load Py_None, "_Py_NoneStruct"
         load PyType_Ready, "PyType_Ready"
