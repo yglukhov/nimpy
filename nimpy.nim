@@ -327,6 +327,9 @@ type
         PyErr_SetString*: proc(o: PyObject, s: cstring) {.cdecl.}
         PyExc_TypeError*: PyObject
 
+        PyCapsule_New*: proc(p: pointer, name: cstring, destr: proc(o: PyObject) {.cdecl.}): PyObject {.cdecl.}
+        PyCapsule_GetPointer*: proc(c: PyObject, name: cstring): pointer {.cdecl.}
+
         when not defined(release):
             PyErr_Print: proc() {.cdecl.}
 
@@ -595,6 +598,9 @@ proc initCommon(m: var PyModuleDesc) =
 
         pyLib.PyExc_TypeError = cast[ptr PyObject](pyLib.PyExc_TypeError)[]
 
+        load PyCapsule_New, "PyCapsule_New"
+        load PyCapsule_GetPointer, "PyCapsule_GetPointer"
+
         when not defined(release):
             load PyErr_Print, "PyErr_Print"
 
@@ -776,6 +782,11 @@ proc pyObjToNim[T](o: PyObject, v: var T) =
         pyObjToNimSeq(o, v)
     elif T is array:
         pyObjToNimArray(o, v)
+    elif T is ref:
+        if cast[pointer](o) == cast[pointer](pyLib.Py_None):
+            v = nil
+        else:
+            v = cast[T](pyLib.PyCapsule_GetPointer(o, nil))
     elif T is object:
         pyObjToNimObj(o, v)
     else:
@@ -809,6 +820,10 @@ iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
 
 proc nimArrToPy[T](s: openarray[T]): PyObject
 proc nimObjToPy[T](o: T): PyObject
+
+proc refCapsuleDestructor(c: PyObject) {.cdecl.} =
+    let o = pyLib.PyCapsule_GetPointer(c, nil)
+    GC_unref(cast[ref int](o))
 
 proc nimValueToPy[T](v: T): PyObject {.inline.} =
     when T is void:
@@ -847,6 +862,13 @@ proc nimValueToPy[T](v: T): PyObject {.inline.} =
         pyLib.Py_BuildValue("d", float64(v))
     elif T is seq|array:
         nimArrToPy(v)
+    elif T is ref:
+        if v.isNil:
+            incRef(pyLib.Py_None)
+            pyLib.Py_None
+        else:
+            GC_ref(v)
+            pyLib.PyCapsule_New(cast[pointer](v), nil, refCapsuleDestructor)
     elif T is bool:
         pyLib.PyBool_FromLong(clong(v))
     elif T is Complex:

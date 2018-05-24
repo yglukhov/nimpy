@@ -25,9 +25,12 @@ proc complexSeqSqrt(a: seq[Complex]): seq[Complex] {.exportpy.} =
 
 proc sumIntsWithCustomName(a, b: int32): int {.exportpy: "sum_ints".} = a + b
 
-type MyObj = object
-    a, b: int
-    c: string
+type
+    MyObj = object
+        a, b: int
+        c: string
+
+    MyRefObj = ref MyObj
 
 proc getMyObj(): MyObj {.exportpy.} =
     result.a = 5
@@ -35,6 +38,17 @@ proc getMyObj(): MyObj {.exportpy.} =
 
 proc validateMyObj(o: MyObj): bool {.exportpy.} =
     o.a == 5 and o.c == "hello"
+
+proc getMyRefObj(): MyRefObj {.exportpy.} =
+    result.new
+    result.c = "123"
+    result.a = cast[int](result)
+
+proc validateMyRefObj(o: MyRefObj): bool {.exportpy.} =
+    o.a == cast[int](o) and o.c == "123"
+
+proc getNilObj(): MyRefObj {.exportpy.} = discard
+proc validateNilObj(o: MyRefObj): bool {.exportpy.} = o.isNil
 
 proc voidProc() {.exportpy.} =
     discard

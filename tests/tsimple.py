@@ -21,6 +21,10 @@ assert(simple.getMyObj()["a"] == 5)
 assert(simple.getMyObj()["c"] == "hello")
 assert(simple.validateMyObj(simple.getMyObj()))
 
+assert(simple.validateMyRefObj(simple.getMyRefObj()))
+assert(simple.getNilObj() == None)
+assert(simple.validateNilObj(simple.getNilObj()))
+
 simple.voidProc()
 
 excMsg = ""
