@@ -324,6 +324,8 @@ type
         PyDealloc*: proc(o: PyObject) {.nimcall.}
 
         PyErr_Clear*: proc() {.cdecl.}
+        PyErr_SetString*: proc(o: PyObject, s: cstring) {.cdecl.}
+        PyExc_TypeError*: PyObject
 
         when not defined(release):
             PyErr_Print: proc() {.cdecl.}
@@ -588,6 +590,10 @@ proc initCommon(m: var PyModuleDesc) =
             pyLib.PyDealloc = deallocPythonObj[PyTypeObject2]
 
         load PyErr_Clear, "PyErr_Clear"
+        load PyErr_SetString, "PyErr_SetString"
+        load PyExc_TypeError, "PyExc_TypeError"
+
+        pyLib.PyExc_TypeError = cast[ptr PyObject](pyLib.PyExc_TypeError)[]
 
         when not defined(release):
             load PyErr_Print, "PyErr_Print"
@@ -869,8 +875,11 @@ proc nimObjToPy[T](o: T): PyObject =
 proc parseArg[T](argTuple: PyObject, argIdx: int, result: var T) =
     pyObjToNim(pyLib.PyTuple_GetItem(argTuple, argIdx), result)
 
-proc verifyArgs(argTuple: PyObject, argsLen: int) =
-    discard # TODO: ...
+proc verifyArgs(argTuple: PyObject, argsLen: int, funcName: string): bool =
+    let sz = pyLib.PyTuple_Size(argTuple)
+    result = sz == argsLen
+    if not result:
+        pyLib.PyErr_SetString(pyLib.PyExc_TypeError, funcName & "() takes exactly " & $argsLen & " arguments (" & $sz & " given)")
 
 template seqTypeForOpenarrayType[T](t: type openarray[T]): typedesc = seq[T]
 template valueTypeForArgType(t: typedesc): typedesc =
@@ -879,7 +888,7 @@ template valueTypeForArgType(t: typedesc): typedesc =
     else:
         t
 
-proc makeWrapper(name, prc: NimNode): NimNode =
+proc makeWrapper(originalName: string, name, prc: NimNode): NimNode =
     let selfIdent = newIdentNode("self")
     let argsIdent = newIdentNode("args")
 
@@ -902,10 +911,11 @@ proc makeWrapper(name, prc: NimNode): NimNode =
         inc numArgs
 
     let argsLen = newLit(numArgs)
+    let nameLit = newLit(originalName)
     result.body.add quote do:
-        verifyArgs(`argsIdent`, `argsLen`)
-        `parseArgsStmts`
-        nimValueToPy(`origCall`)
+        if verifyArgs(`argsIdent`, `argsLen`, `nameLit`):
+            `parseArgsStmts`
+            return nimValueToPy(`origCall`)
 
 proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode =
     let modulename = modulename.splitFile.name
@@ -927,7 +937,7 @@ proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode
         procName = $procIdent
     if wrap:
         procIdent = newIdentNode($procIdent & "Py_wrapper")
-        result.add(makeWrapper(procIdent, prc))
+        result.add(makeWrapper(procName, procIdent, prc))
 
     result.add(newCall(bindSym"addMethod", newIdentNode("gPythonLocalModuleDesc"), newLit(procName), comment, procIdent))
     # echo "procname: ", procName

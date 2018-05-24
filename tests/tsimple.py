@@ -23,4 +23,12 @@ assert(simple.validateMyObj(simple.getMyObj()))
 
 simple.voidProc()
 
+excMsg = ""
+try:
+    print(simple.sumInts(1, 2, 3))
+except TypeError as e:
+    excMsg = str(e)
+
+assert(excMsg == "sumInts() takes exactly 2 arguments (3 given)")
+
 print("Tests complete!")
