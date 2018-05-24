@@ -743,7 +743,10 @@ proc pyObjToNimStr(o: PyObject, v: var string) =
     if not b.isNil:
         decRef b
 
-proc unknownType() {.inline.} = discard
+proc unknownTypeCompileError() {.inline.} =
+    # This function never compiles, it is needed to see somewhat informative
+    # compile time error
+    discard
 
 proc pyObjToNim[T](o: PyObject, v: var T)
 
@@ -790,7 +793,7 @@ proc pyObjToNim[T](o: PyObject, v: var T) =
     elif T is object:
         pyObjToNimObj(o, v)
     else:
-        unknownType(v)
+        unknownTypeCompileError(v)
 
 proc pyObjToNimSeq[T](o: PyObject, v: var seq[T]) =
     # assert(PyList_Check(o) != 0)
@@ -876,7 +879,7 @@ proc nimValueToPy[T](v: T): PyObject {.inline.} =
     elif T is object:
         nimObjToPy(v)
     else:
-        unknownType(v)
+        unknownTypeCompileError(v)
 
 proc nimArrToPy[T](s: openarray[T]): PyObject =
     let sz = s.len
