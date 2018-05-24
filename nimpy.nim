@@ -872,6 +872,13 @@ proc parseArg[T](argTuple: PyObject, argIdx: int, result: var T) =
 proc verifyArgs(argTuple: PyObject, argsLen: int) =
     discard # TODO: ...
 
+template seqTypeForOpenarrayType[T](t: type openarray[T]): typedesc = seq[T]
+template valueTypeForArgType(t: typedesc): typedesc =
+    when t is openarray:
+        seqTypeForOpenarrayType(t)
+    else:
+        t
+
 proc makeWrapper(name, prc: NimNode): NimNode =
     let selfIdent = newIdentNode("self")
     let argsIdent = newIdentNode("args")
@@ -889,7 +896,7 @@ proc makeWrapper(name, prc: NimNode): NimNode =
     var numArgs = 0
     for a in prc.arguments:
         let argIdent = newIdentNode("arg" & $a.idx & $a.name)
-        pyValueVarSection.add(newIdentDefs(argIdent, a.typ))
+        pyValueVarSection.add(newIdentDefs(argIdent, newCall(bindSym"valueTypeForArgType", a.typ)))
         parseArgsStmts.add(newCall(bindSym"parseArg", argsIdent, newLit(a.idx), argIdent))
         origCall.add(argIdent)
         inc numArgs
