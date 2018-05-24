@@ -20,4 +20,6 @@ assert(simple.getMyObj()["a"] == 5)
 assert(simple.getMyObj()["c"] == "hello")
 assert(simple.validateMyObj(simple.getMyObj()))
 
+simple.voidProc()
+
 print("Tests complete!")

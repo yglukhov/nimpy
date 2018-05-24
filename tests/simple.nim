@@ -34,6 +34,9 @@ proc getMyObj(): MyObj {.exportpy.} =
 proc validateMyObj(o: MyObj): bool {.exportpy.} =
     o.a == 5 and o.c == "hello"
 
+proc voidProc() {.exportpy.} =
+    discard
+
 type TestType = ref object of PyNimObjectBaseToInheritFromForAnExportedType
 
 pyexportTypeExperimental(TestType)

@@ -806,7 +806,6 @@ proc nimObjToPy[T](o: T): PyObject
 
 proc nimValueToPy[T](v: T): PyObject {.inline.} =
     when T is void:
-        v
         incRef(pyLib.Py_None)
         pyLib.Py_None
     elif T is string:
@@ -938,6 +937,9 @@ template exportpyraw*(prc: untyped) =
     declarePyModuleIfNeeded()
     exportpyAux(prc, instantiationInfo().filename, nil, false)
 
+# template exportpyIdent(i: typed, exportName: static[string]) =
+#     discard
+
 macro exportpy*(nameOrProc: untyped, maybeProc: untyped = nil): untyped =
     var procDef: NimNode
     var procName: string
@@ -948,6 +950,9 @@ macro exportpy*(nameOrProc: untyped, maybeProc: untyped = nil): untyped =
         procDef = maybeProc
         procName = $nameOrProc
 
+    # if procDef.kind in {nnkIdent, nnkSym}:
+    #     result = newCall(bindSym"exportpyIdent", procDef, newLit(procName))
+    # else:
     expectKind(procDef, nnkProcDef)
     result = newCall(bindSym"exportpyAuxAux", procDef, newLit(procName))
 
