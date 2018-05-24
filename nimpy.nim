@@ -544,33 +544,36 @@ proc initCommon(m: var PyModuleDesc) =
             if pyLib.v.isNil:
                 raise newException(Exception, "Symbol not loaded: " & $name)
 
+        template maybeLoad(v: untyped) = maybeLoad(v, astToStr(v))
+        template load(v: untyped) = load(v, astToStr(v))
+
         load Py_BuildValue, "_Py_BuildValue_SizeT"
-        load PyTuple_Size, "PyTuple_Size"
-        load PyTuple_GetItem, "PyTuple_GetItem"
+        load PyTuple_Size
+        load PyTuple_GetItem
 
         load Py_None, "_Py_NoneStruct"
-        load PyType_Ready, "PyType_Ready"
-        load PyType_GenericNew, "PyType_GenericNew"
-        load PyModule_AddObject, "PyModule_AddObject"
-        # load PyList_Check, "PyList_Check"
-        load PyList_New, "PyList_New"
-        load PyList_Size, "PyList_Size"
-        load PyList_GetItem, "PyList_GetItem"
-        load PyList_SetItem, "PyList_SetItem"
+        load PyType_Ready
+        load PyType_GenericNew
+        load PyModule_AddObject
 
-        load PyObject_CallObject, "PyObject_CallObject"
-        load PyObject_IsTrue, "PyObject_IsTrue"
+        load PyList_New
+        load PyList_Size
+        load PyList_GetItem
+        load PyList_SetItem
 
-        load PyLong_AsLongLong, "PyLong_AsLongLong"
-        load PyFloat_AsDouble, "PyFloat_AsDouble"
-        load PyBool_FromLong, "PyBool_FromLong"
+        load PyObject_CallObject
+        load PyObject_IsTrue
 
-        maybeLoad PyComplex_AsCComplex, "PyComplex_AsCComplex"
+        load PyLong_AsLongLong
+        load PyFloat_AsDouble
+        load PyBool_FromLong
+
+        maybeLoad PyComplex_AsCComplex
         if pyLib.PyComplex_AsCComplex.isNil:
-            load PyComplex_RealAsDouble, "PyComplex_RealAsDouble"
-            load PyComplex_ImagAsDouble, "PyComplex_ImagAsDouble"
+            load PyComplex_RealAsDouble
+            load PyComplex_ImagAsDouble
 
-        maybeLoad PyUnicode_AsUTF8String, "PyUnicode_AsUTF8String"
+        maybeLoad PyUnicode_AsUTF8String
         if pyLib.PyUnicode_AsUTF8String.isNil:
             maybeLoad PyUnicode_AsUTF8String, "PyUnicodeUCS4_AsUTF8String"
             if pyLib.PyUnicode_AsUTF8String.isNil:
@@ -578,31 +581,31 @@ proc initCommon(m: var PyModuleDesc) =
 
         var pythonVersion = 3
 
-        maybeLoad PyBytes_AsStringAndSize, "PyBytes_AsStringAndSize"
+        maybeLoad PyBytes_AsStringAndSize
         if pyLib.PyBytes_AsStringAndSize.isNil:
             load PyBytes_AsStringAndSize, "PyString_AsStringAndSize"
             pythonVersion = 2
 
-        load PyDict_Type, "PyDict_Type"
-        load PyDict_GetItemString, "PyDict_GetItemString"
-        load PyDict_SetItemString, "PyDict_SetItemString"
+        load PyDict_Type
+        load PyDict_GetItemString
+        load PyDict_SetItemString
 
         if pythonVersion == 3:
             pyLib.PyDealloc = deallocPythonObj[PyTypeObject3]
         else:
             pyLib.PyDealloc = deallocPythonObj[PyTypeObject2]
 
-        load PyErr_Clear, "PyErr_Clear"
-        load PyErr_SetString, "PyErr_SetString"
-        load PyExc_TypeError, "PyExc_TypeError"
+        load PyErr_Clear
+        load PyErr_SetString
+        load PyExc_TypeError
 
         pyLib.PyExc_TypeError = cast[ptr PyObject](pyLib.PyExc_TypeError)[]
 
-        load PyCapsule_New, "PyCapsule_New"
-        load PyCapsule_GetPointer, "PyCapsule_GetPointer"
+        load PyCapsule_New
+        load PyCapsule_GetPointer
 
         when not defined(release):
-            load PyErr_Print, "PyErr_Print"
+            load PyErr_Print
 
     m.methods.add(PyMethodDef()) # Add sentinel
 
@@ -832,6 +835,8 @@ proc nimValueToPy[T](v: T): PyObject {.inline.} =
     when T is void:
         incRef(pyLib.Py_None)
         pyLib.Py_None
+    elif T is PyObject:
+        v
     elif T is string:
         strToPyObject(v)
     elif T is int32:
