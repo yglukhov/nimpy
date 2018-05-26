@@ -1,4 +1,4 @@
-import simple,cmath
+import simple,cmath, os
 assert(simple.greet("world") == "Hello, world!")
 assert(simple.somethingThatReturnsNilString() == None)
 assert(simple.sumInts(4, 5) == 9)
@@ -37,5 +37,7 @@ assert(excMsg == "sumInts() takes exactly 2 arguments (3 given)")
 
 assert(simple.someFunc1(__builtins__) == 10)
 assert(simple.someFunc2(__builtins__) == 10)
+
+assert(simple.someFunc3() == os.getcwd())
 
 print("Tests complete!")

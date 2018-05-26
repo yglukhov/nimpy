@@ -34,5 +34,5 @@ process has launched your module.
 
 Eventually the lib should support:
 * exporting Nim types/functions as Python classes/methods
-* using Python types and functions from within Nim
+* using Python types and functions from within Nim (already possible to some extent)
 * starting Python environment in cases when its not already started. In other words - embedding Python into your program

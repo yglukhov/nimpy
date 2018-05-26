@@ -54,7 +54,12 @@ proc voidProc() {.exportpy.} =
     discard
 
 proc someFunc1(o: PyObject): PyObject {.exportpy.} = o.sum(o.range(1, 5))
-proc someFunc2(o: PyObject): PyObject {.exportpy.} = o.callMethod("sum", o.callMethod("range", 1, 5))
+proc someFunc2(o: PyObject): int {.exportpy.} =
+    o.callMethod(int, "sum", o.callMethod("range", 1, 5))
+
+proc someFunc3(): string {.exportpy.} =
+    doAssert(someFunc2(pyBuiltinsModule()) == 10)
+    result = pyImport("os").getcwd().to(string)
 
 type TestType = ref object of PyNimObjectBaseToInheritFromForAnExportedType
 

@@ -1,9 +1,12 @@
 import dynlib, macros, ospaths, strutils, complex
 
 type
-    PyObject* = distinct pointer
+    PyObject* = ref object
+        rawPyObj: PPyObject
 
-    PyCFunction = proc(s, a: PyObject): PyObject {.cdecl.}
+    PPyObject* = distinct pointer
+
+    PyCFunction = proc(s, a: PPyObject): PPyObject {.cdecl.}
 
     PyMethodDef = object
         ml_name: cstring
@@ -38,9 +41,9 @@ type
 
     PyModuleDef_Base = object
         ob_base: PyObjectObj
-        m_init: proc(): PyObject {.cdecl.}
+        m_init: proc(): PPyObject {.cdecl.}
         m_index: Py_ssize_t
-        m_copy: PyObject
+        m_copy: PPyObject
 
     PyModuleDef = object
         m_base: PyModuleDef_Base
@@ -56,7 +59,7 @@ type
 
     Py_buffer* = object
         buf: pointer
-        obj: PyObject
+        obj: PPyObject
         len: Py_ssize_t
         itemsize: Py_ssize_t
         readonly: cint
@@ -68,56 +71,56 @@ type
         smalltable: array[2, Py_ssize_t] # Don't refer! not available in python 3
         internal: pointer # Don't ever refer
 
-    Destructor = proc(o: PyObject) {.cdecl.}
-    Printfunc = proc(o: PyObject, f: File, c: cint): cint {.cdecl}
-    Getattrfunc = proc(o: PyObject, a: cstring): PyObject {.cdecl.}
-    Getattrofunc = proc(o, a: PyObject): PyObject {.cdecl.}
-    Setattrfunc = proc(o: PyObject, a: cstring, at: PyObject): cint {.cdecl.}
-    Setattrofunc = proc(o, a, at: PyObject): cint {.cdecl.}
-    Reprfunc = proc(o: PyObject): PyObject {.cdecl.}
-    Richcmpfunc = proc(a, b: PyObject, c: cint): PyObject {.cdecl.}
-    Getiterfunc = proc(a: PyObject): PyObject {.cdecl.}
-    Iternextfunc = proc(a: PyObject): PyObject {.cdecl.}
-    Descrgetfunc = proc(a, b, c: PyObject): PyObject {.cdecl.}
-    Descrsetfunc = proc(a, b, c: PyObject): cint {.cdecl.}
-    Initproc = proc(a, b, c: PyObject): cint {.cdecl.}
-    Newfunc = proc(typ: PyTypeObject, a, b: PyObject): PyObject {.cdecl.}
-    Allocfunc = proc(typ: PyTypeObject, sz: Py_ssize_t): PyObject {.cdecl.}
+    Destructor = proc(o: PPyObject) {.cdecl.}
+    Printfunc = proc(o: PPyObject, f: File, c: cint): cint {.cdecl}
+    Getattrfunc = proc(o: PPyObject, a: cstring): PPyObject {.cdecl.}
+    Getattrofunc = proc(o, a: PPyObject): PPyObject {.cdecl.}
+    Setattrfunc = proc(o: PPyObject, a: cstring, at: PPyObject): cint {.cdecl.}
+    Setattrofunc = proc(o, a, at: PPyObject): cint {.cdecl.}
+    Reprfunc = proc(o: PPyObject): PPyObject {.cdecl.}
+    Richcmpfunc = proc(a, b: PPyObject, c: cint): PPyObject {.cdecl.}
+    Getiterfunc = proc(a: PPyObject): PPyObject {.cdecl.}
+    Iternextfunc = proc(a: PPyObject): PPyObject {.cdecl.}
+    Descrgetfunc = proc(a, b, c: PPyObject): PPyObject {.cdecl.}
+    Descrsetfunc = proc(a, b, c: PPyObject): cint {.cdecl.}
+    Initproc = proc(a, b, c: PPyObject): cint {.cdecl.}
+    Newfunc = proc(typ: PyTypeObject, a, b: PPyObject): PPyObject {.cdecl.}
+    Allocfunc = proc(typ: PyTypeObject, sz: Py_ssize_t): PPyObject {.cdecl.}
     Freefunc = proc(p: pointer) {.cdecl.}
-    Cmpfunc = proc(a, b: PyObject): cint {.cdecl.}
+    Cmpfunc = proc(a, b: PPyObject): cint {.cdecl.}
 
     # 3
-    # typedef PyObject *(*getattrfunc)(PyObject *, char *);
-    # typedef PyObject *(*getattrofunc)(PyObject *, PyObject *);
-    # typedef int (*setattrfunc)(PyObject *, char *, PyObject *);
-    # typedef int (*setattrofunc)(PyObject *, PyObject *, PyObject *);
-    # typedef PyObject *(*reprfunc)(PyObject *);
-    # typedef Py_hash_t (*hashfunc)(PyObject *);
-    # typedef PyObject *(*richcmpfunc) (PyObject *, PyObject *, int);
-    # typedef PyObject *(*getiterfunc) (PyObject *);
-    # typedef PyObject *(*iternextfunc) (PyObject *);
-    # typedef PyObject *(*descrgetfunc) (PyObject *, PyObject *, PyObject *);
-    # typedef int (*descrsetfunc) (PyObject *, PyObject *, PyObject *);
-    # typedef int (*initproc)(PyObject *, PyObject *, PyObject *);
-    # typedef PyObject *(*newfunc)(struct _typeobject *, PyObject *, PyObject *);
-    # typedef PyObject *(*allocfunc)(struct _typeobject *, Py_ssize_t);
+    # typedef PPyObject *(*getattrfunc)(PPyObject *, char *);
+    # typedef PPyObject *(*getattrofunc)(PPyObject *, PPyObject *);
+    # typedef int (*setattrfunc)(PPyObject *, char *, PPyObject *);
+    # typedef int (*setattrofunc)(PPyObject *, PPyObject *, PPyObject *);
+    # typedef PPyObject *(*reprfunc)(PPyObject *);
+    # typedef Py_hash_t (*hashfunc)(PPyObject *);
+    # typedef PPyObject *(*richcmpfunc) (PPyObject *, PPyObject *, int);
+    # typedef PPyObject *(*getiterfunc) (PPyObject *);
+    # typedef PPyObject *(*iternextfunc) (PPyObject *);
+    # typedef PPyObject *(*descrgetfunc) (PPyObject *, PPyObject *, PPyObject *);
+    # typedef int (*descrsetfunc) (PPyObject *, PPyObject *, PPyObject *);
+    # typedef int (*initproc)(PPyObject *, PPyObject *, PPyObject *);
+    # typedef PPyObject *(*newfunc)(struct _typeobject *, PPyObject *, PPyObject *);
+    # typedef PPyObject *(*allocfunc)(struct _typeobject *, Py_ssize_t);
 
     # 2
-    # typedef PyObject *(*getattrfunc)(PyObject *, char *);
-    # typedef PyObject *(*getattrofunc)(PyObject *, PyObject *);
-    # typedef int (*setattrfunc)(PyObject *, char *, PyObject *);
-    # typedef int (*setattrofunc)(PyObject *, PyObject *, PyObject *);
-    # typedef int (*cmpfunc)(PyObject *, PyObject *);
-    # typedef PyObject *(*reprfunc)(PyObject *);
-    # typedef long (*hashfunc)(PyObject *);
-    # typedef PyObject *(*richcmpfunc) (PyObject *, PyObject *, int);
-    # typedef PyObject *(*getiterfunc) (PyObject *);
-    # typedef PyObject *(*iternextfunc) (PyObject *);
-    # typedef PyObject *(*descrgetfunc) (PyObject *, PyObject *, PyObject *);
-    # typedef int (*descrsetfunc) (PyObject *, PyObject *, PyObject *);
-    # typedef int (*initproc)(PyObject *, PyObject *, PyObject *);
-    # typedef PyObject *(*newfunc)(struct _typeobject *, PyObject *, PyObject *);
-    # typedef PyObject *(*allocfunc)(struct _typeobject *, Py_ssize_t);
+    # typedef PPyObject *(*getattrfunc)(PPyObject *, char *);
+    # typedef PPyObject *(*getattrofunc)(PPyObject *, PPyObject *);
+    # typedef int (*setattrfunc)(PPyObject *, char *, PPyObject *);
+    # typedef int (*setattrofunc)(PPyObject *, PPyObject *, PPyObject *);
+    # typedef int (*cmpfunc)(PPyObject *, PPyObject *);
+    # typedef PPyObject *(*reprfunc)(PPyObject *);
+    # typedef long (*hashfunc)(PPyObject *);
+    # typedef PPyObject *(*richcmpfunc) (PPyObject *, PPyObject *, int);
+    # typedef PPyObject *(*getiterfunc) (PPyObject *);
+    # typedef PPyObject *(*iternextfunc) (PPyObject *);
+    # typedef PPyObject *(*descrgetfunc) (PPyObject *, PPyObject *, PPyObject *);
+    # typedef int (*descrsetfunc) (PPyObject *, PPyObject *, PPyObject *);
+    # typedef int (*initproc)(PPyObject *, PPyObject *, PPyObject *);
+    # typedef PPyObject *(*newfunc)(struct _typeobject *, PPyObject *, PPyObject *);
+    # typedef PPyObject *(*allocfunc)(struct _typeobject *, Py_ssize_t);
 
     PyTypeObject3 = ptr PyTypeObject3Obj
     PyTypeObject3Obj = object of PyObjectVarHeadObj
@@ -180,7 +183,7 @@ type
         tp_getset: pointer # ptr PyGetSetDef
 
         tp_base: PyTypeObject3
-        tp_dict: PyObject
+        tp_dict: PPyObject
 
         tp_descr_get: Descrgetfunc
         tp_descr_set: Descrsetfunc
@@ -194,8 +197,8 @@ type
         tp_is_gc: pointer # inquiry /* For PyObject_IS_GC */
 
         tp_bases: ptr PyObjectObj
-        tp_mro: PyObject # method resolution order. array?
-        tp_cache: PyObject # array?
+        tp_mro: PPyObject # method resolution order. array?
+        tp_cache: PPyObject # array?
         tp_subclasses: ptr PyObjectObj
         tp_weaklist: ptr PyObjectObj
 
@@ -264,7 +267,7 @@ type
         tp_getset: pointer # ptr PyGetSetDef
 
         tp_base: PyTypeObject2
-        tp_dict: PyObject
+        tp_dict: PPyObject
 
         tp_descr_get: Descrgetfunc
         tp_descr_set: Descrsetfunc
@@ -278,8 +281,8 @@ type
         tp_is_gc: pointer # inquiry /* For PyObject_IS_GC */
 
         tp_bases: ptr PyObjectObj
-        tp_mro: PyObject # method resolution order. array?
-        tp_cache: PyObject # array?
+        tp_mro: PPyObject # method resolution order. array?
+        tp_cache: PPyObject # array?
         tp_subclasses: ptr PyObjectObj
         tp_weaklist: ptr PyObjectObj
 
@@ -288,52 +291,60 @@ type
     PyLib = ref object
         module: LibHandle
 
-        Py_BuildValue*: proc(f: cstring): PyObject {.cdecl, varargs.}
-        PyTuple_New*: proc(sz: Py_ssize_t): PyObject {.cdecl.}
-        PyTuple_Size*: proc(f: PyObject): Py_ssize_t {.cdecl.}
-        PyTuple_GetItem*: proc(f: PyObject, i: Py_ssize_t): PyObject {.cdecl.}
-        PyTuple_SetItem*: proc(f: PyObject, i: Py_ssize_t, v: PyObject): cint {.cdecl.}
+        Py_BuildValue*: proc(f: cstring): PPyObject {.cdecl, varargs.}
+        PyTuple_New*: proc(sz: Py_ssize_t): PPyObject {.cdecl.}
+        PyTuple_Size*: proc(f: PPyObject): Py_ssize_t {.cdecl.}
+        PyTuple_GetItem*: proc(f: PPyObject, i: Py_ssize_t): PPyObject {.cdecl.}
+        PyTuple_SetItem*: proc(f: PPyObject, i: Py_ssize_t, v: PPyObject): cint {.cdecl.}
 
-        Py_None*: PyObject
+        Py_None*: PPyObject
         PyType_Ready*: proc(f: PyTypeObject): cint {.cdecl.}
-        PyType_GenericNew*: proc(f: PyTypeObject, a, b: PyObject): PyObject {.cdecl.}
-        PyModule_AddObject*: proc(m: PyObject, n: cstring, o: PyObject): cint {.cdecl.}
+        PyType_GenericNew*: proc(f: PyTypeObject, a, b: PPyObject): PPyObject {.cdecl.}
+        PyModule_AddObject*: proc(m: PPyObject, n: cstring, o: PPyObject): cint {.cdecl.}
 
-        # PyList_Check*: proc(l: PyObject): cint {.cdecl.}
-        PyList_New*: proc(size: Py_ssize_t): PyObject {.cdecl.}
-        PyList_Size*: proc(l: PyObject): Py_ssize_t {.cdecl.}
-        PyList_GetItem*: proc(l: PyObject, index: Py_ssize_t): PyObject {.cdecl.}
-        PyList_SetItem*: proc(l: PyObject, index: Py_ssize_t, i: PyObject): cint {.cdecl.}
+        # PyList_Check*: proc(l: PPyObject): cint {.cdecl.}
+        PyList_New*: proc(size: Py_ssize_t): PPyObject {.cdecl.}
+        PyList_Size*: proc(l: PPyObject): Py_ssize_t {.cdecl.}
+        PyList_GetItem*: proc(l: PPyObject, index: Py_ssize_t): PPyObject {.cdecl.}
+        PyList_SetItem*: proc(l: PPyObject, index: Py_ssize_t, i: PPyObject): cint {.cdecl.}
 
-        PyObject_Call*: proc(callable_object, args, kw: PyObject): PyObject {.cdecl.}
-        PyObject_IsTrue*: proc(o: PyObject): cint {.cdecl.}
-        # PyObject_HasAttrString*: proc(o: PyObject, name: cstring): cint {.cdecl.}
-        PyObject_GetAttrString*: proc(o: PyObject, name: cstring): PyObject {.cdecl.}
-        PyObject_SetAttrString*: proc(o: PyObject, name: cstring, v: PyObject): cint {.cdecl.}
+        PyObject_Call*: proc(callable_object, args, kw: PPyObject): PPyObject {.cdecl.}
+        PyObject_IsTrue*: proc(o: PPyObject): cint {.cdecl.}
+        # PyObject_HasAttrString*: proc(o: PPyObject, name: cstring): cint {.cdecl.}
+        PyObject_GetAttrString*: proc(o: PPyObject, name: cstring): PPyObject {.cdecl.}
+        PyObject_SetAttrString*: proc(o: PPyObject, name: cstring, v: PPyObject): cint {.cdecl.}
+        PyObject_Dir*: proc(o: PPyObject): PPyObject {.cdecl.}
 
-        PyLong_AsLongLong*: proc(l: PyObject): int64 {.cdecl.}
-        PyFloat_AsDouble*: proc(l: PyObject): cdouble {.cdecl.}
-        PyBool_FromLong*: proc(v: clong): PyObject {.cdecl.}
+        PyLong_AsLongLong*: proc(l: PPyObject): int64 {.cdecl.}
+        PyFloat_AsDouble*: proc(l: PPyObject): cdouble {.cdecl.}
+        PyBool_FromLong*: proc(v: clong): PPyObject {.cdecl.}
 
-        PyComplex_AsCComplex*: proc(op: PyObject): Complex {.cdecl.}
-        PyComplex_RealAsDouble*: proc(op: PyObject): cdouble {.cdecl.}
-        PyComplex_ImagAsDouble*: proc(op: PyObject): cdouble {.cdecl.}
+        PyComplex_AsCComplex*: proc(op: PPyObject): Complex {.cdecl.}
+        PyComplex_RealAsDouble*: proc(op: PPyObject): cdouble {.cdecl.}
+        PyComplex_ImagAsDouble*: proc(op: PPyObject): cdouble {.cdecl.}
 
-        PyUnicode_AsUTF8String*: proc(o: PyObject): PyObject {.cdecl.}
-        PyBytes_AsStringAndSize*: proc(o: PyObject, s: ptr ptr char, len: ptr Py_ssize_t): cint {.cdecl.}
+        PyUnicode_AsUTF8String*: proc(o: PPyObject): PPyObject {.cdecl.}
+        PyBytes_AsStringAndSize*: proc(o: PPyObject, s: ptr ptr char, len: ptr Py_ssize_t): cint {.cdecl.}
 
         PyDict_Type*: PyTypeObject
-        PyDict_GetItemString*: proc(o: PyObject, k: cstring): PyObject {.cdecl.}
-        PyDict_SetItemString*: proc(o: PyObject, k: cstring, v: PyObject): cint {.cdecl.}
+        PyDict_GetItemString*: proc(o: PPyObject, k: cstring): PPyObject {.cdecl.}
+        PyDict_SetItemString*: proc(o: PPyObject, k: cstring, v: PPyObject): cint {.cdecl.}
 
-        PyDealloc*: proc(o: PyObject) {.nimcall.}
+        PyDealloc*: proc(o: PPyObject) {.nimcall.}
 
         PyErr_Clear*: proc() {.cdecl.}
-        PyErr_SetString*: proc(o: PyObject, s: cstring) {.cdecl.}
-        PyExc_TypeError*: PyObject
+        PyErr_SetString*: proc(o: PPyObject, s: cstring) {.cdecl.}
+        PyExc_TypeError*: PPyObject
 
-        PyCapsule_New*: proc(p: pointer, name: cstring, destr: proc(o: PyObject) {.cdecl.}): PyObject {.cdecl.}
-        PyCapsule_GetPointer*: proc(c: PyObject, name: cstring): pointer {.cdecl.}
+        PyCapsule_New*: proc(p: pointer, name: cstring, destr: proc(o: PPyObject) {.cdecl.}): PPyObject {.cdecl.}
+        PyCapsule_GetPointer*: proc(c: PPyObject, name: cstring): pointer {.cdecl.}
+
+        PyImport_ImportModule*: proc(name: cstring): PPyObject {.cdecl.}
+        PyEval_GetBuiltins*: proc(): PPyObject {.cdecl.}
+        PyEval_GetGlobals*: proc(): PPyObject {.cdecl.}
+        PyEval_GetLocals*: proc(): PPyObject {.cdecl.}
+
+        pythonVersion*: int
 
         when not defined(release):
             PyErr_Print: proc() {.cdecl.}
@@ -427,7 +438,7 @@ const Py_TPFLAGS_DEFAULT_EXTERNAL = Py_TPFLAGS_HAVE_GETCHARBUFFER or
 
 const Py_TPFLAGS_DEFAULT_CORE = Py_TPFLAGS_DEFAULT_EXTERNAL or Py_TPFLAGS_HAVE_VERSION_TAG
 
-proc isNil*(p: PyObject): bool {.borrow.}
+proc isNil*(p: PPyObject): bool {.borrow.}
 
 var pyLib: PyLib
 
@@ -451,14 +462,14 @@ type
 proc addMethod(m: var PyModuleDesc, name, doc: cstring, f: PyCFunction) =
     m.methods.add(PyMethodDef(ml_name: name, ml_meth: f, ml_flags: 1, ml_doc: doc))
 
-proc newNimObjToPyObj(typ: PyTypeObject, o: PyNimObject): PyObject =
+proc newNimObjToPyObj(typ: PyTypeObject, o: PyNimObject): PPyObject =
     # echo "New called"
     GC_ref(o)
-    result = cast[PyObject](addr o.py_object)
+    result = cast[PPyObject](addr o.py_object)
     o.py_object.ob_type = typ
     o.py_object.ob_refcnt = 1
 
-proc newPyNimObject[T](typ: PyTypeObject, args, kwds: PyObject): PyObject {.cdecl.} =
+proc newPyNimObject[T](typ: PyTypeObject, args, kwds: PPyObject): PPyObject {.cdecl.} =
     newNimObjToPyObj(typ, T.new())
 
 proc initPythonModuleDesc(m: var PyModuleDesc, name, doc: cstring) =
@@ -469,25 +480,25 @@ proc initPythonModuleDesc(m: var PyModuleDesc, name, doc: cstring) =
 
 var traceRefs: bool
 
-proc pyAlloc(sz: int): PyObject =
+proc pyAlloc(sz: int): PPyObject =
     var sz = sz
     if traceRefs:
         sz += sizeof(PyObject_HEAD_EXTRA)
-    result = cast[PyObject](alloc0(sz))
+    result = cast[PPyObject](alloc0(sz))
 
-proc to(p: PyObject, t: typedesc): ptr t {.inline.} =
+proc to(p: PPyObject, t: typedesc): ptr t {.inline.} =
     if traceRefs:
         result = cast[ptr t](cast[uint](p) + sizeof(PyObject_HEAD_EXTRA).uint)
     else:
         result = cast[ptr t](p)
 
-proc toNim(p: PyObject, t: typedesc): t {.inline.} =
+proc toNim(p: PPyObject, t: typedesc): t {.inline.} =
     result = cast[t](cast[uint](p) - uint(sizeof(PyObject_HEAD_EXTRA) + sizeof(pointer)))
 
-proc incRef(p: PyObject) {.inline.} =
+proc incRef(p: PPyObject) {.inline.} =
     inc p.to(PyObjectObj).ob_refcnt
 
-proc decRef(p: PyObject) {.inline.} =
+proc decRef(p: PPyObject) {.inline.} =
     let o = p.to(PyObjectObj)
     dec o.ob_refcnt
     if o.ob_refcnt == 0:
@@ -522,10 +533,13 @@ when defined(windows):
         raise newException(Exception, "Could not find pythonXX.dll")
 
 
-proc deallocPythonObj[TypeObjectType](p: PyObject) =
+proc deallocPythonObj[TypeObjectType](p: PPyObject) =
     let ob = p.to(PyObjectObj)
     let t = cast[TypeObjectType](ob.ob_type)
-    t.tp_dealloc(cast[PyObject](p))
+    t.tp_dealloc(cast[PPyObject](p))
+
+proc symNotLoadedErr(s: cstring) =
+    raise newException(Exception, "Symbol not loaded: " & $s)
 
 proc initCommon(m: var PyModuleDesc) =
     if pyLib.isNil:
@@ -547,7 +561,7 @@ proc initCommon(m: var PyModuleDesc) =
         template load(v: untyped, name: cstring) =
             maybeLoad(v, name)
             if pyLib.v.isNil:
-                raise newException(Exception, "Symbol not loaded: " & $name)
+                symNotLoadedErr(name)
 
         template maybeLoad(v: untyped) = maybeLoad(v, astToStr(v))
         template load(v: untyped) = load(v, astToStr(v))
@@ -573,6 +587,7 @@ proc initCommon(m: var PyModuleDesc) =
         # load PyObject_HasAttrString
         load PyObject_GetAttrString
         load PyObject_SetAttrString
+        load PyObject_Dir
 
         load PyLong_AsLongLong
         load PyFloat_AsDouble
@@ -589,18 +604,18 @@ proc initCommon(m: var PyModuleDesc) =
             if pyLib.PyUnicode_AsUTF8String.isNil:
                 load PyUnicode_AsUTF8String, "PyUnicodeUCS2_AsUTF8String"
 
-        var pythonVersion = 3
+        pyLib.pythonVersion = 3
 
         maybeLoad PyBytes_AsStringAndSize
         if pyLib.PyBytes_AsStringAndSize.isNil:
             load PyBytes_AsStringAndSize, "PyString_AsStringAndSize"
-            pythonVersion = 2
+            pyLib.pythonVersion = 2
 
         load PyDict_Type
         load PyDict_GetItemString
         load PyDict_SetItemString
 
-        if pythonVersion == 3:
+        if pyLib.pythonVersion == 3:
             pyLib.PyDealloc = deallocPythonObj[PyTypeObject3]
         else:
             pyLib.PyDealloc = deallocPythonObj[PyTypeObject3] # Why does PyTypeObject3Obj work here and PyTypeObject2Obj does not???
@@ -609,17 +624,22 @@ proc initCommon(m: var PyModuleDesc) =
         load PyErr_SetString
         load PyExc_TypeError
 
-        pyLib.PyExc_TypeError = cast[ptr PyObject](pyLib.PyExc_TypeError)[]
+        pyLib.PyExc_TypeError = cast[ptr PPyObject](pyLib.PyExc_TypeError)[]
 
         load PyCapsule_New
         load PyCapsule_GetPointer
+
+        load PyImport_ImportModule
+        load PyEval_GetBuiltins
+        load PyEval_GetGlobals
+        load PyEval_GetLocals
 
         when not defined(release):
             load PyErr_Print
 
     m.methods.add(PyMethodDef()) # Add sentinel
 
-proc destructNimObj(o: PyObject) {.cdecl.} =
+proc destructNimObj(o: PPyObject) {.cdecl.} =
     let n = toNim(o, PyNimObject)
     GC_unref(n)
     # echo "Destruct called"
@@ -627,7 +647,7 @@ proc destructNimObj(o: PyObject) {.cdecl.} =
 proc freeNimObj(p: pointer) {.cdecl.} =
     raise newException(Exception, "Internal pynim error. Free called on Nim object.")
 
-proc initModuleTypes[PyTypeObj](p: PyObject, m: var PyModuleDesc) =
+proc initModuleTypes[PyTypeObj](p: PPyObject, m: var PyModuleDesc) =
     for i in 0 ..< m.types.len:
         let typ = pyAlloc(sizeof(PyTypeObj))
         let ty = typ.to(PyTypeObj)
@@ -650,7 +670,7 @@ proc initModule2(m: var PyModuleDesc) {.inline.} =
     initCommon(m)
     const PYTHON_ABI_VERSION = 1013
 
-    var Py_InitModule4: proc(name: cstring, methods: ptr PyMethodDef, doc: cstring, self: PyObject, apiver: cint): PyObject {.cdecl.}
+    var Py_InitModule4: proc(name: cstring, methods: ptr PyMethodDef, doc: cstring, self: PPyObject, apiver: cint): PPyObject {.cdecl.}
     Py_InitModule4 = cast[type(Py_InitModule4)](pyLib.module.symAddr("Py_InitModule4"))
     if Py_InitModule4.isNil:
         Py_InitModule4 = cast[type(Py_InitModule4)](pyLib.module.symAddr("Py_InitModule4_64"))
@@ -665,10 +685,10 @@ proc initPyModule(p: ptr PyModuleDef, m: var PyModuleDesc) {.inline.} =
     p.m_size = -1
     p.m_methods = addr m.methods[0]
 
-proc initModule3(m: var PyModuleDesc): PyObject {.inline.} =
+proc initModule3(m: var PyModuleDesc): PPyObject {.inline.} =
     initCommon(m)
     const PYTHON_ABI_VERSION = 3
-    var PyModule_Create2: proc(m: PyObject, apiver: cint): PyObject {.cdecl.}
+    var PyModule_Create2: proc(m: PPyObject, apiver: cint): PPyObject {.cdecl.}
     PyModule_Create2 = cast[type(PyModule_Create2)](pyLib.module.symAddr("PyModule_Create2"))
 
     if PyModule_Create2.isNil:
@@ -684,14 +704,17 @@ proc NimMain() {.importc.}
 
 {.push stackTrace: off.}
 template initNimIfNeeded() =
-    if pyLib.isNil:
-        NimMain()
+    when not defined(posix):
+        # On posix NimMain should be called from NimMainInit __attribute__((constructor))
+        # TODO: Check this on windows...
+        if pyLib.isNil:
+            NimMain()
 
 proc initModuleAux2(m: var PyModuleDesc) =
     initNimIfNeeded()
     initModule2(m)
 
-proc initModuleAux3(m: var PyModuleDesc): PyObject =
+proc initModuleAux3(m: var PyModuleDesc): PPyObject =
     initNimIfNeeded()
     initModule3(m)
 {.pop.}
@@ -706,7 +729,7 @@ template declarePyModuleIfNeededAux(name: untyped) =
         proc `py2init name`() {.exportc: "init" & nameStr, dynlib.} =
             initModuleAux2(gPythonLocalModuleDesc)
 
-        proc `py3init name`(): PyObject {.exportc: "PyInit_" & nameStr, dynlib.} =
+        proc `py3init name`(): PPyObject {.exportc: "PyInit_" & nameStr, dynlib.} =
             initModuleAux3(gPythonLocalModuleDesc)
         {.pop.}
 
@@ -728,12 +751,12 @@ proc toString*(b: Py_buffer): string =
         if ln != 0:
             copyMem(addr result[0], b.buf, ln)
 
-proc pyObjToNimSeq[T](o: PyObject, v: var seq[T])
-proc pyObjToNimArray[T, I](o: PyObject, s: var array[I, T])
-proc pyObjToNimStr(o: PyObject, v: var string) =
+proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T])
+proc pyObjToNimArray[T, I](o: PPyObject, s: var array[I, T])
+proc pyObjToNimStr(o: PPyObject, v: var string) =
     var s: ptr char
     var l: Py_ssize_t
-    var b: PyObject
+    var b: PPyObject
 
     if pyLib.PyBytes_AsStringAndSize(o, addr s, addr l) != 0:
         # TODO: This requires more elaborate type checking to avoid raising and clearing errors
@@ -761,9 +784,9 @@ proc unknownTypeCompileError() {.inline.} =
     # compile time error
     discard
 
-proc pyObjToNim[T](o: PyObject, v: var T)
+proc pyObjToNim[T](o: PPyObject, v: var T)
 
-proc strToPyObject(s: string): PyObject {.inline.} =
+proc strToPyObject(s: string): PPyObject {.inline.} =
     var cs: cstring
     var ln: cint
     if not s.isNil:
@@ -771,21 +794,34 @@ proc strToPyObject(s: string): PyObject {.inline.} =
         ln = cint(s.xlen)
     pyLib.Py_BuildValue("s#", cs, ln)
 
-proc pyObjToNimObj(o: PyObject, vv: var object) =
+proc pyObjToNimObj(o: PPyObject, vv: var object) =
     for k, v in fieldPairs(vv):
         let f = pyLib.PyDict_GetItemString(o, k)
         pyObjToNim(f, v)
         # No DECREF here. PyDict_GetItemString returns a boorowed ref.
 
-proc pyObjToNim[T](o: PyObject, v: var T) =
+proc finalizePyObject(o: PyObject) =
+    decRef o.rawPyObj
+
+proc newPyObjectConsumingRef(o: PPyObject): PyObject =
+    result.new(finalizePyObject)
+    result.rawPyObj = o
+
+proc newPyObject(o: PPyObject): PyObject =
+    incRef o
+    newPyObjectConsumingRef(o)
+
+proc pyObjToNim[T](o: PPyObject, v: var T) =
     when T is int|int32|int64|int16|uint32|uint64|uint16|uint8|int8:
         v = T(pyLib.PyLong_AsLongLong(o))
     elif T is float|float32|float64:
         v = T(pyLib.PyFloat_AsDouble(o))
     elif T is bool:
         v = bool(pyLib.PyObject_IsTrue(o))
-    elif T is PyObject:
+    elif T is PPyObject:
         v = o
+    elif T is PyObject:
+        v = newPyObject(o)
     elif T is Complex:
         if unlikely pyLib.PyComplex_AsCComplex.isNil:
             v.re = pyLib.PyComplex_RealAsDouble(o)
@@ -808,7 +844,7 @@ proc pyObjToNim[T](o: PyObject, v: var T) =
     else:
         unknownTypeCompileError(v)
 
-proc pyObjToNimSeq[T](o: PyObject, v: var seq[T]) =
+proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T]) =
     # assert(PyList_Check(o) != 0)
     let sz = int(pyLib.PyList_Size(o))
     assert(sz >= 0)
@@ -817,7 +853,7 @@ proc pyObjToNimSeq[T](o: PyObject, v: var seq[T]) =
         pyObjToNim(pyLib.PyList_GetItem(o, i), v[i])
         # PyList_GetItem # No DECREF. Returns borrowed ref.
 
-proc pyObjToNimArray[T, I](o: PyObject, s: var array[I, T]) =
+proc pyObjToNimArray[T, I](o: PPyObject, s: var array[I, T]) =
     # assert(PyList_Check(o) != 0)
     let sz = int(pyLib.PyList_Size(o))
     assert(sz == s.len)
@@ -834,19 +870,22 @@ iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
             yield (iParam, pp[j], pp[^2], pp[^1])
             inc iParam
 
-proc nimArrToPy[T](s: openarray[T]): PyObject
-proc nimObjToPy[T](o: T): PyObject
+proc nimArrToPy[T](s: openarray[T]): PPyObject
+proc nimObjToPy[T](o: T): PPyObject
 
-proc refCapsuleDestructor(c: PyObject) {.cdecl.} =
+proc refCapsuleDestructor(c: PPyObject) {.cdecl.} =
     let o = pyLib.PyCapsule_GetPointer(c, nil)
     GC_unref(cast[ref int](o))
 
-proc nimValueToPy[T](v: T): PyObject {.inline.} =
+proc nimValueToPy[T](v: T): PPyObject {.inline.} =
     when T is void:
         incRef(pyLib.Py_None)
         pyLib.Py_None
-    elif T is PyObject:
+    elif T is PPyObject:
         v
+    elif T is PyObject:
+        incRef v.rawPyObj
+        v.rawPyObj
     elif T is string:
         strToPyObject(v)
     elif T is int32:
@@ -896,31 +935,34 @@ proc nimValueToPy[T](v: T): PyObject {.inline.} =
     else:
         unknownTypeCompileError(v)
 
-proc nimArrToPy[T](s: openarray[T]): PyObject =
+proc nimArrToPy[T](s: openarray[T]): PPyObject =
     let sz = s.len
     result = pyLib.PyList_New(sz)
     for i in 0 ..< sz:
         let o = nimValueToPy(s[i])
         discard pyLib.PyList_SetItem(result, i, o)
 
-proc PyObject_CallObject(o: PyObject): PyObject =
+proc PyObject_CallObject(o: PPyObject): PPyObject =
     let args = pyLib.PyTuple_New(0)
     result = pyLib.PyObject_Call(o, args, nil)
     decRef args
 
-proc nimObjToPy[T](o: T): PyObject =
-    result = PyObject_CallObject(cast[PyObject](pyLib.PyDict_Type))
+proc cannotSerializeErr(k: string) =
+    raise newException(Exception, "Could not serialize object key: " & k)
+
+proc nimObjToPy[T](o: T): PPyObject =
+    result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
     for k, v in fieldPairs(o):
         let vv = nimValueToPy(v)
         let ret = pyLib.PyDict_SetItemString(result, k, vv)
         decRef vv
         if ret != 0:
-            raise newException(Exception, "Could not serialize object key: " & k)
+            cannotSerializeErr(k)
 
-proc parseArg[T](argTuple: PyObject, argIdx: int, result: var T) =
+proc parseArg[T](argTuple: PPyObject, argIdx: int, result: var T) =
     pyObjToNim(pyLib.PyTuple_GetItem(argTuple, argIdx), result)
 
-proc verifyArgs(argTuple: PyObject, argsLen: int, funcName: string): bool =
+proc verifyArgs(argTuple: PPyObject, argsLen: int, funcName: string): bool =
     let sz = pyLib.PyTuple_Size(argTuple)
     result = sz == argsLen
     if not result:
@@ -937,7 +979,7 @@ proc makeWrapper(originalName: string, name, prc: NimNode): NimNode =
     let selfIdent = newIdentNode("self")
     let argsIdent = newIdentNode("args")
 
-    result = newProc(name, params = [bindSym"PyObject", newIdentDefs(selfIdent, bindSym"PyObject"), newIdentDefs(argsIdent, bindSym"PyObject")])
+    result = newProc(name, params = [bindSym"PPyObject", newIdentDefs(selfIdent, bindSym"PPyObject"), newIdentDefs(argsIdent, bindSym"PPyObject")])
     result.addPragma(newIdentNode("cdecl"))
     result.body = newStmtList()
 
@@ -1035,14 +1077,19 @@ template pyexportTypeExperimental*(T: typed) =
     addType(gPythonLocalModuleDesc, T)
 
 
-template toPyObject*[T](v: T): PyObject = nimValueToPy(v)
-
 ################################################################################
 ################################################################################
 ################################################################################
 # Calling functions
 
-proc callMethod*(o: PyObject, name: cstring, args: varargs[PyObject, toPyObject]): PyObject =
+template toPyObjectArgument*[T](v: T): PPyObject =
+    # Don't use this directly!
+    nimValueToPy(v)
+
+proc to*(v: PyObject, T: typedesc): T {.inline.} =
+    pyObjToNim(v.rawPyObj, result)
+
+proc callMethodAux(o: PPyObject, name: cstring, args: openarray[PPyObject]): PPyObject =
     let callable = pyLib.PyObject_GetAttrString(o, name)
     if callable.isNil:
         raise newException(Exception, "No callable attribute: " & $name)
@@ -1055,5 +1102,31 @@ proc callMethod*(o: PyObject, name: cstring, args: varargs[PyObject, toPyObject]
     decRef argTuple
     decRef callable
 
-template `.()`*(o: PyObject, field: untyped, args: varargs[untyped]): PyObject =
+proc callMethod*(o: PyObject, name: cstring, args: varargs[PPyObject, toPyObjectArgument]): PyObject {.inline.} =
+    newPyObjectConsumingRef(callMethodAux(o.rawPyObj, name, args))
+
+proc callMethod*(o: PyObject, ResultType: typedesc, name: cstring, args: varargs[PPyObject, toPyObjectArgument]): ResultType {.inline.} =
+    let res = callMethodAux(o.rawPyObj, name, args)
+    pyObjToNim(res, result)
+    decRef res
+
+template `.()`*(o: PyObject, field: untyped, args: varargs[PPyObject, toPyObjectArgument]): PyObject =
     callMethod(o, astToStr(field), args)
+
+proc pyImport*(moduleName: cstring): PyObject =
+    newPyObjectConsumingRef(pyLib.PyImport_ImportModule(moduleName))
+
+proc pyBuiltins*(): PyObject = newPyObject(pyLib.PyEval_GetBuiltins())
+proc pyGlobals*(): PyObject = newPyObject(pyLib.PyEval_GetGlobals())
+proc pyLocals*(): PyObject = newPyObject(pyLib.PyEval_GetLocals())
+
+proc dir*(v: PyObject): seq[string] =
+    let lst = pyLib.PyObject_Dir(v.rawPyObj)
+    pyObjToNim(lst, result)
+    decRef lst
+
+proc pyBuiltinsModule*(): PyObject =
+    if pyLib.pythonVersion == 3:
+        pyImport("builtins")
+    else:
+        pyImport("__builtin__")
