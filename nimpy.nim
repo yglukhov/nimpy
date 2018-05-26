@@ -666,7 +666,7 @@ proc initModuleTypes[PyTypeObj](p: PPyObject, m: var PyModuleDesc) =
         incRef(typ)
         discard pyLib.PyModule_AddObject(p, m.types[i].name, typ)
 
-proc initModule2(m: var PyModuleDesc) {.inline.} =
+proc initModule2(m: var PyModuleDesc) =
     initCommon(m)
     const PYTHON_ABI_VERSION = 1013
 
@@ -685,7 +685,7 @@ proc initPyModule(p: ptr PyModuleDef, m: var PyModuleDesc) {.inline.} =
     p.m_size = -1
     p.m_methods = addr m.methods[0]
 
-proc initModule3(m: var PyModuleDesc): PPyObject {.inline.} =
+proc initModule3(m: var PyModuleDesc): PPyObject =
     initCommon(m)
     const PYTHON_ABI_VERSION = 3
     var PyModule_Create2: proc(m: PPyObject, apiver: cint): PPyObject {.cdecl.}
@@ -700,25 +700,6 @@ proc initModule3(m: var PyModuleDesc): PPyObject {.inline.} =
         result = PyModule_Create2(pymod, PYTHON_ABI_VERSION)
         initModuleTypes[PyTypeObject3Obj](result, m)
 
-proc NimMain() {.importc.}
-
-{.push stackTrace: off.}
-template initNimIfNeeded() =
-    when not defined(posix):
-        # On posix NimMain should be called from NimMainInit __attribute__((constructor))
-        # TODO: Check this on windows...
-        if pyLib.isNil:
-            NimMain()
-
-proc initModuleAux2(m: var PyModuleDesc) =
-    initNimIfNeeded()
-    initModule2(m)
-
-proc initModuleAux3(m: var PyModuleDesc): PPyObject =
-    initNimIfNeeded()
-    initModule3(m)
-{.pop.}
-
 template declarePyModuleIfNeededAux(name: untyped) =
     when not declared(gPythonLocalModuleDesc):
         const nameStr = astToStr(name)
@@ -727,10 +708,10 @@ template declarePyModuleIfNeededAux(name: untyped) =
         initPythonModuleDesc(gPythonLocalModuleDesc, nameStr, nil)
         {.push stackTrace: off.}
         proc `py2init name`() {.exportc: "init" & nameStr, dynlib.} =
-            initModuleAux2(gPythonLocalModuleDesc)
+            initModule2(gPythonLocalModuleDesc)
 
         proc `py3init name`(): PPyObject {.exportc: "PyInit_" & nameStr, dynlib.} =
-            initModuleAux3(gPythonLocalModuleDesc)
+            initModule3(gPythonLocalModuleDesc)
         {.pop.}
 
 macro declarePyModuleIfNeededAuxMacro(modulename: static[string]): typed =
