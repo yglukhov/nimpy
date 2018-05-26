@@ -975,6 +975,11 @@ template valueTypeForArgType(t: typedesc): typedesc =
     else:
         t
 
+proc updateStackBottom() {.inline.} =
+    when declared(GC_setStackBottom):
+        var a: int
+        GC_setStackBottom(addr a)
+
 proc makeWrapper(originalName: string, name, prc: NimNode): NimNode =
     let selfIdent = newIdentNode("self")
     let argsIdent = newIdentNode("args")
@@ -1000,6 +1005,7 @@ proc makeWrapper(originalName: string, name, prc: NimNode): NimNode =
     let argsLen = newLit(numArgs)
     let nameLit = newLit(originalName)
     result.body.add quote do:
+        updateStackBottom()
         if verifyArgs(`argsIdent`, `argsLen`, `nameLit`):
             `parseArgsStmts`
             return nimValueToPy(`origCall`)
