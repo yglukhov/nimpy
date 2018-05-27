@@ -515,7 +515,7 @@ when defined(windows):
     proc getModuleFileName(handle: Handle, buf: cstring, size: int32): int32 {.
         importc: "GetModuleFileNameA", dynlib: "kernel32", stdcall.}
 
-    proc findPythonDLL(): string =
+    proc findPythonDLL(): string {.inline.} =
         var mods: array[1024, Handle]
         var sz: DWORD
         let pr = getCurrentProcess()
@@ -633,7 +633,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     when not defined(release):
         load PyErr_Print
 
-proc pythonLibHandleForThisProcess(): LibHandle =
+proc pythonLibHandleForThisProcess(): LibHandle {.inline.} =
     when defined(windows):
         getModuleHandle(findPythonDLL())
     else:
