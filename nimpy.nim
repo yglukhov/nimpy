@@ -541,108 +541,115 @@ proc deallocPythonObj[TypeObjectType](p: PPyObject) =
 proc symNotLoadedErr(s: cstring) =
     raise newException(Exception, "Symbol not loaded: " & $s)
 
+proc loadPyLibFromModule(m: LibHandle): PyLib =
+    assert(not m.isNil)
+    result.new()
+    let pl = result
+    pl.module = m
+    if not (m.symAddr("PyModule_Create2").isNil or
+            m.symAddr("Py_InitModule4_64").isNil or
+            m.symAddr("Py_InitModule4").isNil):
+        traceRefs = true
+
+    template maybeLoad(v: untyped, name: cstring) =
+        pl.v = cast[type(pl.v)](m.symAddr(name))
+
+    template load(v: untyped, name: cstring) =
+        maybeLoad(v, name)
+        if pl.v.isNil:
+            symNotLoadedErr(name)
+
+    template maybeLoad(v: untyped) = maybeLoad(v, astToStr(v))
+    template load(v: untyped) = load(v, astToStr(v))
+
+    load Py_BuildValue, "_Py_BuildValue_SizeT"
+    load PyTuple_New
+    load PyTuple_Size
+    load PyTuple_GetItem
+    load PyTuple_SetItem
+
+    load Py_None, "_Py_NoneStruct"
+    load PyType_Ready
+    load PyType_GenericNew
+    load PyModule_AddObject
+
+    load PyList_New
+    load PyList_Size
+    load PyList_GetItem
+    load PyList_SetItem
+
+    load PyObject_Call
+    load PyObject_IsTrue
+    # load PyObject_HasAttrString
+    load PyObject_GetAttrString
+    load PyObject_SetAttrString
+    load PyObject_Dir
+
+    load PyLong_AsLongLong
+    load PyFloat_AsDouble
+    load PyBool_FromLong
+
+    maybeLoad PyComplex_AsCComplex
+    if pl.PyComplex_AsCComplex.isNil:
+        load PyComplex_RealAsDouble
+        load PyComplex_ImagAsDouble
+
+    maybeLoad PyUnicode_AsUTF8String
+    if pl.PyUnicode_AsUTF8String.isNil:
+        maybeLoad PyUnicode_AsUTF8String, "PyUnicodeUCS4_AsUTF8String"
+        if pl.PyUnicode_AsUTF8String.isNil:
+            load PyUnicode_AsUTF8String, "PyUnicodeUCS2_AsUTF8String"
+
+    pl.pythonVersion = 3
+
+    maybeLoad PyBytes_AsStringAndSize
+    if pl.PyBytes_AsStringAndSize.isNil:
+        load PyBytes_AsStringAndSize, "PyString_AsStringAndSize"
+        pl.pythonVersion = 2
+
+    load PyDict_Type
+    load PyDict_GetItemString
+    load PyDict_SetItemString
+
+    if pl.pythonVersion == 3:
+        pl.PyDealloc = deallocPythonObj[PyTypeObject3]
+    else:
+        pl.PyDealloc = deallocPythonObj[PyTypeObject3] # Why does PyTypeObject3Obj work here and PyTypeObject2Obj does not???
+
+    load PyErr_Clear
+    load PyErr_SetString
+    load PyExc_TypeError
+
+    pl.PyExc_TypeError = cast[ptr PPyObject](pl.PyExc_TypeError)[]
+
+    load PyCapsule_New
+    load PyCapsule_GetPointer
+
+    load PyImport_ImportModule
+    load PyEval_GetBuiltins
+    load PyEval_GetGlobals
+    load PyEval_GetLocals
+
+    when not defined(release):
+        load PyErr_Print
+
+proc pythonLibHandleForThisProcess(): LibHandle =
+    when defined(windows):
+        getModuleHandle(findPythonDLL())
+    else:
+        loadLib()
+
+proc pythonLibHandleFromExternalLib(preferredVersion = 3): LibHandle =
+    doAssert(false, "not implemented")
+
 proc initCommon(m: var PyModuleDesc) =
     if pyLib.isNil:
-        pyLib.new()
-        when defined(windows):
-            pyLib.module = getModuleHandle(findPythonDLL())
-        else:
-            pyLib.module = loadLib()
-        assert(not pyLib.module.isNil)
-
-        if not (pyLib.module.symAddr("PyModule_Create2").isNil or
-                pyLib.module.symAddr("Py_InitModule4_64").isNil or
-                pyLib.module.symAddr("Py_InitModule4").isNil):
-            traceRefs = true
-
-        template maybeLoad(v: untyped, name: cstring) =
-            pyLib.v = cast[type(pyLib.v)](pyLib.module.symAddr(name))
-
-        template load(v: untyped, name: cstring) =
-            maybeLoad(v, name)
-            if pyLib.v.isNil:
-                symNotLoadedErr(name)
-
-        template maybeLoad(v: untyped) = maybeLoad(v, astToStr(v))
-        template load(v: untyped) = load(v, astToStr(v))
-
-        load Py_BuildValue, "_Py_BuildValue_SizeT"
-        load PyTuple_New
-        load PyTuple_Size
-        load PyTuple_GetItem
-        load PyTuple_SetItem
-
-        load Py_None, "_Py_NoneStruct"
-        load PyType_Ready
-        load PyType_GenericNew
-        load PyModule_AddObject
-
-        load PyList_New
-        load PyList_Size
-        load PyList_GetItem
-        load PyList_SetItem
-
-        load PyObject_Call
-        load PyObject_IsTrue
-        # load PyObject_HasAttrString
-        load PyObject_GetAttrString
-        load PyObject_SetAttrString
-        load PyObject_Dir
-
-        load PyLong_AsLongLong
-        load PyFloat_AsDouble
-        load PyBool_FromLong
-
-        maybeLoad PyComplex_AsCComplex
-        if pyLib.PyComplex_AsCComplex.isNil:
-            load PyComplex_RealAsDouble
-            load PyComplex_ImagAsDouble
-
-        maybeLoad PyUnicode_AsUTF8String
-        if pyLib.PyUnicode_AsUTF8String.isNil:
-            maybeLoad PyUnicode_AsUTF8String, "PyUnicodeUCS4_AsUTF8String"
-            if pyLib.PyUnicode_AsUTF8String.isNil:
-                load PyUnicode_AsUTF8String, "PyUnicodeUCS2_AsUTF8String"
-
-        pyLib.pythonVersion = 3
-
-        maybeLoad PyBytes_AsStringAndSize
-        if pyLib.PyBytes_AsStringAndSize.isNil:
-            load PyBytes_AsStringAndSize, "PyString_AsStringAndSize"
-            pyLib.pythonVersion = 2
-
-        load PyDict_Type
-        load PyDict_GetItemString
-        load PyDict_SetItemString
-
-        if pyLib.pythonVersion == 3:
-            pyLib.PyDealloc = deallocPythonObj[PyTypeObject3]
-        else:
-            pyLib.PyDealloc = deallocPythonObj[PyTypeObject3] # Why does PyTypeObject3Obj work here and PyTypeObject2Obj does not???
-
-        load PyErr_Clear
-        load PyErr_SetString
-        load PyExc_TypeError
-
-        pyLib.PyExc_TypeError = cast[ptr PPyObject](pyLib.PyExc_TypeError)[]
-
-        load PyCapsule_New
-        load PyCapsule_GetPointer
-
-        load PyImport_ImportModule
-        load PyEval_GetBuiltins
-        load PyEval_GetGlobals
-        load PyEval_GetLocals
-
-        when not defined(release):
-            load PyErr_Print
-
+        pyLib = loadPyLibFromModule(pythonLibHandleForThisProcess())
     m.methods.add(PyMethodDef()) # Add sentinel
 
 proc destructNimObj(o: PPyObject) {.cdecl.} =
     let n = toNim(o, PyNimObject)
     GC_unref(n)
-    # echo "Destruct called"
 
 proc freeNimObj(p: pointer) {.cdecl.} =
     raise newException(Exception, "Internal pynim error. Free called on Nim object.")
@@ -858,10 +865,13 @@ proc refCapsuleDestructor(c: PPyObject) {.cdecl.} =
     let o = pyLib.PyCapsule_GetPointer(c, nil)
     GC_unref(cast[ref int](o))
 
+proc newPyNone(): PPyObject {.inline.} =
+    incRef(pyLib.Py_None)
+    pyLib.Py_None
+
 proc nimValueToPy[T](v: T): PPyObject {.inline.} =
     when T is void:
-        incRef(pyLib.Py_None)
-        pyLib.Py_None
+        newPyNone()
     elif T is PPyObject:
         v
     elif T is PyObject:
@@ -902,8 +912,7 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
         nimArrToPy(v)
     elif T is ref:
         if v.isNil:
-            incRef(pyLib.Py_None)
-            pyLib.Py_None
+            newPyNone()
         else:
             GC_ref(v)
             pyLib.PyCapsule_New(cast[pointer](v), nil, refCapsuleDestructor)
@@ -1069,6 +1078,14 @@ template pyexportTypeExperimental*(T: typed) =
 ################################################################################
 # Calling functions
 
+proc initPyLib() =
+    assert(pyLib.isNil)
+    pyLib = loadPyLibFromModule(pythonLibHandleFromExternalLib())
+
+template initPyLibIfNeeded() =
+    if pyLib.isNil:
+        initPyLib()
+
 template toPyObjectArgument*[T](v: T): PPyObject =
     # Don't use this directly!
     nimValueToPy(v)
@@ -1101,11 +1118,20 @@ template `.()`*(o: PyObject, field: untyped, args: varargs[PPyObject, toPyObject
     callMethod(o, astToStr(field), args)
 
 proc pyImport*(moduleName: cstring): PyObject =
+    initPyLibIfNeeded()
     newPyObjectConsumingRef(pyLib.PyImport_ImportModule(moduleName))
 
-proc pyBuiltins*(): PyObject = newPyObject(pyLib.PyEval_GetBuiltins())
-proc pyGlobals*(): PyObject = newPyObject(pyLib.PyEval_GetGlobals())
-proc pyLocals*(): PyObject = newPyObject(pyLib.PyEval_GetLocals())
+proc pyBuiltins*(): PyObject =
+    initPyLibIfNeeded()
+    newPyObject(pyLib.PyEval_GetBuiltins())
+
+proc pyGlobals*(): PyObject =
+    initPyLibIfNeeded()
+    newPyObject(pyLib.PyEval_GetGlobals())
+
+proc pyLocals*(): PyObject =
+    initPyLibIfNeeded()
+    newPyObject(pyLib.PyEval_GetLocals())
 
 proc dir*(v: PyObject): seq[string] =
     let lst = pyLib.PyObject_Dir(v.rawPyObj)
@@ -1113,7 +1139,5 @@ proc dir*(v: PyObject): seq[string] =
     decRef lst
 
 proc pyBuiltinsModule*(): PyObject =
-    if pyLib.pythonVersion == 3:
-        pyImport("builtins")
-    else:
-        pyImport("__builtin__")
+    initPyLibIfNeeded()
+    pyImport(if pyLib.pythonVersion == 3: "builtins" else: "__builtin__")
