@@ -639,7 +639,7 @@ proc pythonLibHandleForThisProcess(): LibHandle {.inline.} =
     else:
         loadLib()
 
-proc pythonLibHandleFromExternalLib(preferredVersion = 3): LibHandle =
+proc pythonLibHandleFromExternalLib(): LibHandle =
     when not defined(windows):
         # Try this process first...
         result = loadLib()
@@ -647,12 +647,16 @@ proc pythonLibHandleFromExternalLib(preferredVersion = 3): LibHandle =
             return
         result = nil
 
-    when defined(macosx) or defined(linux):
-        for l in ["python3", "python", "python2"]:
-            let libname = "lib" & l & (when defined(macosx): ".dylib" else: ".so")
-            result = loadLib(libname)
-            if not result.isNil:
-                break
+    for l in ["python3", "python", "python2"]:
+        let libname = when defined(macosx):
+                "lib" & l & ".dylib"
+            elif defined(windows):
+                l
+            else:
+                "lib" & l & ".so"
+        result = loadLib(libname)
+        if not result.isNil:
+            break
 
     if result.isNil:
         raise newException(Exception, "Could not load python interpreter")
