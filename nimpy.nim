@@ -645,9 +645,14 @@ proc pythonLibHandleFromExternalLib(preferredVersion = 3): LibHandle =
         result = loadLib()
         if not result.symAddr("PyTuple_New").isNil:
             return
+        result = nil
 
-    when defined(macosx):
-        result = loadLib("/usr/lib/libpython.dylib")
+    when defined(macosx) or defined(linux):
+        for l in ["python3", "python", "python2"]:
+            let libname = "lib" & l & (when defined(macosx): ".dylib" else: ".so")
+            result = loadLib(libname)
+            if not result.isNil:
+                break
 
     if result.isNil:
         raise newException(Exception, "Could not load python interpreter")
