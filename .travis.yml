@@ -5,4 +5,4 @@ before_install:
   - docker pull yglukhov/nim-base
 script:
   - docker run -v "$(pwd):/project" -w /project yglukhov/nim-base nim --version
-  - docker run -v "$(pwd):/project" -w /project yglukhov/nim-base sh -c "apt-get update && apt-get install -y python3 && nimble install -dy && nimble test"
+  - docker run -v "$(pwd):/project" -w /project yglukhov/nim-base sh -c "apt-get update && apt-get install -y python3 libpython3.5 && nimble install -dy && nimble test"
