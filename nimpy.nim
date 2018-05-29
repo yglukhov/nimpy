@@ -640,7 +640,18 @@ proc pythonLibHandleForThisProcess(): LibHandle {.inline.} =
         loadLib()
 
 proc pythonLibHandleFromExternalLib(preferredVersion = 3): LibHandle =
-    doAssert(false, "not implemented")
+    when not defined(windows):
+        # Try this process first...
+        result = loadLib()
+        if not result.symAddr("PyTuple_New").isNil:
+            return
+
+    when defined(macosx):
+        result = loadLib("/usr/lib/libpython.dylib")
+
+    if result.isNil:
+        raise newException(Exception, "Could not load python interpreter")
+
 
 proc initCommon(m: var PyModuleDesc) =
     if pyLib.isNil:
@@ -1080,7 +1091,16 @@ template pyexportTypeExperimental*(T: typed) =
 
 proc initPyLib() =
     assert(pyLib.isNil)
-    pyLib = loadPyLibFromModule(pythonLibHandleFromExternalLib())
+
+    let m = pythonLibHandleFromExternalLib()
+
+    let Py_InitializeEx = cast[proc(i: cint){.cdecl.}](m.symAddr("Py_InitializeEx"))
+    if Py_InitializeEx.isNil:
+        symNotLoadedErr("Py_InitializeEx")
+
+    Py_InitializeEx(0)
+
+    pyLib = loadPyLibFromModule(m)
 
 template initPyLibIfNeeded() =
     if pyLib.isNil:
