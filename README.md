@@ -30,9 +30,9 @@ import nimpy
 let os = pyImport("os")
 echo "Current dir is: ", os.getcwd().to(string)
 
-# sum(xrange(1, 5))
+# sum(range(1, 5))
 let py = pyBuiltinsModule()
-let s = py.sum(py.xrange(0, 5)).to(int)
+let s = py.sum(py.range(0, 5)).to(int)
 assert(s == 10)
 ```
 
