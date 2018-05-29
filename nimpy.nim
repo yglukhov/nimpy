@@ -648,13 +648,19 @@ proc pythonLibHandleFromExternalLib(): LibHandle =
         result = nil
 
     for v in ["3", "3.5m", "", "2", "2.7"]:
-        let libname = when defined(macosx):
+        var libname = when defined(macosx):
                 "libpython" & v & ".dylib"
             elif defined(windows):
                 "python" & v
             else:
-                "lib" & v & ".so"
+                "libpython" & v & ".so"
         result = loadLib(libname)
+
+        when defined(linux):
+            # try appending ".1" to the libname
+            if result.isNil:
+                libname &= ".1"
+                result = loadLib(libname)
         if not result.isNil:
             break
 
