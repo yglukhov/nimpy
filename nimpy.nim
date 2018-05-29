@@ -1,4 +1,4 @@
-import dynlib, macros, ospaths, strutils, complex
+import dynlib, macros, ospaths, strutils, complex, strutils, sequtils
 
 type
     PyObject* = ref object
@@ -639,6 +639,21 @@ proc pythonLibHandleForThisProcess(): LibHandle {.inline.} =
     else:
         loadLib()
 
+iterator libPythonNames(): string {.closure.} =
+    for v in ["3", "3.5m", "", "2", "2.7"]:
+        var libname = when defined(macosx):
+                "libpython" & v & ".dylib"
+            elif defined(windows):
+                "python" & v
+            else:
+                "libpython" & v & ".so"
+        yield libname
+
+        when defined(linux):
+            # try appending ".1" to the libname
+            libname &= ".1"
+            yield libname
+
 proc pythonLibHandleFromExternalLib(): LibHandle =
     when not defined(windows):
         # Try this process first...
@@ -647,26 +662,14 @@ proc pythonLibHandleFromExternalLib(): LibHandle =
             return
         result = nil
 
-    for v in ["3", "3.5m", "", "2", "2.7"]:
-        var libname = when defined(macosx):
-                "libpython" & v & ".dylib"
-            elif defined(windows):
-                "python" & v
-            else:
-                "libpython" & v & ".so"
-        result = loadLib(libname)
-
-        when defined(linux):
-            # try appending ".1" to the libname
-            if result.isNil:
-                libname &= ".1"
-                result = loadLib(libname)
+    for lib in libPythonNames():
+        result = loadLib(lib)
         if not result.isNil:
             break
 
     if result.isNil:
-        raise newException(Exception, "Could not load python interpreter")
-
+        let s = toSeq(libPythonNames()).join(", ")
+        raise newException(Exception, "Could not load python libpython. Tried " & s)
 
 proc initCommon(m: var PyModuleDesc) =
     if pyLib.isNil:
@@ -992,9 +995,9 @@ template valueTypeForArgType(t: typedesc): typedesc =
         t
 
 proc updateStackBottom() {.inline.} =
-    when declared(GC_setStackBottom):
+    when declared(nimGC_setStackBottom):
         var a: int
-        GC_setStackBottom(addr a)
+        nimGC_setStackBottom(addr a)
 
 proc makeWrapper(originalName: string, name, prc: NimNode): NimNode =
     let selfIdent = newIdentNode("self")
