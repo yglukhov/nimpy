@@ -42,5 +42,11 @@ the compiled module doesn't depend on particular Python version, it should
 properly work with any. The C API symbols are loaded in runtime from whichever
 process has launched your module.
 
+## Troubleshooting
+- Importing the compiled module from Python fails with `ImportError: dynamic module does not define module export function ...`
+
+  Make sure that the module you're importing from Python has exactly the same name as the `nim` file which the module is implemented in.
+
+
 ## Future directions
 * exporting Nim types/functions as Python classes/methods
