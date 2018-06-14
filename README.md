@@ -4,7 +4,7 @@ Native language integration with Python has never been easier!
 
 ## Implementing python module in nim
 ```nim
-# mymodule.nim
+# mymodule.nim - file name should match the module name you're going to import from python
 import nimpy
 
 proc greet(name: string): string {.exportpy.} =
