@@ -1131,8 +1131,8 @@ template toPyObjectArgument*[T](v: T): PPyObject =
 proc to*(v: PyObject, T: typedesc): T {.inline.} =
     pyObjToNim(v.rawPyObj, result)
 
-proc callMethodAux(o: PPyObject, name: cstring, args: openarray[PPyObject]): PPyObject =
-    let callable = pyLib.PyObject_GetAttrString(o, name)
+proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject]): PPyObject =
+    let callable = pyLib.PyObject_GetAttrString(o.rawPyObj, name)
     if callable.isNil:
         raise newException(Exception, "No callable attribute: " & $name)
 
@@ -1145,19 +1145,29 @@ proc callMethodAux(o: PPyObject, name: cstring, args: openarray[PPyObject]): PPy
     decRef callable
 
 proc callMethod*(o: PyObject, name: cstring, args: varargs[PPyObject, toPyObjectArgument]): PyObject {.inline.} =
-    newPyObjectConsumingRef(callMethodAux(o.rawPyObj, name, args))
+    newPyObjectConsumingRef(callMethodAux(o, name, args))
 
 proc callMethod*(o: PyObject, ResultType: typedesc, name: cstring, args: varargs[PPyObject, toPyObjectArgument]): ResultType {.inline.} =
-    let res = callMethodAux(o.rawPyObj, name, args)
+    let res = callMethodAux(o, name, args)
     pyObjToNim(res, result)
     decRef res
+
+proc getProperty*(o: PyObject, name: cstring): PyObject =
+    let r = pyLib.PyObject_GetAttrString(o.rawPyObj, name)
+    if not r.isNil:
+        result = newPyObjectConsumingRef(r)
 
 template `.()`*(o: PyObject, field: untyped, args: varargs[PPyObject, toPyObjectArgument]): PyObject =
     callMethod(o, astToStr(field), args)
 
+template `.`*(o: PyObject, field: untyped): PyObject =
+    getProperty(o, astToStr(field))
+
 proc pyImport*(moduleName: cstring): PyObject =
     initPyLibIfNeeded()
-    newPyObjectConsumingRef(pyLib.PyImport_ImportModule(moduleName))
+    let o = pyLib.PyImport_ImportModule(moduleName)
+    if not o.isNil:
+        result = newPyObjectConsumingRef(o)
 
 proc pyBuiltins*(): PyObject =
     initPyLibIfNeeded()
