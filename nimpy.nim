@@ -314,6 +314,7 @@ type
         PyObject_GetAttrString*: proc(o: PPyObject, name: cstring): PPyObject {.cdecl.}
         PyObject_SetAttrString*: proc(o: PPyObject, name: cstring, v: PPyObject): cint {.cdecl.}
         PyObject_Dir*: proc(o: PPyObject): PPyObject {.cdecl.}
+        PyObject_Str*: proc(o: PPyObject): PPyObject {.cdecl.}
 
         PyLong_AsLongLong*: proc(l: PPyObject): int64 {.cdecl.}
         PyFloat_AsDouble*: proc(l: PPyObject): cdouble {.cdecl.}
@@ -348,6 +349,8 @@ type
 
         when not defined(release):
             PyErr_Print: proc() {.cdecl.}
+        PyErr_Fetch*: proc(ptype, pvalue, ptraceback: ptr PPyObject) {.cdecl.}
+        PyErr_NormalizeException*: proc(ptype, pvalue, ptraceback: ptr PPyObject) {.cdecl.}
 
     PyNimObject = ref object {.inheritable.}
         py_extra_dont_use: PyObject_HEAD_EXTRA
@@ -584,6 +587,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     load PyObject_GetAttrString
     load PyObject_SetAttrString
     load PyObject_Dir
+    load PyObject_Str
 
     load PyLong_AsLongLong
     load PyFloat_AsDouble
@@ -633,6 +637,9 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     when not defined(release):
         load PyErr_Print
 
+    load PyErr_Fetch
+    load PyErr_NormalizeException
+
 proc pythonLibHandleForThisProcess(): LibHandle {.inline.} =
     when defined(windows):
         getModuleHandle(findPythonDLL())
@@ -640,7 +647,7 @@ proc pythonLibHandleForThisProcess(): LibHandle {.inline.} =
         loadLib()
 
 iterator libPythonNames(): string {.closure.} =
-    for v in ["3", "3.5m", "", "2", "2.7"]:
+    for v in ["3", "3.6m", "3.5m", "", "2", "2.7"]:
         var libname = when defined(macosx):
                 "libpython" & v & ".dylib"
             elif defined(windows):
@@ -821,6 +828,7 @@ proc finalizePyObject(o: PyObject) =
     decRef o.rawPyObj
 
 proc newPyObjectConsumingRef(o: PPyObject): PyObject =
+    assert(not o.isNil, "internal error")
     result.new(finalizePyObject)
     result.rawPyObj = o
 
@@ -1131,6 +1139,19 @@ template toPyObjectArgument*[T](v: T): PPyObject =
 proc to*(v: PyObject, T: typedesc): T {.inline.} =
     pyObjToNim(v.rawPyObj, result)
 
+proc raisePythonError() =
+    var typ, val, tb: PPyObject
+    pyLib.PyErr_Fetch(addr typ, addr val, addr tb)
+    pyLib.PyErr_NormalizeException(addr typ, addr val, addr tb)
+    let vals = pyLib.PyObject_Str(val)
+    let typs = pyLib.PyObject_Str(typ)
+    var typns, valns: string
+    pyObjToNimStr(vals, valns)
+    pyObjToNimStr(typs, typns)
+    decRef vals
+    decRef typs
+    raise newException(Exception, typns & ": " & valns)
+
 proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject]): PPyObject =
     let callable = pyLib.PyObject_GetAttrString(o.rawPyObj, name)
     if callable.isNil:
@@ -1143,6 +1164,9 @@ proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject]): PPyO
     result = pyLib.PyObject_Call(callable, argTuple, nil)
     decRef argTuple
     decRef callable
+
+    if unlikely result.isNil:
+        raisePythonError()
 
 proc callMethod*(o: PyObject, name: cstring, args: varargs[PPyObject, toPyObjectArgument]): PyObject {.inline.} =
     newPyObjectConsumingRef(callMethodAux(o, name, args))
@@ -1166,8 +1190,8 @@ template `.`*(o: PyObject, field: untyped): PyObject =
 proc pyImport*(moduleName: cstring): PyObject =
     initPyLibIfNeeded()
     let o = pyLib.PyImport_ImportModule(moduleName)
-    if not o.isNil:
-        result = newPyObjectConsumingRef(o)
+    if unlikely o.isNil: raisePythonError()
+    result = newPyObjectConsumingRef(o)
 
 proc pyBuiltins*(): PyObject =
     initPyLibIfNeeded()

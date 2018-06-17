@@ -15,3 +15,10 @@ block:
     doAssert(o.someFunc(7, 5).to(int) == 2)
 
     doAssert(pfn.MyClass.staticFunc(7, 5).to(int) == 12)
+
+    var excMsg = ""
+    try:
+        discard pfn.MyClass.raisingFunc()
+    except:
+        excMsg = getCurrentExceptionMsg()
+    doAssert(excMsg == "<type 'exceptions.Exception'>: hello")
