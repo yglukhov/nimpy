@@ -358,78 +358,79 @@ type
 
     PyNimObjectBaseToInheritFromForAnExportedType* = PyNimObject
 
+const
     #  PyBufferProcs contains bf_getcharbuffer
-const Py_TPFLAGS_HAVE_GETCHARBUFFER  =(1 shl 0)
+    Py_TPFLAGS_HAVE_GETCHARBUFFER  =(1 shl 0)
 
     #  PySequenceMethods contains sq_contains
-const Py_TPFLAGS_HAVE_SEQUENCE_IN =(1 shl 1)
+    Py_TPFLAGS_HAVE_SEQUENCE_IN =(1 shl 1)
 
 # This is here for backwards compatibility.  Extensions that use the old GC
 # API will still compile but the objects will not be tracked by the GC.
-#const Py_TPFLAGS_GC 0 #  used to be (1 shl 2) =
+#    Py_TPFLAGS_GC 0 #  used to be (1 shl 2) =
 
     #  PySequenceMethods and PyNumberMethods contain in-place operators
-const Py_TPFLAGS_HAVE_INPLACEOPS =(1 shl 3)
+    Py_TPFLAGS_HAVE_INPLACEOPS =(1 shl 3)
 
     #  PyNumberMethods do their own coercion
-const Py_TPFLAGS_CHECKTYPES =(1 shl 4)
+    Py_TPFLAGS_CHECKTYPES =(1 shl 4)
 
     #  tp_richcompare is defined
-const Py_TPFLAGS_HAVE_RICHCOMPARE =(1 shl 5)
+    Py_TPFLAGS_HAVE_RICHCOMPARE =(1 shl 5)
 
     #  Objects which are weakly referencable if their tp_weaklistoffset is >0
-const Py_TPFLAGS_HAVE_WEAKREFS =(1 shl 6)
+    Py_TPFLAGS_HAVE_WEAKREFS =(1 shl 6)
 
     #  tp_iter is defined
-const Py_TPFLAGS_HAVE_ITER =(1 shl 7)
+    Py_TPFLAGS_HAVE_ITER =(1 shl 7)
 
     #  New members introduced by Python 2.2 exist
-const Py_TPFLAGS_HAVE_CLASS =(1 shl 8)
+    Py_TPFLAGS_HAVE_CLASS =(1 shl 8)
 
     #  Set if the type object is dynamically allocated
-const Py_TPFLAGS_HEAPTYPE =(1 shl 9)
+    Py_TPFLAGS_HEAPTYPE =(1 shl 9)
 
     #  Set if the type allows subclassing
-const Py_TPFLAGS_BASETYPE =(1 shl 10)
+    Py_TPFLAGS_BASETYPE =(1 shl 10)
 
     #  Set if the type is 'ready' -- fully initialized
-const Py_TPFLAGS_READY =(1 shl 12)
+    Py_TPFLAGS_READY =(1 shl 12)
 
     #  Set while the type is being 'readied', to prevent recursive ready calls
-const Py_TPFLAGS_READYING =(1 shl 13)
+    Py_TPFLAGS_READYING =(1 shl 13)
 
     #  Objects support garbage collection (see objimp.h)
-const Py_TPFLAGS_HAVE_GC =(1 shl 14)
+    Py_TPFLAGS_HAVE_GC =(1 shl 14)
 
     #  These two bits are preserved for Stackless Python, next after this is 17
 
-const Py_TPFLAGS_HAVE_STACKLESS_EXTENSION =0
+    Py_TPFLAGS_HAVE_STACKLESS_EXTENSION =0
 
     #  Objects support nb_index in PyNumberMethods
-const Py_TPFLAGS_HAVE_INDEX =(1 shl 17)
+    Py_TPFLAGS_HAVE_INDEX =(1 shl 17)
 
     #  Objects support type attribute cache
-const Py_TPFLAGS_HAVE_VERSION_TAG   =(1 shl 18)
-const Py_TPFLAGS_VALID_VERSION_TAG  =(1 shl 19)
+    Py_TPFLAGS_HAVE_VERSION_TAG   =(1 shl 18)
+    Py_TPFLAGS_VALID_VERSION_TAG  =(1 shl 19)
 
     #  Type is abstract and cannot be instantiated
-const Py_TPFLAGS_IS_ABSTRACT =(1 shl 20)
+    Py_TPFLAGS_IS_ABSTRACT =(1 shl 20)
 
     #  Has the new buffer protocol
-const Py_TPFLAGS_HAVE_NEWBUFFER =(1 shl 21)
+    Py_TPFLAGS_HAVE_NEWBUFFER =(1 shl 21)
 
     #  These flags are used to determine if a type is a subclass.
-const Py_TPFLAGS_INT_SUBCLASS         =(1 shl 23)
-const Py_TPFLAGS_LONG_SUBCLASS        =(1 shl 24)
-const Py_TPFLAGS_LIST_SUBCLASS        =(1 shl 25)
-const Py_TPFLAGS_TUPLE_SUBCLASS       =(1 shl 26)
-const Py_TPFLAGS_STRING_SUBCLASS      =(1 shl 27)
-const Py_TPFLAGS_UNICODE_SUBCLASS     =(1 shl 28)
-const Py_TPFLAGS_DICT_SUBCLASS        =(1 shl 29)
-const Py_TPFLAGS_BASE_EXC_SUBCLASS    =(1 shl 30)
-const Py_TPFLAGS_TYPE_SUBCLASS        =(1 shl 31)
+    Py_TPFLAGS_INT_SUBCLASS         =(1 shl 23)
+    Py_TPFLAGS_LONG_SUBCLASS        =(1 shl 24)
+    Py_TPFLAGS_LIST_SUBCLASS        =(1 shl 25)
+    Py_TPFLAGS_TUPLE_SUBCLASS       =(1 shl 26)
+    Py_TPFLAGS_STRING_SUBCLASS      =(1 shl 27)
+    Py_TPFLAGS_UNICODE_SUBCLASS     =(1 shl 28)
+    Py_TPFLAGS_DICT_SUBCLASS        =(1 shl 29)
+    Py_TPFLAGS_BASE_EXC_SUBCLASS    =(1 shl 30)
+    Py_TPFLAGS_TYPE_SUBCLASS        =(1 shl 31)
 
-const Py_TPFLAGS_DEFAULT_EXTERNAL = Py_TPFLAGS_HAVE_GETCHARBUFFER or
+    Py_TPFLAGS_DEFAULT_EXTERNAL = Py_TPFLAGS_HAVE_GETCHARBUFFER or
                      Py_TPFLAGS_HAVE_SEQUENCE_IN or
                      Py_TPFLAGS_HAVE_INPLACEOPS or
                      Py_TPFLAGS_HAVE_RICHCOMPARE or
@@ -439,7 +440,7 @@ const Py_TPFLAGS_DEFAULT_EXTERNAL = Py_TPFLAGS_HAVE_GETCHARBUFFER or
                      Py_TPFLAGS_HAVE_STACKLESS_EXTENSION or
                      Py_TPFLAGS_HAVE_INDEX
 
-const Py_TPFLAGS_DEFAULT_CORE = Py_TPFLAGS_DEFAULT_EXTERNAL or Py_TPFLAGS_HAVE_VERSION_TAG
+    Py_TPFLAGS_DEFAULT_CORE = Py_TPFLAGS_DEFAULT_EXTERNAL or Py_TPFLAGS_HAVE_VERSION_TAG
 
 proc isNil*(p: PPyObject): bool {.borrow.}
 
@@ -661,7 +662,7 @@ iterator libPythonNames(): string {.closure.} =
             libname &= ".1"
             yield libname
 
-proc pythonLibHandleFromExternalLib(): LibHandle =
+proc pythonLibHandleFromExternalLib(): LibHandle {.inline.} =
     when not defined(windows):
         # Try this process first...
         result = loadLib()
@@ -808,9 +809,9 @@ proc unknownTypeCompileError() {.inline.} =
     # compile time error
     discard
 
-proc pyObjToNim[T](o: PPyObject, v: var T)
+proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.}
 
-proc strToPyObject(s: string): PPyObject {.inline.} =
+proc strToPyObject(s: string): PPyObject =
     var cs: cstring
     var ln: cint
     if not s.isNil:
@@ -842,7 +843,7 @@ proc newPyObject(o: PPyObject): PyObject =
     incRef o
     newPyObjectConsumingRef(o)
 
-proc pyObjToNim[T](o: PPyObject, v: var T) =
+proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
     when T is int|int32|int64|int16|uint32|uint64|uint16|uint8|int8:
         v = T(pyLib.PyLong_AsLongLong(o))
     elif T is float|float32|float64:
@@ -1139,7 +1140,7 @@ proc initPyLib() =
     pyLib = loadPyLibFromModule(m)
 
 template initPyLibIfNeeded() =
-    if pyLib.isNil:
+    if unlikely pyLib.isNil:
         initPyLib()
 
 template toPyObjectArgument*[T](v: T): PPyObject =
