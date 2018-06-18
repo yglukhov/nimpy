@@ -816,7 +816,14 @@ proc strToPyObject(s: string): PPyObject {.inline.} =
     if not s.isNil:
         cs = s
         ln = cint(s.xlen)
-    pyLib.Py_BuildValue("s#", cs, ln)
+    result = pyLib.Py_BuildValue("s#", cs, ln)
+    if result.isNil:
+        # Utf-8 decoding failed. Fallback to bytes.
+        var a, b, c: PPyObject
+        pyLib.PyErr_Fetch(addr a, addr b, addr c) # Clean exception
+        result = pyLib.Py_BuildValue("y#", cs, ln)
+
+    assert(not result.isNil, "nimpy internal error converting string")
 
 proc pyObjToNimObj(o: PPyObject, vv: var object) =
     for k, v in fieldPairs(vv):
@@ -912,8 +919,12 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
     elif T is PPyObject:
         v
     elif T is PyObject:
-        incRef v.rawPyObj
-        v.rawPyObj
+        if v.isNil:
+            newPyNone()
+        else:
+            assert(not v.rawPyObj.isNil, "nimpy internal error rawPyObj.isNil")
+            incRef v.rawPyObj
+            v.rawPyObj
     elif T is string:
         strToPyObject(v)
     elif T is int32:
@@ -1159,6 +1170,7 @@ proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject]): PPyO
 
     let argTuple = pyLib.PyTuple_New(args.len)
     for i, v in args:
+        assert(not v.isNil, "nimpy internal error v.isNil")
         discard pyLib.PyTuple_SetItem(argTuple, i, v)
 
     result = pyLib.PyObject_Call(callable, argTuple, nil)
