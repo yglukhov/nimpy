@@ -819,8 +819,7 @@ proc strToPyObject(s: string): PPyObject {.inline.} =
     result = pyLib.Py_BuildValue("s#", cs, ln)
     if result.isNil:
         # Utf-8 decoding failed. Fallback to bytes.
-        var a, b, c: PPyObject
-        pyLib.PyErr_Fetch(addr a, addr b, addr c) # Clean exception
+        pyLib.PyErr_Clear()
         result = pyLib.Py_BuildValue("y#", cs, ln)
 
     assert(not result.isNil, "nimpy internal error converting string")
