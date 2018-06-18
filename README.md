@@ -47,6 +47,10 @@ process has launched your module.
 
   Make sure that the module you're importing from Python has exactly the same name as the `nim` file which the module is implemented in.
 
+- Nim strings are converted to Python `bytes` instead of `string`
+
+  nimpy converts Nim strings to Python strings usually, but since Nim strings are encoding agnostic and may contain invalid utf8 sequences, nimpy will fallback to Python `bytes` in such cases.
+
 
 ## Future directions
 * exporting Nim types/functions as Python classes/methods
