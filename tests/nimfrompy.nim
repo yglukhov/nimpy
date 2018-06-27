@@ -61,6 +61,9 @@ proc someFunc3(): string {.exportpy.} =
     doAssert(someFunc2(pyBuiltinsModule()) == 10)
     result = pyImport("os").getcwd().to(string)
 
+proc tupleDiff(a, b: tuple[x, y: int]): tuple[x, y: int] {.exportpy.} =
+    result = (a.x - b.x, a.y - b.y)
+
 type TestType = ref object of PyNimObjectBaseToInheritFromForAnExportedType
 
 pyexportTypeExperimental(TestType)

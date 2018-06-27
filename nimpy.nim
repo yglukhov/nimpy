@@ -482,19 +482,13 @@ proc initPythonModuleDesc(m: var PyModuleDesc, name, doc: cstring) =
     m.methods = @[]
     m.types = @[]
 
-var traceRefs: bool
+var pyObjectStartOffset: uint = 0
 
-proc pyAlloc(sz: int): PPyObject =
-    var sz = sz
-    if traceRefs:
-        sz += sizeof(PyObject_HEAD_EXTRA)
-    result = cast[PPyObject](alloc0(sz))
+proc pyAlloc(sz: int): PPyObject {.inline.} =
+    result = cast[PPyObject](alloc0(sz.uint + pyObjectStartOffset))
 
 proc to(p: PPyObject, t: typedesc): ptr t {.inline.} =
-    if traceRefs:
-        result = cast[ptr t](cast[uint](p) + sizeof(PyObject_HEAD_EXTRA).uint)
-    else:
-        result = cast[ptr t](p)
+    result = cast[ptr t](cast[uint](p) + pyObjectStartOffset)
 
 proc toNim(p: PPyObject, t: typedesc): t {.inline.} =
     result = cast[t](cast[uint](p) - uint(sizeof(PyObject_HEAD_EXTRA) + sizeof(pointer)))
@@ -553,7 +547,8 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     if not (m.symAddr("PyModule_Create2").isNil or
             m.symAddr("Py_InitModule4_64").isNil or
             m.symAddr("Py_InitModule4").isNil):
-        traceRefs = true
+        # traceRefs mode
+        pyObjectStartOffset = sizeof(PyObject_HEAD_EXTRA).uint
 
     template maybeLoad(v: untyped, name: cstring) =
         pl.v = cast[type(pl.v)](m.symAddr(name))
@@ -831,6 +826,14 @@ proc pyObjToNimObj(o: PPyObject, vv: var object) =
         pyObjToNim(f, v)
         # No DECREF here. PyDict_GetItemString returns a boorowed ref.
 
+proc pyObjToNimTuple(o: PPyObject, vv: var tuple) =
+    var i = 0
+    for v in fields(vv):
+        let f = pyLib.PyTuple_GetItem(o, i)
+        pyObjToNim(f, v)
+        decRef(f)
+        inc i
+
 proc finalizePyObject(o: PyObject) =
     decRef o.rawPyObj
 
@@ -873,6 +876,8 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
             v = cast[T](pyLib.PyCapsule_GetPointer(o, nil))
     elif T is object:
         pyObjToNimObj(o, v)
+    elif T is tuple:
+        pyObjToNimTuple(o, v)
     else:
         unknownTypeCompileError(v)
 
@@ -904,6 +909,7 @@ iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
 
 proc nimArrToPy[T](s: openarray[T]): PPyObject
 proc nimObjToPy[T](o: T): PPyObject
+proc nimTupleToPy[T](o: T): PPyObject
 
 proc refCapsuleDestructor(c: PPyObject) {.cdecl.} =
     let o = pyLib.PyCapsule_GetPointer(c, nil)
@@ -970,6 +976,8 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
         pyLib.Py_BuildValue("D", unsafeAddr v)
     elif T is object:
         nimObjToPy(v)
+    elif T is tuple:
+        nimTupleToPy(v)
     else:
         unknownTypeCompileError(v)
 
@@ -996,6 +1004,18 @@ proc nimObjToPy[T](o: T): PPyObject =
         decRef vv
         if ret != 0:
             cannotSerializeErr(k)
+
+proc tupleSize[T](): int {.compileTime.} =
+    var o: T
+    for f in fields(o): inc result
+
+proc nimTupleToPy[T](o: T): PPyObject =
+    const sz = tupleSize[T]()
+    result = pyLib.PyTuple_new(sz)
+    var i = 0
+    for f in fields(o):
+        discard pyLib.PyTuple_SetItem(result, i, nimValueToPy(f))
+        inc i
 
 proc parseArg[T](argTuple: PPyObject, argIdx: int, result: var T) =
     pyObjToNim(pyLib.PyTuple_GetItem(argTuple, argIdx), result)
