@@ -1,12 +1,12 @@
-import ../nimpy
+import ../nimpy, strutils, os
 
 let py = pyBuiltinsModule()
 let s = py.sum(py.range(0, 5)).to(int)
 doAssert(s == 10)
 
-echo "cwd: ", pyImport("os").getcwd().to(string)
-
 block:
+    doAssert(pyImport("os").getcwd().to(string) == getCurrentDir())
+
     discard pyImport("sys").path.append("tests")
 
     let pfn = pyImport("pyfromnim")
@@ -21,4 +21,6 @@ block:
         discard pfn.MyClass.raisingFunc()
     except:
         excMsg = getCurrentExceptionMsg()
-    doAssert(excMsg == "<type 'exceptions.Exception'>: hello")
+    doAssert(excMsg.endsWith("Exception'>: hello"))
+
+echo "Test complete!"
