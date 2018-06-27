@@ -831,7 +831,7 @@ proc pyObjToNimTuple(o: PPyObject, vv: var tuple) =
     for v in fields(vv):
         let f = pyLib.PyTuple_GetItem(o, i)
         pyObjToNim(f, v)
-        decRef(f)
+        # No DECREF here. PyTuple_GetItem returns a boorowed ref.
         inc i
 
 proc finalizePyObject(o: PyObject) =
