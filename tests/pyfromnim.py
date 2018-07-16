@@ -10,3 +10,6 @@ class MyClass(object):
     @staticmethod
     def raisingFunc():
         raise Exception("hello")
+
+import sys
+assert(sys.argv == [''])
