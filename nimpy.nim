@@ -1157,10 +1157,11 @@ proc initPyLib() =
 
     Py_InitializeEx(0)
 
+    # according to python docs, when 0 is passed as argc, an empty string is prepended to sys.path, 
+    # which is the same as prepending the current working directory (".").
     let PySys_SetArgvEx = cast[proc(argc: cint, argv: pointer, updatepath: cint){.cdecl.}](m.symAddr("PySys_SetArgvEx"))
     if not PySys_SetArgvEx.isNil:
-        var args = [cstring(""), nil]
-        PySys_SetArgvEx(1, cast[pointer](addr args[0]), 0)
+        PySys_SetArgvEx(0, nil, 0)
 
     pyLib = loadPyLibFromModule(m)
 
