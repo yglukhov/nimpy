@@ -1159,9 +1159,7 @@ proc initPyLib() =
 
     let PySys_SetArgvEx = cast[proc(argc: cint, argv: pointer, updatepath: cint){.cdecl.}](m.symAddr("PySys_SetArgvEx"))
     if not PySys_SetArgvEx.isNil:
-        var a = 0
-        var pa = addr a
-        PySys_SetArgvEx(1, addr pa, 0)
+        PySys_SetArgvEx(0, nil, 0)
 
     pyLib = loadPyLibFromModule(m)
 
