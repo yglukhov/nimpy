@@ -315,6 +315,11 @@ type
         PyObject_SetAttrString*: proc(o: PPyObject, name: cstring, v: PPyObject): cint {.cdecl.}
         PyObject_Dir*: proc(o: PPyObject): PPyObject {.cdecl.}
         PyObject_Str*: proc(o: PPyObject): PPyObject {.cdecl.}
+        PyObject_GetIter*: proc(o: PPyObject): PPyObject {.cdecl.}
+        PyObject_GetItem*: proc(o, k: PPyObject): PPyObject {.cdecl.}
+        PyObject_SetItem*: proc(o, k, v: PPyObject): cint {.cdecl.}
+
+        PyIter_Next*: proc(o: PPyObject): PPyObject {.cdecl.}
 
         PyLong_AsLongLong*: proc(l: PPyObject): int64 {.cdecl.}
         PyFloat_AsDouble*: proc(l: PPyObject): cdouble {.cdecl.}
@@ -584,6 +589,11 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     load PyObject_SetAttrString
     load PyObject_Dir
     load PyObject_Str
+    load PyObject_GetIter
+    load PyObject_GetItem
+    load PyObject_SetItem
+
+    load PyIter_Next
 
     load PyLong_AsLongLong
     load PyFloat_AsDouble
@@ -666,7 +676,7 @@ proc pythonLibHandleFromExternalLib(): LibHandle {.inline.} =
         result = nil
 
     for lib in libPythonNames():
-        result = loadLib(lib)
+        result = loadLib(lib, true)
         if not result.isNil:
             break
 
@@ -824,14 +834,14 @@ proc pyObjToNimObj(o: PPyObject, vv: var object) =
     for k, v in fieldPairs(vv):
         let f = pyLib.PyDict_GetItemString(o, k)
         pyObjToNim(f, v)
-        # No DECREF here. PyDict_GetItemString returns a boorowed ref.
+        # No DECREF here. PyDict_GetItemString returns a borrowed ref.
 
 proc pyObjToNimTuple(o: PPyObject, vv: var tuple) =
     var i = 0
     for v in fields(vv):
         let f = pyLib.PyTuple_GetItem(o, i)
         pyObjToNim(f, v)
-        # No DECREF here. PyTuple_GetItem returns a boorowed ref.
+        # No DECREF here. PyTuple_GetItem returns a borrowed ref.
         inc i
 
 proc finalizePyObject(o: PyObject) =
@@ -1222,6 +1232,37 @@ template `.()`*(o: PyObject, field: untyped, args: varargs[PPyObject, toPyObject
 
 template `.`*(o: PyObject, field: untyped): PyObject =
     getProperty(o, astToStr(field))
+
+iterator items*(o: PyObject): PyObject =
+    let it = pyLib.PyObject_GetIter(o.rawPyObj)
+    while true:
+        let i = pyLib.PyIter_Next(it)
+        if i.isNil: break
+        yield newPyObjectConsumingRef(i)
+    decRef it
+
+proc `$`*(o: PyObject): string =
+    let s = pyLib.PyObject_Str(o.rawPyObj)
+    pyObjToNimStr(s, result)
+    decRef s
+
+proc elemAtIndex(o: PyObject, idx: PPyObject): PyObject =
+    let r = pyLib.PyObject_GetItem(o.rawPyObj, idx)
+    decRef idx
+    if r.isNil: raisePythonError()
+    newPyObjectConsumingRef(r)
+
+proc setElemAtIndex(o: PyObject, idx, val: PPyObject) =
+    let r = pyLib.PyObject_SetItem(o.rawPyObj, idx, val)
+    decRef idx
+    decRef val
+    if r < 0: raisePythonError()
+
+proc `[]`*[K](o: PyObject, idx: K): PyObject =
+    o.elemAtIndex(toPyObjectArgument(idx))
+
+proc `[]=`*[K, V](o: PyObject, idx: K, val: V) =
+    o.setElemAtIndex(toPyObjectArgument(idx), toPyObjectArgument(val))
 
 proc pyImport*(moduleName: cstring): PyObject =
     initPyLibIfNeeded()
