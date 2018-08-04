@@ -1,5 +1,6 @@
 import ../nimpy
 import algorithm, complex
+from tpyfromnim import nil
 
 proc greet(name: string): string {.exportpy.} =
     return "Hello, " & name & "!"
@@ -63,6 +64,9 @@ proc someFunc3(): string {.exportpy.} =
 
 proc tupleDiff(a, b: tuple[x, y: int]): tuple[x, y: int] {.exportpy.} =
     result = (a.x - b.x, a.y - b.y)
+
+proc testPyFromNim() {.exportpy.} =
+    tpyfromnim.test()
 
 type TestType = ref object of PyNimObjectBaseToInheritFromForAnExportedType
 

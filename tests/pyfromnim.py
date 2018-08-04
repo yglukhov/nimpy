@@ -12,4 +12,4 @@ class MyClass(object):
         raise Exception("hello")
 
 import sys
-assert(sys.argv == [''])
+assert(len(sys.argv) > 0)

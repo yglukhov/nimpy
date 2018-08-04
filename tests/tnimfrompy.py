@@ -44,5 +44,6 @@ assert(s.someFunc3() == os.getcwd())
 
 assert(s.tupleDiff((5, 4), (2, 3)) == (3, 1))
 
+s.testPyFromNim()
 
 print("Tests complete!")
