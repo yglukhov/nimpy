@@ -69,6 +69,10 @@ proc test*() =
 
         doAssert(x.to(int) == -2)
 
+    block: # serialize char's
+        doAssert(py.ord("A").to(char) == 'A')
+        doAssert(py.chr('A').to(string) == "A")
+
 when isMainModule:
     test()
     echo "Test complete!"
