@@ -333,6 +333,7 @@ type
         PyBytes_AsStringAndSize*: proc(o: PPyObject, s: ptr ptr char, len: ptr Py_ssize_t): cint {.cdecl.}
 
         PyDict_Type*: PyTypeObject
+        PyDict_New*: proc(): PPyObject {.cdecl.}
         PyDict_GetItemString*: proc(o: PPyObject, k: cstring): PPyObject {.cdecl.}
         PyDict_SetItemString*: proc(o: PPyObject, k: cstring, v: PPyObject): cint {.cdecl.}
 
@@ -467,6 +468,10 @@ type
         methods: seq[PyMethodDef]
         members: seq[PyMemberDef]
         origSize: int
+
+    PyNamedArg = tuple
+        name: cstring
+        obj: PPyObject
 
 proc addMethod(m: var PyModuleDesc, name, doc: cstring, f: PyCFunction) =
     m.methods.add(PyMethodDef(ml_name: name, ml_meth: f, ml_flags: 1, ml_doc: doc))
@@ -618,6 +623,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
         pl.pythonVersion = 2
 
     load PyDict_Type
+    load PyDict_New
     load PyDict_GetItemString
     load PyDict_SetItemString
 
@@ -1197,7 +1203,7 @@ proc raisePythonError() =
     decRef typs
     raise newException(Exception, typns & ": " & valns)
 
-proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject]): PPyObject =
+proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject], kwargs: openarray[PyNamedArg] = []): PPyObject =
     let callable = pyLib.PyObject_GetAttrString(o.rawPyObj, name)
     if callable.isNil:
         raise newException(Exception, "No callable attribute: " & $name)
@@ -1207,7 +1213,12 @@ proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject]): PPyO
         assert(not v.isNil, "nimpy internal error v.isNil")
         discard pyLib.PyTuple_SetItem(argTuple, i, v)
 
-    result = pyLib.PyObject_Call(callable, argTuple, nil)
+    let argDict = pyLib.PyDict_New()
+    for v in kwargs:
+        assert(not v.obj.isNil, "nimpy internal error v.obj.isNil")
+        discard pyLib.PyDict_SetItemString(argDict, v.name, v.obj)
+
+    result = pyLib.PyObject_Call(callable, argTuple, argDict)
     decRef argTuple
     decRef callable
 
@@ -1227,8 +1238,29 @@ proc getProperty*(o: PyObject, name: cstring): PyObject =
     if not r.isNil:
         result = newPyObjectConsumingRef(r)
 
-template `.()`*(o: PyObject, field: untyped, args: varargs[PPyObject, toPyObjectArgument]): PyObject =
-    callMethod(o, astToStr(field), args)
+macro dotCall(o: untyped, field: untyped, args: varargs[untyped]): untyped =
+    expectKind(field, nnkIdent)
+
+    let plainArgs = newTree(nnkBracket)
+    let kwArgs = newTree(nnkBracket)
+
+    for arg in args:
+        # Skip the bogus [] `args` when no argument is passed
+        if arg.kind == nnkHiddenStdConv and arg[0].kind == nnkEmpty:
+            continue
+        elif arg.kind != nnkExprEqExpr:
+            plainArgs.add(newCall("toPyObjectArgument", arg))
+        else:
+            expectKind(arg[0], nnkIdent)
+            kwArgs.add(newTree(nnkTupleConstr,
+                newCall("cstring", newLit($arg[0])),
+                newCall("toPyObjectArgument", arg[1])))
+
+    result = newCall(bindSym"newPyObjectConsumingRef",
+        newCall(bindSym"callMethodAux", o, newLit($field), plainArgs, kwArgs))
+
+template `.()`*(o: PyObject, field: untyped, args: varargs[untyped]): PyObject =
+    dotCall(o, field, args)
 
 template `.`*(o: PyObject, field: untyped): PyObject =
     getProperty(o, astToStr(field))

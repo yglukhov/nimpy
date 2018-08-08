@@ -11,5 +11,8 @@ class MyClass(object):
     def raisingFunc():
         raise Exception("hello")
 
+def test_kwargs(a, b):
+    return a - b
+
 import sys
 assert(len(sys.argv) > 0)

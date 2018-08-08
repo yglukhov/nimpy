@@ -63,6 +63,12 @@ proc test*() =
 
         doAssert(s == @["0", "1", "2", "3"])
 
+    block: # kwargs test
+        let pfn = pyImport("pyfromnim")
+        let x = pfn.test_kwargs(b = 3, a = 1)
+
+        doAssert(x.to(int) == -2)
+
 when isMainModule:
     test()
     echo "Test complete!"
