@@ -863,7 +863,7 @@ proc newPyObject(o: PPyObject): PyObject =
     newPyObjectConsumingRef(o)
 
 proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
-    when T is int|int32|int64|int16|uint32|uint64|uint16|uint8|int8:
+    when T is int|int32|int64|int16|uint32|uint64|uint16|uint8|int8|char:
         v = T(pyLib.PyLong_AsLongLong(o))
     elif T is float|float32|float64:
         v = T(pyLib.PyFloat_AsDouble(o))
@@ -962,8 +962,8 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
             {.error: "Unkown int size".}
     elif T is int8:
         pyLib.Py_BuildValue("b", v)
-    elif T is uint8:
-        pyLib.Py_BuildValue("B", v)
+    elif T is uint8|char:
+        pyLib.Py_BuildValue("B", uint8(v))
     elif T is int32:
         pyLib.Py_BuildValue("i", v)
     elif T is uint32:
