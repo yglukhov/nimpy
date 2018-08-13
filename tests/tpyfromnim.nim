@@ -73,6 +73,15 @@ proc test*() =
         doAssert(py.ord("A").to(char) == 'A')
         doAssert(py.chr('A').to(string) == "A")
 
+    block: # conversion errors
+        doAssertRaises(ValueError):
+            discard py.chr('A').to(int)
+        doAssertRaises(ValueError):
+            discard py.chr('A').to(seq[int])
+        doAssertRaises(ValueError):
+            discard py.chr('A').to(array[1, int])
+        echo py.chr('A').to((int,int))
+
 when isMainModule:
     test()
     echo "Test complete!"

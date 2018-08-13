@@ -1,4 +1,4 @@
-import dynlib, macros, ospaths, strutils, complex, strutils, sequtils
+import dynlib, macros, ospaths, strutils, complex, strutils, sequtils, typetraits
 
 type
     PyObject* = ref object
@@ -342,6 +342,7 @@ type
         PyErr_Clear*: proc() {.cdecl.}
         PyErr_SetString*: proc(o: PPyObject, s: cstring) {.cdecl.}
         PyExc_TypeError*: PPyObject
+        PyErr_Occurred*: proc(): PPyObject {.cdecl.}
 
         PyCapsule_New*: proc(p: pointer, name: cstring, destr: proc(o: PPyObject) {.cdecl.}): PPyObject {.cdecl.}
         PyCapsule_GetPointer*: proc(c: PPyObject, name: cstring): pointer {.cdecl.}
@@ -350,6 +351,7 @@ type
         PyEval_GetBuiltins*: proc(): PPyObject {.cdecl.}
         PyEval_GetGlobals*: proc(): PPyObject {.cdecl.}
         PyEval_GetLocals*: proc(): PPyObject {.cdecl.}
+
 
         pythonVersion*: int
 
@@ -635,6 +637,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     load PyErr_Clear
     load PyErr_SetString
     load PyExc_TypeError
+    load PyErr_Occurred
 
     pl.PyExc_TypeError = cast[ptr PPyObject](pl.PyExc_TypeError)[]
 
@@ -862,13 +865,21 @@ proc newPyObject(o: PPyObject): PyObject =
     incRef o
     newPyObjectConsumingRef(o)
 
+template raiseConversionError(t: typedesc) =
+    if not pyLib.PyErr_Occurred().isNil:
+        pyLib.PyErr_Clear()
+        raise newException(ValueError, "Cannot convert python object to " & $t)
+
 proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
     when T is int|int32|int64|int16|uint32|uint64|uint16|uint8|int8|char:
         v = T(pyLib.PyLong_AsLongLong(o))
+        raiseConversionError(T)
     elif T is float|float32|float64:
         v = T(pyLib.PyFloat_AsDouble(o))
+        raiseConversionError(T)
     elif T is bool:
         v = bool(pyLib.PyObject_IsTrue(o))
+        raiseConversionError(T)
     elif T is PPyObject:
         v = o
     elif T is PyObject:
@@ -879,6 +890,7 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
             v.im = pyLib.PyComplex_ImagAsDouble(o)
         else:
             v = pyLib.PyComplex_AsCComplex(o)
+        raiseConversionError(T)
     elif T is string:
         pyObjToNimStr(o, v)
     elif T is seq:
@@ -890,6 +902,7 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
             v = nil
         else:
             v = cast[T](pyLib.PyCapsule_GetPointer(o, nil))
+            raiseConversionError(T)
     elif T is object:
         pyObjToNimObj(o, v)
     elif T is tuple:
@@ -900,6 +913,7 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
 proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T]) =
     # assert(PyList_Check(o) != 0)
     let sz = int(pyLib.PyList_Size(o))
+    raiseConversionError(seq[T])
     assert(sz >= 0)
     v = newSeq[T](sz)
     for i in 0 ..< sz:
@@ -909,6 +923,7 @@ proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T]) =
 proc pyObjToNimArray[T, I](o: PPyObject, s: var array[I, T]) =
     # assert(PyList_Check(o) != 0)
     let sz = int(pyLib.PyList_Size(o))
+    raiseConversionError(array[I, T])
     assert(sz == s.len)
     for i in 0 ..< sz:
         pyObjToNim(pyLib.PyList_GetItem(o, i), s[i])
@@ -1155,7 +1170,6 @@ template addType(m: var PyModuleDesc, T: typed) =
 template pyexportTypeExperimental*(T: typed) =
     declarePyModuleIfNeeded()
     addType(gPythonLocalModuleDesc, T)
-
 
 ################################################################################
 ################################################################################
