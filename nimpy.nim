@@ -1,4 +1,4 @@
-import dynlib, macros, ospaths, strutils, complex, strutils, sequtils
+import dynlib, macros, ospaths, strutils, complex, strutils, sequtils, typetraits
 
 type
     PyObject* = ref object
@@ -325,6 +325,16 @@ type
         PyFloat_AsDouble*: proc(l: PPyObject): cdouble {.cdecl.}
         PyBool_FromLong*: proc(v: clong): PPyObject {.cdecl.}
 
+        PyFloat_Type*: PyTypeObject
+        PyComplex_Type*: PyTypeObject
+        PyCapsule_Type*: PyTypeObject
+        PyTuple_Type*: PyTypeObject
+        PyList_Type*: PyTypeObject
+        PyBytes_Type*: PyTypeObject
+        PyUnicode_Type*: PyTypeObject
+
+        PyType_IsSubtype*: proc(t1, t2: PyTypeObject): cint {.cdecl.}
+
         PyComplex_AsCComplex*: proc(op: PPyObject): Complex {.cdecl.}
         PyComplex_RealAsDouble*: proc(op: PPyObject): cdouble {.cdecl.}
         PyComplex_ImagAsDouble*: proc(op: PPyObject): cdouble {.cdecl.}
@@ -341,6 +351,7 @@ type
 
         PyErr_Clear*: proc() {.cdecl.}
         PyErr_SetString*: proc(o: PPyObject, s: cstring) {.cdecl.}
+        PyErr_Occurred*: proc(): PPyObject {.cdecl.}
         PyExc_TypeError*: PPyObject
 
         PyCapsule_New*: proc(p: pointer, name: cstring, destr: proc(o: PPyObject) {.cdecl.}): PPyObject {.cdecl.}
@@ -473,6 +484,14 @@ type
         name: cstring
         obj: PPyObject
 
+template checkObjSubclass(o: PPyObject, flags: int): bool =
+    let typ = cast[PyTypeObject]((cast[ptr PyObjectObj](o)).ob_type)
+    (typ.tp_flags and flags.culong) != 0
+
+template checkObjSubclass(o: PPyObject, ty: PyTypeObject): bool =
+    var typ = cast[PyTypeObject]((cast[ptr PyObjectObj](o)).ob_type)
+    (ty == typ) or pyLib.PyType_IsSubtype(typ, ty) != 0
+
 proc addMethod(m: var PyModuleDesc, name, doc: cstring, f: PyCFunction) =
     m.methods.add(PyMethodDef(ml_name: name, ml_meth: f, ml_flags: 1, ml_doc: doc))
 
@@ -604,6 +623,19 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     load PyFloat_AsDouble
     load PyBool_FromLong
 
+    load PyFloat_Type
+    load PyComplex_Type
+    load PyCapsule_Type
+    load PyTuple_Type
+    load PyList_Type
+    load PyUnicode_Type
+    maybeLoad PyBytes_Type
+    if pl.PyBytes_Type.isNil:
+        # Needed for compatibility with Python 2
+        load PyBytes_Type, "PyString_Type"
+
+    load PyType_IsSubtype
+
     maybeLoad PyComplex_AsCComplex
     if pl.PyComplex_AsCComplex.isNil:
         load PyComplex_RealAsDouble
@@ -634,6 +666,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
 
     load PyErr_Clear
     load PyErr_SetString
+    load PyErr_Occurred
     load PyExc_TypeError
 
     pl.PyExc_TypeError = cast[ptr PPyObject](pl.PyExc_TypeError)[]
@@ -794,19 +827,22 @@ proc pyObjToNimStr(o: PPyObject, v: var string) =
     var l: Py_ssize_t
     var b: PPyObject
 
-    if pyLib.PyBytes_AsStringAndSize(o, addr s, addr l) != 0:
-        # TODO: This requires more elaborate type checking to avoid raising and clearing errors
-        pyLib.PyErr_Clear()
-        # pyLib.PyErr_Print()
-
+    if checkObjSubclass(o, pyLib.PyUnicode_Type):
         b = pyLib.PyUnicode_AsUTF8String(o)
         if b.isNil:
-            # pyLib.PyErr_Print()
+            pyLib.PyErr_Clear()
             raise newException(Exception, "Can't convert python obj to string")
 
         if pyLib.PyBytes_AsStringAndSize(b, addr s, addr l) != 0:
             decRef b
+            pyLib.PyErr_Clear()
             raise newException(Exception, "Can't convert python obj to string")
+    elif checkObjSubclass(o, pyLib.PyBytes_Type):
+        if pyLib.PyBytes_AsStringAndSize(o, addr s, addr l) != 0:
+            pyLib.PyErr_Clear()
+            raise newException(Exception, "Can't convert python obj to string")
+    else:
+        raise newException(Exception, "Can't convert python obj to string")
 
     v = newString(l)
     if l != 0:
@@ -863,10 +899,19 @@ proc newPyObject(o: PPyObject): PyObject =
     newPyObjectConsumingRef(o)
 
 proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
+    template conversionTypeCheck(what: untyped): untyped =
+        if not checkObjSubclass(o, what):
+            raise newException(Exception, "Cannot convert python object to " & $T)
+    template conversionTypeCheck(): untyped =
+        if not pyLib.PyErr_Occurred().isNil:
+            raise newException(Exception, "Cannot convert python object to " & $T)
+
     when T is int|int32|int64|int16|uint32|uint64|uint16|uint8|int8|char:
+        conversionTypeCheck(Py_TPFLAGS_INT_SUBCLASS or Py_TPFLAGS_LONG_SUBCLASS)
         v = T(pyLib.PyLong_AsLongLong(o))
     elif T is float|float32|float64:
         v = T(pyLib.PyFloat_AsDouble(o))
+        conversionTypeCheck()
     elif T is bool:
         v = bool(pyLib.PyObject_IsTrue(o))
     elif T is PPyObject:
@@ -874,6 +919,7 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
     elif T is PyObject:
         v = newPyObject(o)
     elif T is Complex:
+        conversionTypeCheck(pyLib.PyComplex_Type)
         if unlikely pyLib.PyComplex_AsCComplex.isNil:
             v.re = pyLib.PyComplex_RealAsDouble(o)
             v.im = pyLib.PyComplex_ImagAsDouble(o)
@@ -882,17 +928,21 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
     elif T is string:
         pyObjToNimStr(o, v)
     elif T is seq:
+        conversionTypeCheck(pyLib.PyList_Type)
         pyObjToNimSeq(o, v)
     elif T is array:
+        conversionTypeCheck(pyLib.PyList_Type)
         pyObjToNimArray(o, v)
     elif T is ref:
         if cast[pointer](o) == cast[pointer](pyLib.Py_None):
             v = nil
         else:
+            conversionTypeCheck(pyLib.PyCapsule_Type)
             v = cast[T](pyLib.PyCapsule_GetPointer(o, nil))
     elif T is object:
         pyObjToNimObj(o, v)
     elif T is tuple:
+        conversionTypeCheck(pyLib.PyTuple_Type)
         pyObjToNimTuple(o, v)
     else:
         unknownTypeCompileError(v)
