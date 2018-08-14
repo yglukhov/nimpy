@@ -1263,10 +1263,12 @@ proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject], kwarg
         assert(not v.isNil, "nimpy internal error v.isNil")
         discard pyLib.PyTuple_SetItem(argTuple, i, v)
 
-    let argDict = pyLib.PyDict_New()
-    for v in kwargs:
-        assert(not v.obj.isNil, "nimpy internal error v.obj.isNil")
-        discard pyLib.PyDict_SetItemString(argDict, v.name, v.obj)
+    var argDict: PPyObject = nil
+    if kwargs.len > 0:
+        argDict = pyLib.PyDict_New()
+        for v in kwargs:
+            assert(not v.obj.isNil, "nimpy internal error v.obj.isNil")
+            discard pyLib.PyDict_SetItemString(argDict, v.name, v.obj)
 
     result = pyLib.PyObject_Call(callable, argTuple, argDict)
     decRef argTuple
