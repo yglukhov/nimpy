@@ -351,6 +351,7 @@ type
 
         PyErr_Clear*: proc() {.cdecl.}
         PyErr_SetString*: proc(o: PPyObject, s: cstring) {.cdecl.}
+        PyErr_Occurred*: proc(): PPyObject {.cdecl.}
         PyExc_TypeError*: PPyObject
 
         PyCapsule_New*: proc(p: pointer, name: cstring, destr: proc(o: PPyObject) {.cdecl.}): PPyObject {.cdecl.}
@@ -665,6 +666,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
 
     load PyErr_Clear
     load PyErr_SetString
+    load PyErr_Occurred
     load PyExc_TypeError
 
     pl.PyExc_TypeError = cast[ptr PPyObject](pl.PyExc_TypeError)[]
@@ -900,12 +902,16 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
     template conversionTypeCheck(what: untyped): untyped =
         if not checkObjSubclass(o, what):
             raise newException(Exception, "Cannot convert python object to " & $T)
+    template conversionTypeCheck(): untyped =
+        if not pyLib.PyErr_Occurred().isNil:
+            raise newException(Exception, "Cannot convert python object to " & $T)
+
     when T is int|int32|int64|int16|uint32|uint64|uint16|uint8|int8|char:
         conversionTypeCheck(Py_TPFLAGS_INT_SUBCLASS or Py_TPFLAGS_LONG_SUBCLASS)
         v = T(pyLib.PyLong_AsLongLong(o))
     elif T is float|float32|float64:
-        conversionTypeCheck(pyLib.PyFloat_Type)
         v = T(pyLib.PyFloat_AsDouble(o))
+        conversionTypeCheck()
     elif T is bool:
         v = bool(pyLib.PyObject_IsTrue(o))
     elif T is PPyObject:
