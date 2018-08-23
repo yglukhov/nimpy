@@ -30,6 +30,11 @@ proc getTable(): Table[string, int] {.exportpy.} =
   result = { "Hello" : 0,
              "SomeKey": 10 }.toTable
 
+proc getIntTable(): Table[int, float] {.exportpy.} =
+  result = { 0 : 1.0,
+             1 : 15.0,
+             10 : 5.0 }.toTable
+
 type
     MyObj = object
         a, b: int

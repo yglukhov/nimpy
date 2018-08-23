@@ -20,6 +20,10 @@ assert(s.sum_ints(3, 4) == 7)
 assert(s.getTable()["Hello"] == 0)
 assert(s.getTable()["SomeKey"] == 10)
 
+assert(s.getIntTable()[0] == 1.0)
+assert(s.getIntTable()[1] == 15.0)
+assert(s.getIntTable()[10] == 5.0)
+
 assert(s.TestType() != None)
 
 assert(s.getMyObj()["a"] == 5)
