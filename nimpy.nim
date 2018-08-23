@@ -1074,10 +1074,10 @@ proc nimTabToPy[T: Table](t: T): PPyObject =
     for k, v in pairs(t):
         let vv = nimValueToPy(v)
         when type(k) is string:
-          let ret = pyLib.PyDict_SetItemString(result, k, vv)
+            let ret = pyLib.PyDict_SetItemString(result, k, vv)
         else:
-          let kk = nimValueToPy(k)
-          let ret = pyLib.PyDict_SetItem(result, kk, vv)
+            let kk = nimValueToPy(k)
+            let ret = pyLib.PyDict_SetItem(result, kk, vv)
         decRef vv
         if ret != 0:
             cannotSerializeErr($k)
