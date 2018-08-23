@@ -1,4 +1,4 @@
-import dynlib, macros, ospaths, strutils, complex, strutils, sequtils, typetraits
+import dynlib, macros, ospaths, strutils, complex, strutils, sequtils, typetraits, tables
 
 type
     PyObject* = ref object
@@ -1062,14 +1062,24 @@ proc PyObject_CallObject(o: PPyObject): PPyObject =
 proc cannotSerializeErr(k: string) =
     raise newException(Exception, "Could not serialize object key: " & k)
 
+proc nimObjToPyIter[T; U; V](result: var T, k: U, v: V) {.inline.} =
+    ## the actual iteration content of `nimObjToPy`
+    ## used to allow  `nimObjToPy` to differentiate between `Table` and other
+    ## objects
+    let vv = nimValueToPy(v)
+    let ret = pyLib.PyDict_SetItemString(result, k, vv)
+    decRef vv
+    if ret != 0:
+      cannotSerializeErr(k)
+
 proc nimObjToPy[T](o: T): PPyObject =
     result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
-    for k, v in fieldPairs(o):
-        let vv = nimValueToPy(v)
-        let ret = pyLib.PyDict_SetItemString(result, k, vv)
-        decRef vv
-        if ret != 0:
-            cannotSerializeErr(k)
+    when T is Table:
+        for k, v in pairs(o):
+            result.nimObjToPyIter(k, v)
+    else:
+        for k, v in fieldPairs(o):
+            result.nimObjToPyIter(k, v)
 
 proc tupleSize[T](): int {.compileTime.} =
     var o: T
