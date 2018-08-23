@@ -1078,6 +1078,7 @@ proc nimTabToPy[T: Table](t: T): PPyObject =
         else:
             let kk = nimValueToPy(k)
             let ret = pyLib.PyDict_SetItem(result, kk, vv)
+            decref kk
         decRef vv
         if ret != 0:
             cannotSerializeErr($k)
