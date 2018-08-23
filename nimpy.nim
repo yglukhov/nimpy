@@ -1,4 +1,4 @@
-import dynlib, macros, ospaths, strutils, complex, strutils, sequtils, typetraits
+import dynlib, macros, ospaths, strutils, complex, strutils, sequtils, typetraits, tables
 
 type
     PyObject* = ref object
@@ -346,6 +346,8 @@ type
         PyDict_New*: proc(): PPyObject {.cdecl.}
         PyDict_GetItemString*: proc(o: PPyObject, k: cstring): PPyObject {.cdecl.}
         PyDict_SetItemString*: proc(o: PPyObject, k: cstring, v: PPyObject): cint {.cdecl.}
+        PyDict_GetItem*: proc(o: PPyObject, k: PPyObject): PPyObject {.cdecl.}
+        PyDict_SetItem*: proc(o: PPyObject, k, v: PPyObject): cint {.cdecl.}
 
         PyDealloc*: proc(o: PPyObject) {.nimcall.}
 
@@ -658,6 +660,8 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     load PyDict_New
     load PyDict_GetItemString
     load PyDict_SetItemString
+    load PyDict_GetItem
+    load PyDict_SetItem
 
     if pl.pythonVersion == 3:
         pl.PyDealloc = deallocPythonObj[PyTypeObject3]
@@ -974,7 +978,8 @@ iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
             inc iParam
 
 proc nimArrToPy[T](s: openarray[T]): PPyObject
-proc nimObjToPy[T](o: T): PPyObject
+proc nimTabToPy[T: Table](t: T): PPyObject
+proc nimObjToPy[T: not Table](o: T): PPyObject
 proc nimTupleToPy[T](o: T): PPyObject
 
 proc refCapsuleDestructor(c: PPyObject) {.cdecl.} =
@@ -1040,10 +1045,12 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
         pyLib.PyBool_FromLong(clong(v))
     elif T is Complex:
         pyLib.Py_BuildValue("D", unsafeAddr v)
-    elif T is object:
+    elif T is not Table and T is object:
         nimObjToPy(v)
     elif T is tuple:
         nimTupleToPy(v)
+    elif T is Table:
+        nimTabToPy(v)
     else:
         unknownTypeCompileError(v)
 
@@ -1062,7 +1069,22 @@ proc PyObject_CallObject(o: PPyObject): PPyObject =
 proc cannotSerializeErr(k: string) =
     raise newException(Exception, "Could not serialize object key: " & k)
 
-proc nimObjToPy[T](o: T): PPyObject =
+proc nimTabToPy[T: Table](t: T): PPyObject =
+    result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
+    for k, v in pairs(t):
+        let vv = nimValueToPy(v)
+        when type(k) is string:
+            let ret = pyLib.PyDict_SetItemString(result, k, vv)
+        else:
+            let kk = nimValueToPy(k)
+            let ret = pyLib.PyDict_SetItem(result, kk, vv)
+            decref kk
+        decRef vv
+        if ret != 0:
+            cannotSerializeErr($k)
+
+
+proc nimObjToPy[T: not Table](o: T): PPyObject =
     result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
     for k, v in fieldPairs(o):
         let vv = nimValueToPy(v)
