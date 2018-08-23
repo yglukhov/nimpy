@@ -17,6 +17,9 @@ assert(s.complexSeqSqrt([complex(1, -1), complex(1, 1)]) == [cmath.sqrt(complex(
 
 assert(s.sum_ints(3, 4) == 7)
 
+assert(s.getTable()["Hello"] == 0)
+assert(s.getTable()["SomeKey"] == 10)
+
 assert(s.TestType() != None)
 
 assert(s.getMyObj()["a"] == 5)

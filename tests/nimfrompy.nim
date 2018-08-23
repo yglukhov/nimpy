@@ -1,5 +1,5 @@
 import ../nimpy
-import algorithm, complex
+import algorithm, complex, tables
 from tpyfromnim import nil
 
 proc greet(name: string): string {.exportpy.} =
@@ -25,6 +25,10 @@ proc complexSeqSqrt(a: seq[Complex]): seq[Complex] {.exportpy.} =
     for i, aa in a: result[i] = sqrt(aa)
 
 proc sumIntsWithCustomName(a, b: int32): int {.exportpy: "sum_ints".} = a + b
+
+proc getTable(): Table[string, int] {.exportpy.} =
+  result = { "Hello" : 0,
+             "SomeKey": 10 }.toTable
 
 type
     MyObj = object
