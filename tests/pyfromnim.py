@@ -14,5 +14,10 @@ class MyClass(object):
 def test_kwargs(a, b):
     return a - b
 
+def test_dict():
+    a = { "Hello" : 0,
+          "World" : 1,
+          "Yay" : 5 }
+    return a
 import sys
 assert(len(sys.argv) > 0)
