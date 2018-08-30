@@ -863,11 +863,8 @@ proc unknownTypeCompileError() {.inline.} =
 proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.}
 
 proc strToPyObject(s: string): PPyObject =
-    var cs: cstring
-    var ln: cint
-    if not s.isNil:
-        cs = s
-        ln = cint(s.xlen)
+    var cs: cstring = s
+    var ln = s.len.cint
     result = pyLib.Py_BuildValue("s#", cs, ln)
     if result.isNil:
         # Utf-8 decoding failed. Fallback to bytes.
@@ -1172,7 +1169,7 @@ proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode
 
     var procIdent = prc.name
     var procName = procName
-    if procName.isNil:
+    if procName.len == 0:
         procName = $procIdent
     if wrap:
         procIdent = newIdentNode($procIdent & "Py_wrapper")
