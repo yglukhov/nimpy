@@ -2,7 +2,7 @@ import cmath, os
 import nimfrompy as s
 
 assert(s.greet("world") == "Hello, world!")
-assert(s.somethingThatReturnsNilString() == None)
+assert(s.somethingThatReturnsEmptyString() == "")
 assert(s.sumInts(4, 5) == 9)
 assert(abs(s.sumFloats(4.1, 5.2) - 9.3) < 0.0001)
 assert(abs(s.sumAssorted(1, 2, 3, 4, 5, 6, 7) - 28) < 0.0001)

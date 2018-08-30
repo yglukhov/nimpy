@@ -5,7 +5,7 @@ from tpyfromnim import nil
 proc greet(name: string): string {.exportpy.} =
     return "Hello, " & name & "!"
 
-proc somethingThatReturnsNilString(): string {.exportpy.} =
+proc somethingThatReturnsEmptyString(): string {.exportpy.} =
     discard
 
 proc sumInts(a, b: int32): int {.exportpy.} = a + b
