@@ -92,7 +92,6 @@ proc test*() =
             discard n.to(string)
         except:
             excMsg = getCurrentExceptionMsg()
-            echo $excMsg
 
         doAssert(excMsg == expectedMsg % "NoneType")
 
