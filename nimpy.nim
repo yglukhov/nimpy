@@ -846,7 +846,10 @@ proc pyObjToNimStr(o: PPyObject, v: var string) =
             pyLib.PyErr_Clear()
             raise newException(Exception, "Can't convert python obj to string")
     else:
-        raise newException(Exception, "Can't convert python obj to string")
+        # Name the type that is unable to be converted.
+        let typ = cast[PyTypeObject]((cast[ptr PyObjectObj](o)).ob_type)
+        let errString = "Can't convert python obj of type '$1' to string"
+        raise newException(Exception, errString % [$typ.tp_name])
 
     v = newString(l)
     if l != 0:
