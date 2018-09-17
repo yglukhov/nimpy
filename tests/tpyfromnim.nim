@@ -71,11 +71,14 @@ proc test*() =
         doAssert(x.to(int) == -2)
 
     block: # dict test
-      let pfn = pyImport("pyfromnim")
-      let dict = pfn.test_dict()
-      let nimDict = dict.to(Table[string, int])
-      echo "Nim dict ", nimDict
-      echo type(dict)
+        let pfn = pyImport("pyfromnim")
+        let dict = pfn.test_dict()
+        let nimDict = dict.to(Table[string, int])
+
+        doAssert nimDict.len == 3
+        doAssert nimDict["Hello"] == 0
+        doAssert nimDict["World"] == 1
+        doAssert nimDict["Yay"] == 5
 
     block: # serialize char's
         doAssert(py.ord("A").to(char) == 'A')
