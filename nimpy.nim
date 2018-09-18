@@ -1323,7 +1323,7 @@ macro dotCall(o: untyped, field: untyped, args: varargs[untyped]): untyped =
             plainArgs.add(newCall("toPyObjectArgument", arg))
         else:
             expectKind(arg[0], nnkIdent)
-            kwArgs.add(newTree(nnkTupleConstr,
+            kwArgs.add(newTree(nnkPar,
                 newCall("cstring", newLit($arg[0])),
                 newCall("toPyObjectArgument", arg[1])))
 
