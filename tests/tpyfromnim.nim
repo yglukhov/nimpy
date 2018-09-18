@@ -1,4 +1,5 @@
 import ../nimpy, strutils, os
+import ../nimpy, strutils, os, typetraits, tables, json
 
 proc test*() =
     let py = pyBuiltinsModule()
@@ -68,6 +69,16 @@ proc test*() =
         let x = pfn.test_kwargs(b = 3, a = 1)
 
         doAssert(x.to(int) == -2)
+
+    block: # dict test
+        let pfn = pyImport("pyfromnim")
+        let dict = pfn.test_dict()
+        let nimDict = dict.to(Table[string, int])
+
+        doAssert nimDict.len == 3
+        doAssert nimDict["Hello"] == 0
+        doAssert nimDict["World"] == 1
+        doAssert nimDict["Yay"] == 5
 
     block: # serialize char's
         doAssert(py.ord("A").to(char) == 'A')

@@ -344,10 +344,13 @@ type
 
         PyDict_Type*: PyTypeObject
         PyDict_New*: proc(): PPyObject {.cdecl.}
+        PyDict_Size*: proc(d: PPyObject): Py_ssize_t {.cdecl.}
         PyDict_GetItemString*: proc(o: PPyObject, k: cstring): PPyObject {.cdecl.}
         PyDict_SetItemString*: proc(o: PPyObject, k: cstring, v: PPyObject): cint {.cdecl.}
         PyDict_GetItem*: proc(o: PPyObject, k: PPyObject): PPyObject {.cdecl.}
         PyDict_SetItem*: proc(o: PPyObject, k, v: PPyObject): cint {.cdecl.}
+        PyDict_Keys*: proc(o: PPyObject): PPyObject {.cdecl.}
+        PyDict_Values*: proc(o: PPyObject): PPyObject {.cdecl.}
 
         PyDealloc*: proc(o: PPyObject) {.nimcall.}
 
@@ -658,10 +661,13 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
 
     load PyDict_Type
     load PyDict_New
+    load PyDict_Size
     load PyDict_GetItemString
     load PyDict_SetItemString
     load PyDict_GetItem
     load PyDict_SetItem
+    load PyDict_Keys
+    load PyDict_Values
 
     if pl.pythonVersion == 3:
         pl.PyDealloc = deallocPythonObj[PyTypeObject3]
@@ -825,6 +831,7 @@ proc toString*(b: Py_buffer): string =
             copyMem(addr result[0], b.buf, ln)
 
 proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T])
+proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U])
 proc pyObjToNimArray[T, I](o: PPyObject, s: var array[I, T])
 proc pyObjToNimStr(o: PPyObject, v: var string) =
     var s: ptr char
@@ -940,6 +947,10 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
         else:
             conversionTypeCheck(pyLib.PyCapsule_Type)
             v = cast[T](pyLib.PyCapsule_GetPointer(o, nil))
+    elif T is Table:
+        # above `object` since `Table` is an object
+        conversionTypeCheck(pyLib.PyDict_Type)
+        pyObjToNimTab(o, v)
     elif T is object:
         pyObjToNimObj(o, v)
     elif T is tuple:
@@ -957,6 +968,28 @@ proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T]) =
         pyObjToNim(pyLib.PyList_GetItem(o, i), v[i])
         # PyList_GetItem # No DECREF. Returns borrowed ref.
 
+proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U]) =
+  ## call this either:
+  ## - if you want to check whether T and U are valid types for
+  ##   the python dict (i.e. to check whether all python types
+  ##   are convertible to T and U)
+  ## - you know the python dict conforms to T and U and you wish
+  ##   to get a correct Nim table from that
+  tab = initTable[T, U]()
+  let
+    sz = int(pyLib.PyDict_Size(o))
+    ks = pyLib.PyDict_Keys(o)
+    vs = pyLib.PyDict_Values(o)
+  for i in 0 ..< sz:
+    var
+      k: T
+      v: U
+    pyObjToNim(pyLib.PyList_GetItem(ks, i), k)
+    pyObjToNim(pyLib.PyList_GetItem(vs, i), v)
+    # PyList_GetItem # No DECREF. Returns borrowed ref.
+    tab[k] = v
+  decref ks
+  decref vs
 proc pyObjToNimArray[T, I](o: PPyObject, s: var array[I, T]) =
     # assert(PyList_Check(o) != 0)
     let sz = int(pyLib.PyList_Size(o))
