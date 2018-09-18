@@ -84,6 +84,28 @@ proc test*() =
         doAssert(py.ord("A").to(char) == 'A')
         doAssert(py.chr('A').to(string) == "A")
 
+    block: # types without a clear string representation print their type name
+        let o = pyImport("pyfromnim").MyClass()
+
+        # Check for a class that does not have __repr__
+        var excMsg = ""
+        var expectedMsg = "Can't convert python obj of type '$1' to string"
+        try:
+            discard o.to(string)
+        except:
+            excMsg = getCurrentExceptionMsg()
+
+        doAssert(excMsg == expectedMsg % "MyClass")
+
+        # Check against the None type
+        var n = py.None
+        try:
+            discard n.to(string)
+        except:
+            excMsg = getCurrentExceptionMsg()
+
+        doAssert(excMsg == expectedMsg % "NoneType")
+
 when isMainModule:
     test()
     echo "Test complete!"
