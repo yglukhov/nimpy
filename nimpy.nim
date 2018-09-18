@@ -464,6 +464,14 @@ const
 
     Py_TPFLAGS_DEFAULT_CORE = Py_TPFLAGS_DEFAULT_EXTERNAL or Py_TPFLAGS_HAVE_VERSION_TAG
 
+    # These flags are used for PyMethodDef.ml_flags
+    Py_MLFLAGS_VARARGS  = (1 shl 0)
+    Py_MLFLAGS_KEYWORDS = (1 shl 1)
+    Py_MLFLAGS_NOARGS   = (1 shl 2)
+    Py_MLFLAGS_O        = (1 shl 3)
+    Py_MLFLAGS_CLASS    = (1 shl 4)
+    Py_MLFLAGS_STATIC   = (1 shl 5)
+
 proc isNil*(p: PPyObject): bool {.borrow.}
 
 var pyLib: PyLib
@@ -498,7 +506,9 @@ template checkObjSubclass(o: PPyObject, ty: PyTypeObject): bool =
     (ty == typ) or pyLib.PyType_IsSubtype(typ, ty) != 0
 
 proc addMethod(m: var PyModuleDesc, name, doc: cstring, f: PyCFunction) =
-    m.methods.add(PyMethodDef(ml_name: name, ml_meth: f, ml_flags: 1, ml_doc: doc))
+    let def = PyMethodDef(ml_name: name, ml_meth: f, ml_flags: Py_MLFLAGS_VARARGS,
+                          ml_doc: doc)
+    m.methods.add(def)
 
 proc newNimObjToPyObj(typ: PyTypeObject, o: PyNimObject): PPyObject =
     # echo "New called"
