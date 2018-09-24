@@ -570,7 +570,7 @@ when defined(windows):
                     if ln < 1024:
                         fn.setLen(ln)
                     const suffixLen = "\\pythonXX.dll".len
-                    if fn.endsWith(".dll") and fn.find("\\python") == fn.len - suffixLen:
+                    if fn.endsWith(".dll") and fn.rfind("\\python") == fn.len - suffixLen:
                         return fn
         raise newException(Exception, "Could not find pythonXX.dll")
 
