@@ -1168,6 +1168,8 @@ proc updateStackBottom() {.inline.} =
     when declared(nimGC_setStackBottom):
         var a: int
         nimGC_setStackBottom(addr a)
+    elif not defined(nimpySuppressGCCrashWarning):
+        {.error: "Use newer Nim, or compile with -d:nimpySuppressGCCrashWarning and experience potential crashes in GC".}
 
 proc makeWrapper(originalName: string, name, prc: NimNode): NimNode =
     let selfIdent = newIdentNode("self")
