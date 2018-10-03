@@ -77,6 +77,9 @@ proc tupleDiff(a, b: tuple[x, y: int]): tuple[x, y: int] {.exportpy.} =
 proc testPyFromNim() {.exportpy.} =
     tpyfromnim.test()
 
+proc testDefaultArgs(a: string, b: string = "world"): string {.exportpy.} =
+    result = a & b
+
 type TestType = ref object of PyNimObjectBaseToInheritFromForAnExportedType
 
 pyexportTypeExperimental(TestType)
