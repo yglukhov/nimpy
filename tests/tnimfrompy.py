@@ -51,6 +51,8 @@ assert(s.someFunc3() == os.getcwd())
 
 assert(s.tupleDiff((5, 4), (2, 3)) == (3, 1))
 
+assert(s.testDefaultArgs("hello, ", "world") == s.testDefaultArgs("hello, "))
+
 s.testPyFromNim()
 
 print("Tests complete!")

@@ -1151,9 +1151,19 @@ proc nimTupleToPy[T](o: T): PPyObject =
 proc parseArg[T](argTuple: PPyObject, argIdx: int, result: var T) =
     pyObjToNim(pyLib.PyTuple_GetItem(argTuple, argIdx), result)
 
-proc verifyArgs(argTuple: PPyObject, argsLen: int, funcName: string): bool =
+proc parseArg[T](argTuple: PPyObject, argIdx: int, default: T, result: var T) =
+    if argIdx < pyLib.PyTuple_Size(argTuple):
+        pyObjToNim(pyLib.PyTuple_GetItem(argTuple, argIdx), result)
+    else:
+        result = default
+
+proc verifyArgs(argTuple: PPyObject, argsLen, argsLenReq: int, funcName: string): bool =
     let sz = pyLib.PyTuple_Size(argTuple)
-    result = sz == argsLen
+    result = if argsLen > argsLenReq:
+        # We have some optional arguments, argsLen is the upper limit
+        sz >= argsLenReq and sz <= argsLen
+    else:
+        sz == argsLen
     if not result:
         pyLib.PyErr_SetString(pyLib.PyExc_TypeError, funcName & "() takes exactly " & $argsLen & " arguments (" & $sz & " given)")
 
@@ -1186,18 +1196,28 @@ proc makeWrapper(originalName: string, name, prc: NimNode): NimNode =
     let origCall = newCall(prc.name)
 
     var numArgs = 0
+    var numArgsReq = 0
     for a in prc.arguments:
         let argIdent = newIdentNode("arg" & $a.idx & $a.name)
         pyValueVarSection.add(newIdentDefs(argIdent, newCall(bindSym"valueTypeForArgType", a.typ)))
-        parseArgsStmts.add(newCall(bindSym"parseArg", argsIdent, newLit(a.idx), argIdent))
+        if a.default.kind != nnkEmpty:
+            parseArgsStmts.add(newCall(bindSym"parseArg", argsIdent, newLit(a.idx), a.default, argIdent))
+        elif numArgsReq < numArgs:
+            # Exported procedures _must_ have all their arguments w/ a default
+            # value follow the required ones
+            error("Default-valued arguments must follow the regular ones", prc)
+        else:
+            parseArgsStmts.add(newCall(bindSym"parseArg", argsIdent, newLit(a.idx), argIdent))
+            inc numArgsReq
         origCall.add(argIdent)
         inc numArgs
 
     let argsLen = newLit(numArgs)
+    let argsLenReq = newLit(numArgsReq)
     let nameLit = newLit(originalName)
     result.body.add quote do:
         updateStackBottom()
-        if verifyArgs(`argsIdent`, `argsLen`, `nameLit`):
+        if verifyArgs(`argsIdent`, `argsLen`, `argsLenReq`, `nameLit`):
             `parseArgsStmts`
             return nimValueToPy(`origCall`)
 
