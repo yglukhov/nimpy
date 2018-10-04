@@ -42,6 +42,7 @@ the compiled module doesn't depend on particular Python version, it should
 properly work with any. The C API symbols are loaded in runtime from whichever
 process has launched your module.
 
+
 ## Troubleshooting
 - Importing the compiled module from Python fails with `ImportError: dynamic module does not define module export function ...`
 
@@ -51,6 +52,18 @@ process has launched your module.
 
   nimpy converts Nim strings to Python strings usually, but since Nim strings are encoding agnostic and may contain invalid utf8 sequences, nimpy will fallback to Python `bytes` in such cases.
 
+- Is there any numpy compatibility?
+
+  nimpy allows manipulating numpy objects just how you would do it in Python,
+however it not much more efficient. To get the maximum performance nimpy
+exposes [Buffer protocol](https://docs.python.org/3/c-api/buffer.html), see
+[raw_buffers.nim](https://github.com/yglukhov/nimpy/blob/master/nimpy/raw_buffers.nim).
+[tpyfromnim.nim](https://github.com/yglukhov/nimpy/blob/master/tests/tpyfromnim.nim)
+contains a very basic test for this (grep `numpy`). Higher level API might
+be considered in the future, PRs are welcome.
+
 
 ## Future directions
 * exporting Nim types/functions as Python classes/methods
+* High level buffer API
+
