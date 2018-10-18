@@ -3,6 +3,9 @@ import dynlib, macros, ospaths, strutils, complex, strutils, sequtils, typetrait
 
 import nimpy/py_lib as lib
 
+import json
+export json
+
 type
     PyObject* = ref object
         rawPyObj: PPyObject
@@ -126,6 +129,20 @@ type
     PyNamedArg = tuple
         name: cstring
         obj: PPyObject
+
+    PyBaseType = enum
+        pbUnknown
+        pbLong
+        pbFloat
+        pbComplex
+        pbCapsule # not used
+        pbTuple
+        pbList
+        pbBytes
+        pbUnicode
+        pbDict
+        pbString
+        pbObject
 
 proc privateRawPyObj*(p: PyObject): PPyObject {.inline.} =
     # Don't use this
@@ -255,6 +272,7 @@ proc toString*(b: RawPyBuffer): string =
         if ln != 0:
             copyMem(addr result[0], b.buf, ln)
 
+proc pyObjToJson(o: PPyobject, n: var JsonNode)
 proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T])
 proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U])
 proc pyObjToNimArray[T, I](o: PPyObject, s: var array[I, T])
@@ -500,6 +518,91 @@ proc nimArrToPy[T](s: openarray[T]): PPyObject =
         let o = nimValueToPy(s[i])
         discard pyLib.PyList_SetItem(result, i, o)
 
+proc baseType(o: PPyObject): PyBaseType =
+    # returns the correct PyBaseType of the given PyObject extracted
+    # by manually checking all types
+    # If no call to `returnIfSubclass` returns from this proc, the
+    # default value of `pbUnknown` will be returned
+    template returnIfSubclass(pyt, nimt: untyped): untyped =
+        if checkObjSubclass(o, pyt):
+            return nimt
+
+    # check int types first for backward compatibility with Python2
+    returnIfSubclass(Py_TPFLAGS_INT_SUBCLASS or Py_TPFLAGS_LONG_SUBCLASS, pbLong)
+
+    let checkTypes = { pyLib.PyFloat_Type : pbFloat,
+                       pyLib.PyComplex_Type : pbComplex,
+                       pyLib.PyBytes_Type : pbString,
+                       pyLib.PyUnicode_Type : pbString,
+                       pyLib.PyList_Type : pbList,
+                       pyLib.PyTuple_Type : pbTuple,
+                       pyLib.PyDict_Type : pbDict }
+
+    for tup in checkTypes:
+        let
+            k = tup[0]
+            v = tup[1]
+        returnIfSubclass(k, v)
+    # if we have not returned until here, `pbUnknown` is returned
+
+iterator items*(o: PyObject): PyObject =
+    let it = pyLib.PyObject_GetIter(o.rawPyObj)
+    while true:
+        let i = pyLib.PyIter_Next(it)
+        if i.isNil: break
+        yield newPyObjectConsumingRef(i)
+    decRef it
+
+proc `$`*(o: PyObject): string
+proc `$`*(p: PPyObject): string =
+    ## wrapper for `$` for a PyObject ptr
+    let o = PyObject(rawPyObj: p)
+    result = $o
+
+proc `%`(o: PPyObject): JsonNode =
+    ## convert the given PPyObject to a JsonNode
+    let bType = o.baseType
+    case bType
+    of pbUnknown:
+        # unsupported means we just use string conversion
+        result = % $o
+    of pbLong:
+        var x: int
+        pyObjToNim(o, x)
+        result = % x
+    of pbFloat:
+        var x: float
+        pyObjToNim(o, x)
+        result = % x
+    of pbComplex:
+        var x: Complex
+        pyObjToNim(o, x)
+        result = %* { "real" : x.re,
+                      "imag" : x.im }
+    of pbList, pbTuple:
+        result = newJArray()
+        let pyObj = PyObject(rawPyObj: o)
+        for x in pyObj:
+            add(result, % (x.rawPyObj))
+    of pbBytes, pbUnicode, pbString:
+        result = % $o
+    of pbDict:
+        # dictionaries are represented as `JObjects`, where the Python dict's keys
+        # are stored as strings
+        result = newJObject()
+        let pyObj = PyObject(rawPyObj: o)
+        for key in pyObj:
+            let val = pyLib.PyDict_GetItem(o, key.rawPyObj)
+            result[$key] = % val
+    of pbObject: # not used, for objects currently end up as `pbUnknown`
+        result = newJString($o)
+    of pbCapsule: # not used
+        raise newException(Exception, "Cannot store object of base type " &
+            "`pbCapsule` in JSON.")
+
+proc pyObjToJson(o: PPyObject, n: var JsonNode) =
+    n = % o
+
 proc PyObject_CallObject(o: PPyObject): PPyObject =
     let args = pyLib.PyTuple_New(0)
     result = pyLib.PyObject_Call(o, args, nil)
@@ -702,6 +805,9 @@ template toPyObjectArgument*[T](v: T): PPyObject =
 proc to*(v: PyObject, T: typedesc): T {.inline.} =
     pyObjToNim(v.rawPyObj, result)
 
+proc toJson*(v: PyObject): JsonNode {.inline.} =
+    pyObjToJson(v.rawPyObj, result)
+
 proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject], kwargs: openarray[PyNamedArg] = []): PPyObject =
     let callable = pyLib.PyObject_GetAttrString(o.rawPyObj, name)
     if callable.isNil:
@@ -765,14 +871,6 @@ template `.()`*(o: PyObject, field: untyped, args: varargs[untyped]): PyObject =
 
 template `.`*(o: PyObject, field: untyped): PyObject =
     getProperty(o, astToStr(field))
-
-iterator items*(o: PyObject): PyObject =
-    let it = pyLib.PyObject_GetIter(o.rawPyObj)
-    while true:
-        let i = pyLib.PyIter_Next(it)
-        if i.isNil: break
-        yield newPyObjectConsumingRef(i)
-    decRef it
 
 proc `$`*(o: PyObject): string =
     let s = pyLib.PyObject_Str(o.rawPyObj)
