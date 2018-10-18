@@ -395,27 +395,27 @@ proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T]) =
         # PyList_GetItem # No DECREF. Returns borrowed ref.
 
 proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U]) =
-  ## call this either:
-  ## - if you want to check whether T and U are valid types for
-  ##   the python dict (i.e. to check whether all python types
-  ##   are convertible to T and U)
-  ## - you know the python dict conforms to T and U and you wish
-  ##   to get a correct Nim table from that
-  tab = initTable[T, U]()
-  let
-    sz = int(pyLib.PyDict_Size(o))
-    ks = pyLib.PyDict_Keys(o)
-    vs = pyLib.PyDict_Values(o)
-  for i in 0 ..< sz:
-    var
-      k: T
-      v: U
-    pyObjToNim(pyLib.PyList_GetItem(ks, i), k)
-    pyObjToNim(pyLib.PyList_GetItem(vs, i), v)
-    # PyList_GetItem # No DECREF. Returns borrowed ref.
-    tab[k] = v
-  decref ks
-  decref vs
+    ## call this either:
+    ## - if you want to check whether T and U are valid types for
+    ##   the python dict (i.e. to check whether all python types
+    ##   are convertible to T and U)
+    ## - you know the python dict conforms to T and U and you wish
+    ##   to get a correct Nim table from that
+    tab = initTable[T, U]()
+    let
+        sz = int(pyLib.PyDict_Size(o))
+        ks = pyLib.PyDict_Keys(o)
+        vs = pyLib.PyDict_Values(o)
+    for i in 0 ..< sz:
+        var
+            k: T
+            v: U
+        pyObjToNim(pyLib.PyList_GetItem(ks, i), k)
+        pyObjToNim(pyLib.PyList_GetItem(vs, i), v)
+        # PyList_GetItem # No DECREF. Returns borrowed ref.
+        tab[k] = v
+    decref ks
+    decref vs
 
 proc pyObjToNimArray[T, I](o: PPyObject, s: var array[I, T]) =
     # assert(PyList_Check(o) != 0)
