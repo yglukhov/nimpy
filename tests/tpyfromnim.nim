@@ -151,7 +151,29 @@ proc test*() =
         doAssert jsonDict["Tuple"][0].getFloat == 5.5
         doAssert jsonDict["Tuple"][1].getFloat == 10.0
 
+    block: # test mapping of exceptions
+        let pfn = pyImport("traise")
+        template check(f: untyped, exc: varargs[untyped]): untyped =
+            try:
+              discard f()
+            except exc:
+              discard
 
+        check(pfn.testOSError, OSError)
+        # in python3 IOError == OSError
+        check(pfn.testIOError, IOError, OSError)
+        check(pfn.testValueError, ValueError)
+        check(pfn.testKeyError, KeyError)
+        check(pfn.testEOFError, EOFError)
+        check(pfn.testArithmeticError,ArithmeticError)
+        check(pfn.testZeroDivisionError, DivByZeroError)
+        check(pfn.testOverflowError, OverflowError)
+        check(pfn.testAssertionError, AssertionError)
+        check(pfn.testMemoryError, OutOfMemError)
+        check(pfn.testIndexError, IndexError)
+        check(pfn.testFloatingPointError, FloatingPointError)
+        check(pfn.testException, Exception)
+        check(pfn.testUnsupportedException, Exception)
 
 
 when isMainModule:
