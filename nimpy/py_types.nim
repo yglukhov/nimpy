@@ -283,5 +283,24 @@ type
         smalltable*: array[2, Py_ssize_t] # Don't refer! not available in python 3
         internal*: pointer # Don't ever refer
 
-proc isNil*(p: PPyObject): bool {.borrow.}
+    # enum to map Python Exceptions to Nim Exceptions.
+    # the string value corresponds to the Python Exception
+    # while the enum identifier corresponds to the Nim exception (excl. "pe")
+    PythonErrorKind* = enum
+        peOSError = "OSError"
+        peIOError = "IOError"
+        peValueError = "ValueError"
+        peKeyError = "KeyError"
+        peEOFError = "EOFError"
+        peArithmeticError = "ArithmeticError"
+        peDivByZeroError = "ZeroDivisionError"
+        peOverflowError = "OverflowError"
+        peAssertionError = "AssertionError"
+        peOutOfMemError = "MemoryError"
+        peIndexError = "IndexError"
+        peFloatingPointError = "FloatingPointError"
+        peException = "Exception" # general exception, if no equivalent Nim Exception
 
+
+
+proc isNil*(p: PPyObject): bool {.borrow.}
