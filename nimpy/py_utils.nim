@@ -55,11 +55,7 @@ proc extractPythonError(typ: string): PythonErrorKind =
   var error = ""
   if scanf(typ, "<class '$*'>", error) or # Python 3
      scanf(typ, "<type 'exceptions.$*'>", error): # Python 2
-    try:
-      result = parseEnum[PythonErrorKind](error)
-    except ValueError:
-      # exception not supported, return general exception
-      result = peException
+    result = parseEnum[PythonErrorKind](error, peException)
   else:
     # else return general exception
     result = peException
