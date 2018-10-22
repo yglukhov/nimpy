@@ -1,10 +1,7 @@
-import dynlib, macros, ospaths, strutils, complex, strutils, sequtils, typetraits, tables,
+import dynlib, macros, ospaths, strutils, complex, strutils, sequtils, typetraits, tables, json,
     nimpy/[py_types, py_utils]
 
 import nimpy/py_lib as lib
-
-import json
-export json
 
 type
     PyObject* = ref object
@@ -921,4 +918,3 @@ proc dir*(v: PyObject): seq[string] =
 proc pyBuiltinsModule*(): PyObject =
     initPyLibIfNeeded()
     pyImport(if pyLib.pythonVersion == 3: "builtins" else: "__builtin__")
-

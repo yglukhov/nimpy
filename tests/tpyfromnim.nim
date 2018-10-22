@@ -1,4 +1,4 @@
-import ../nimpy, ../nimpy/raw_buffers, strutils, os, typetraits, tables
+import ../nimpy, ../nimpy/raw_buffers, strutils, os, typetraits, tables, json
 
 proc test*() =
     let py = pyBuiltinsModule()
