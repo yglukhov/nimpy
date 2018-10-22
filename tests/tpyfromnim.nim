@@ -118,6 +118,42 @@ proc test*() =
 
         doAssert(excMsg == expectedMsg % "NoneType")
 
+    block: # JSON conversion test
+        let pfn = pyImport("pyfromnim")
+        let dict = pfn.test_dict_json()
+
+        let jsonDict = dict.toJson
+        doAssert jsonDict["Hello"].getInt == 0
+        doAssert jsonDict["World"].getInt == 1
+        doAssert jsonDict["Yay"].getFloat == 5.5
+        doAssert jsonDict["5"].getInt == 10
+        doAssert jsonDict["Complex"] == %* { "real" : -1.0,
+                                             "imag" : 2.2 }
+        doAssert jsonDict["Nested"] == %* { "Dict" : 12.7 }
+        doAssert "pyfromnim.MyClass" in jsonDict["Object"].getStr
+        doAssert jsonDict["List"][0].getInt == 1
+        doAssert jsonDict["List"][1].getInt == 2
+        doAssert jsonDict["List"][2].getInt == 3
+        doAssert jsonDict["List"][3].getInt == 4
+
+        doAssert jsonDict["ListFloat"][0].getFloat == 1.5
+        doAssert jsonDict["ListFloat"][1].getFloat == 2.2
+        doAssert jsonDict["ListFloat"][2].getFloat == 3.5
+        doAssert jsonDict["ListFloat"][3].getFloat == 4.0
+
+        doAssert jsonDict["ListMixed"][0].getInt == 1
+        doAssert jsonDict["ListMixed"][1].getFloat == 2.2
+        doAssert jsonDict["ListMixed"][2].getInt == 3
+        doAssert jsonDict["ListMixed"][3].getFloat == 4.0
+        doAssert jsonDict["ListMixed"][4] == %* { "real" : -1.5,
+                                                  "imag" : 2.2 }
+
+        doAssert jsonDict["Tuple"][0].getFloat == 5.5
+        doAssert jsonDict["Tuple"][1].getFloat == 10.0
+
+
+
+
 when isMainModule:
     test()
     echo "Test complete!"
