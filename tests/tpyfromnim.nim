@@ -174,6 +174,7 @@ proc test*() =
         check(pfn.testFloatingPointError, FloatingPointError)
         check(pfn.testException, Exception)
         check(pfn.testUnsupportedException, Exception)
+        check(pfn.testCustomException, IndexError)
 
 
 when isMainModule:

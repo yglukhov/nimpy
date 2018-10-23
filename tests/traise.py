@@ -42,3 +42,8 @@ def testException():
 def testUnsupportedException():
     # example for an unsupported Python exception
     raise(NotImplementedError)
+
+def testCustomException():
+    class TestException(IndexError):
+        pass
+    raise(TestException)
