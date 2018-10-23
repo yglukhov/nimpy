@@ -88,6 +88,7 @@ macro generateRaiseCase(typ: PPyObject, typns, valns: string): untyped =
   # iterate enum fields
   for x in peEnumImpl[2]:
     if x.kind == nnkEnumFieldDef:
+      # enum consists of: `pe<NimExceptionName> = "PythonExceptionName"`
       let peNode = x[0]
       var nimExc = peNode.strVal
       let ofExpr = ident(nimExc)
@@ -97,7 +98,7 @@ macro generateRaiseCase(typ: PPyObject, typns, valns: string): untyped =
       let raiseStmt = quote do:
         raise newException(`nimExcIdent`, `typns` & ": " & `valns`)
       ofBranches.add nnkOfBranch.newTree(ofExpr, raiseStmt)
-      # get name and remove "pe" prefix to get Nim Exception
+      # build name of corresponding Python exception
       let fieldVal = x[1].strVal
       let pyError = ident("PyExc_" & fieldVal)
       excIfStmts.add quote do:
@@ -112,14 +113,11 @@ macro generateRaiseCase(typ: PPyObject, typns, valns: string): untyped =
     if `pyLib`.`pyVersion` == 3 and `peKind` == `peIOError`:
       # if Py3 and `IOError`, rewrite to `OSError`
       `peKind` = `peOSError`
-  # the tree for the case statements
   var caseStmt = nnkCaseStmt.newTree(
     peKind)
-  # add all branches to the case statement
   for o in ofBranches:
     caseStmt.add o
 
-  # finally add all statements to the result
   result.add peKindVar
   result.add excIfStmts
   result.add py3Check
