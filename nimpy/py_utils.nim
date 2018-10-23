@@ -113,6 +113,7 @@ macro generateRaiseCase(typ: PPyObject, typns, valns: string): untyped =
     if `pyLib`.`pyVersion` == 3 and `peKind` == `peIOError`:
       # if Py3 and `IOError`, rewrite to `OSError`
       `peKind` = `peOSError`
+
   var caseStmt = nnkCaseStmt.newTree(
     peKind)
   for o in ofBranches:

@@ -258,7 +258,6 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     load PyExc_ValueError
     load PyExc_EOFError
     load PyExc_MemoryError
-    load PyExc_LookupError
     load PyExc_IndexError
     load PyExc_KeyError
 
@@ -272,7 +271,6 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     pl.PyExc_ValueError = cast[ptr PPyObject](pl.PyExc_ValueError)[]
     pl.PyExc_EOFError = cast[ptr PPyObject](pl.PyExc_EOFError)[]
     pl.PyExc_MemoryError = cast[ptr PPyObject](pl.PyExc_MemoryError)[]
-    pl.PyExc_LookupError = cast[ptr PPyObject](pl.PyExc_LookupError)[]
     pl.PyExc_IndexError = cast[ptr PPyObject](pl.PyExc_IndexError)[]
     pl.PyExc_KeyError = cast[ptr PPyObject](pl.PyExc_KeyError)[]
 
