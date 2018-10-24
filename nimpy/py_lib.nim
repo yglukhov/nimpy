@@ -313,7 +313,7 @@ iterator libPythonNames(): string {.closure.} =
         var libname = when defined(macosx):
                 "libpython" & v & ".dylib"
             elif defined(windows):
-                "python" & v
+                "python" & replace(v.strip(chars={'m'}), ".", "")
             else:
                 "libpython" & v & ".so"
         yield libname
