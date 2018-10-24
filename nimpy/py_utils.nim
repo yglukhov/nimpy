@@ -1,3 +1,5 @@
+import strscans, strutils, macros
+
 import py_lib as lib
 import py_types
 
@@ -49,10 +51,84 @@ proc pyStringToNim*(o: PPyObject, output: var string): bool =
 
     result = true
 
+macro generateRaiseCase(typ: PPyObject, typns, valns: string): untyped =
+  ## generate the calls to `PyErr_GivenExceptionMatches` to check which exception
+  ## matches for `typ`.
+  ## allows us to detect if exception is subclass of another
+  ## if pyLib.PyErr_GivenExceptionMatches(typ, pyLib.PyExc_OSError):
+  ##   peKind = peOSError
+  ## ...
+  ## once `peKind` is defined, generates the case statement to map Python
+  ## Exceptions to Nim exception
+  ## case peKind
+  ## of peOSError
+  ##   raise newException(OSError, typns & ": " & valns)
+  ## .. # and so on
+  result = newStmtList()
+  let
+    # identifiers for pyLib
+    pyLib = ident("pyLib")
+    pyVersion = ident("pythonVersion")
+    givenExcMatch = ident("PyErr_GivenExceptionMatches")
+    peKind = ident("peKind")
+  # bind `PythonErrorKind` and get its implementation
+  let peEnumImpl = bindSym("PythonErrorKind").getImpl
+
+  # add declaration of `peKind` to result
+  let peKindVar = quote do:
+    var `peKind`: PythonErrorKind
+
+  # stores the if statements that perform the calls to `PyErr_GivenExceptionMatches`
+  # to check which exception it is
+  var excIfStmts = newStmtList()
+  # stores the `of` branches of the `case` statement that is done on the
+  # `PythonErrorKind` gathered from the `excIfStmts`
+  var ofBranches: seq[NimNode]
+
+  # iterate enum fields
+  for x in peEnumImpl[2]:
+    if x.kind == nnkEnumFieldDef:
+      # enum consists of: `pe<NimExceptionName> = "PythonExceptionName"`
+      let peNode = x[0]
+      var nimExc = peNode.strVal
+      let ofExpr = ident(nimExc)
+      # get name and remove "pe" prefix to get Nim Exception
+      removePrefix(nimExc, "pe")
+      let nimExcIdent = ident(nimExc)
+      let raiseStmt = quote do:
+        raise newException(`nimExcIdent`, `typns` & ": " & `valns`)
+      ofBranches.add nnkOfBranch.newTree(ofExpr, raiseStmt)
+      # build name of corresponding Python exception
+      let fieldVal = x[1].strVal
+      let pyError = ident("PyExc_" & fieldVal)
+      excIfStmts.add quote do:
+        if `pyLib`.`givenExcMatch`(`typ`, `pyLib`.`pyError`) == 1.cint:
+          `peKind` = `peNode`
+
+  # perform check if Python 2 or 3 is run, due to `IOError` == `OSError` in
+  # Python 3.
+  let peOSError = ident("peOSError")
+  let peIOError = ident("peIOError")
+  let py3Check = quote do:
+    if `pyLib`.`pyVersion` == 3 and `peKind` == `peIOError`:
+      # if Py3 and `IOError`, rewrite to `OSError`
+      `peKind` = `peOSError`
+
+  var caseStmt = nnkCaseStmt.newTree(
+    peKind)
+  for o in ofBranches:
+    caseStmt.add o
+
+  result.add peKindVar
+  result.add excIfStmts
+  result.add py3Check
+  result.add caseStmt
+
 proc raisePythonError*() =
     var typ, val, tb: PPyObject
     pyLib.PyErr_Fetch(addr typ, addr val, addr tb)
     pyLib.PyErr_NormalizeException(addr typ, addr val, addr tb)
+
     let vals = pyLib.PyObject_Str(val)
     let typs = pyLib.PyObject_Str(typ)
     var typns, valns: string
@@ -60,5 +136,7 @@ proc raisePythonError*() =
       raise newException(Exception, "Can not stringify exception")
     decRef vals
     decRef typs
-    raise newException(Exception, typns & ": " & valns)
 
+    # generate the code for the checks to get the correct Python Exception and
+    # then generate the case statement to map to the equivalent Nim exception
+    generateRaiseCase(typ, typns, valns)

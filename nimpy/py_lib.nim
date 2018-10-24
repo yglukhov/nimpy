@@ -89,6 +89,25 @@ type
         PyErr_Fetch*: proc(ptype, pvalue, ptraceback: ptr PPyObject) {.cdecl.}
         PyErr_NormalizeException*: proc(ptype, pvalue, ptraceback: ptr PPyObject) {.cdecl.}
 
+        PyErr_GivenExceptionMatches*: proc(given, exc: PPyObject): cint {.cdecl.}
+
+        PyExc_BaseException*: PPyObject # should always match any exception?
+        PyExc_Exception*: PPyObject
+        PyExc_ArithmeticError*: PPyObject
+        PyExc_FloatingPointError*: PPyObject
+        PyExc_OverflowError*: PPyObject
+        PyExc_ZeroDivisionError*: PPyObject
+        PyExc_AssertionError*: PPyObject
+        PyExc_OSError*: PPyObject
+        PyExc_IOError*: PPyObject # in Python 3 IOError *is* OSError
+        PyExc_ValueError*: PPyObject
+        PyExc_EOFError*: PPyObject
+        PyExc_MemoryError*: PPyObject
+        PyExc_IndexError*: PPyObject
+        PyExc_KeyError*: PPyObject
+
+
+
 var pyObjectStartOffset*: uint
 var pyLib*: PyLib
 
@@ -227,6 +246,33 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
 
     load PyErr_Fetch
     load PyErr_NormalizeException
+    load PyErr_GivenExceptionMatches
+
+    load PyExc_ArithmeticError
+    load PyExc_FloatingPointError
+    load PyExc_OverflowError
+    load PyExc_ZeroDivisionError
+    load PyExc_AssertionError
+    load PyExc_OSError
+    load PyExc_IOError
+    load PyExc_ValueError
+    load PyExc_EOFError
+    load PyExc_MemoryError
+    load PyExc_IndexError
+    load PyExc_KeyError
+
+    pl.PyExc_ArithmeticError = cast[ptr PPyObject](pl.PyExc_ArithmeticError)[]
+    pl.PyExc_FloatingPointError = cast[ptr PPyObject](pl.PyExc_FloatingPointError)[]
+    pl.PyExc_OverflowError = cast[ptr PPyObject](pl.PyExc_OverflowError)[]
+    pl.PyExc_ZeroDivisionError = cast[ptr PPyObject](pl.PyExc_ZeroDivisionError)[]
+    pl.PyExc_AssertionError = cast[ptr PPyObject](pl.PyExc_AssertionError)[]
+    pl.PyExc_OSError = cast[ptr PPyObject](pl.PyExc_OSError)[]
+    pl.PyExc_IOError = cast[ptr PPyObject](pl.PyExc_IOError)[]
+    pl.PyExc_ValueError = cast[ptr PPyObject](pl.PyExc_ValueError)[]
+    pl.PyExc_EOFError = cast[ptr PPyObject](pl.PyExc_EOFError)[]
+    pl.PyExc_MemoryError = cast[ptr PPyObject](pl.PyExc_MemoryError)[]
+    pl.PyExc_IndexError = cast[ptr PPyObject](pl.PyExc_IndexError)[]
+    pl.PyExc_KeyError = cast[ptr PPyObject](pl.PyExc_KeyError)[]
 
 when defined(windows):
     import winlean
