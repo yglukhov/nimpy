@@ -304,8 +304,8 @@ iterator libPythonNames(): string {.closure.} =
             yield "libpython" & v & ".dylib"
             yield "libpython" & v & "m.dylib"
         elif defined(windows):
-            yield "libpython" & v.replace(".", "")
-            yield "libpython" & v
+            yield "python" & v.replace(".", "")
+            yield "python" & v
         else:
             yield "libpython" & v & ".so"
             yield "libpython" & v & "m.so"
