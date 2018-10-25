@@ -299,19 +299,19 @@ proc pythonLibHandleForThisProcess(): LibHandle {.inline.} =
         loadLib()
 
 iterator libPythonNames(): string {.closure.} =
-    for v in ["3", "3.6m", "3.5m", "", "2", "2.7"]:
-        var libname = when defined(macosx):
-                "libpython" & v & ".dylib"
-            elif defined(windows):
-                "python" & v
-            else:
-                "libpython" & v & ".so"
-        yield libname
-
-        when defined(linux):
-            # try appending ".1" to the libname
-            libname &= ".1"
-            yield libname
+    for v in ["3", "3.7", "3.6", "3.5", "", "2", "2.7"]:
+        when defined(macosx):
+            yield "libpython" & v & ".dylib"
+            yield "libpython" & v & "m.dylib"
+        elif defined(windows):
+            yield "libpython" & v.replace(".", "")
+            yield "libpython" & v
+        else:
+            yield "libpython" & v & ".so"
+            yield "libpython" & v & "m.so"
+            when defined(linux):
+                yield "libpython" & v & ".so.1"
+                yield "libpython" & v & "m.so.1"
 
 proc pythonLibHandleFromExternalLib(): LibHandle {.inline.} =
     when not defined(windows):
