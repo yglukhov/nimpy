@@ -550,11 +550,13 @@ iterator items*(o: PyObject): PyObject =
         yield newPyObjectConsumingRef(i)
     decRef it
 
-proc `$`*(o: PyObject): string
 proc `$`*(p: PPyObject): string =
-    ## wrapper for `$` for a PyObject ptr
-    let o = PyObject(rawPyObj: p)
-    result = $o
+    assert(not p.isNil)
+    let s = pyLib.PyObject_Str(p)
+    pyObjToNimStr(s, result)
+    decRef s
+
+proc `$`*(o: PyObject): string {.inline.} = $o.rawPyObj
 
 proc `%`(o: PPyObject): JsonNode =
     ## convert the given PPyObject to a JsonNode
@@ -868,11 +870,6 @@ template `.()`*(o: PyObject, field: untyped, args: varargs[untyped]): PyObject =
 
 template `.`*(o: PyObject, field: untyped): PyObject =
     getProperty(o, astToStr(field))
-
-proc `$`*(o: PyObject): string =
-    let s = pyLib.PyObject_Str(o.rawPyObj)
-    pyObjToNimStr(s, result)
-    decRef s
 
 proc elemAtIndex(o: PyObject, idx: PPyObject): PyObject =
     let r = pyLib.PyObject_GetItem(o.rawPyObj, idx)
