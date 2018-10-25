@@ -145,6 +145,10 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     template maybeLoad(v: untyped) = maybeLoad(v, astToStr(v))
     template load(v: untyped) = load(v, astToStr(v))
 
+    template loadVar(v: untyped) =
+        load(v)
+        pl.v = cast[ptr PPyObject](pl.v)[]
+
     load Py_BuildValue, "_Py_BuildValue_SizeT"
     load PyTuple_New
     load PyTuple_Size
@@ -229,9 +233,8 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     load PyErr_Clear
     load PyErr_SetString
     load PyErr_Occurred
-    load PyExc_TypeError
 
-    pl.PyExc_TypeError = cast[ptr PPyObject](pl.PyExc_TypeError)[]
+    loadVar PyExc_TypeError
 
     load PyCapsule_New
     load PyCapsule_GetPointer
@@ -248,31 +251,18 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     load PyErr_NormalizeException
     load PyErr_GivenExceptionMatches
 
-    load PyExc_ArithmeticError
-    load PyExc_FloatingPointError
-    load PyExc_OverflowError
-    load PyExc_ZeroDivisionError
-    load PyExc_AssertionError
-    load PyExc_OSError
-    load PyExc_IOError
-    load PyExc_ValueError
-    load PyExc_EOFError
-    load PyExc_MemoryError
-    load PyExc_IndexError
-    load PyExc_KeyError
-
-    pl.PyExc_ArithmeticError = cast[ptr PPyObject](pl.PyExc_ArithmeticError)[]
-    pl.PyExc_FloatingPointError = cast[ptr PPyObject](pl.PyExc_FloatingPointError)[]
-    pl.PyExc_OverflowError = cast[ptr PPyObject](pl.PyExc_OverflowError)[]
-    pl.PyExc_ZeroDivisionError = cast[ptr PPyObject](pl.PyExc_ZeroDivisionError)[]
-    pl.PyExc_AssertionError = cast[ptr PPyObject](pl.PyExc_AssertionError)[]
-    pl.PyExc_OSError = cast[ptr PPyObject](pl.PyExc_OSError)[]
-    pl.PyExc_IOError = cast[ptr PPyObject](pl.PyExc_IOError)[]
-    pl.PyExc_ValueError = cast[ptr PPyObject](pl.PyExc_ValueError)[]
-    pl.PyExc_EOFError = cast[ptr PPyObject](pl.PyExc_EOFError)[]
-    pl.PyExc_MemoryError = cast[ptr PPyObject](pl.PyExc_MemoryError)[]
-    pl.PyExc_IndexError = cast[ptr PPyObject](pl.PyExc_IndexError)[]
-    pl.PyExc_KeyError = cast[ptr PPyObject](pl.PyExc_KeyError)[]
+    loadVar PyExc_ArithmeticError
+    loadVar PyExc_FloatingPointError
+    loadVar PyExc_OverflowError
+    loadVar PyExc_ZeroDivisionError
+    loadVar PyExc_AssertionError
+    loadVar PyExc_OSError
+    loadVar PyExc_IOError
+    loadVar PyExc_ValueError
+    loadVar PyExc_EOFError
+    loadVar PyExc_MemoryError
+    loadVar PyExc_IndexError
+    loadVar PyExc_KeyError
 
 when defined(windows):
     import winlean
