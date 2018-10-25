@@ -82,6 +82,8 @@ type
         PyEval_GetGlobals*: proc(): PPyObject {.cdecl.}
         PyEval_GetLocals*: proc(): PPyObject {.cdecl.}
 
+        PyCFunction_NewEx*: proc(md: ptr PyMethodDef, self, module: PPyObject): PPyObject {.cdecl.}
+
         pythonVersion*: int
 
         when not defined(release):
@@ -243,6 +245,8 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     load PyEval_GetBuiltins
     load PyEval_GetGlobals
     load PyEval_GetLocals
+
+    load PyCFunction_NewEx
 
     when not defined(release):
         load PyErr_Print

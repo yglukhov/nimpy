@@ -36,5 +36,8 @@ def test_dict_json():
     }
     return a
 
+def call_callback(fn):
+    fn(1, 2, "Hello")
+
 import sys
 assert(len(sys.argv) > 0)

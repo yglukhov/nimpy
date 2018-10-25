@@ -411,8 +411,8 @@ proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U]) =
         pyObjToNim(pyLib.PyList_GetItem(vs, i), v)
         # PyList_GetItem # No DECREF. Returns borrowed ref.
         tab[k] = v
-    decref ks
-    decref vs
+    decRef ks
+    decRef vs
 
 proc pyObjToNimArray[T, I](o: PPyObject, s: var array[I, T]) =
     # assert(PyList_Check(o) != 0)
@@ -422,27 +422,23 @@ proc pyObjToNimArray[T, I](o: PPyObject, s: var array[I, T]) =
         pyObjToNim(pyLib.PyList_GetItem(o, i), s[i])
         # PyList_GetItem # No DECREF. Returns borrowed ref.
 
-iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
-    let p = prc.params
-    var iParam = 0
-    for i in 1 ..< p.len:
-        let pp = p[i]
-        for j in 0 .. pp.len - 3:
-            yield (iParam, pp[j], pp[^2], pp[^1])
-            inc iParam
-
 proc nimArrToPy[T](s: openarray[T]): PPyObject
 proc nimTabToPy[T: Table](t: T): PPyObject
-proc nimObjToPy[T: not Table](o: T): PPyObject
+proc nimObjToPy[T](o: T): PPyObject
 proc nimTupleToPy[T](o: T): PPyObject
+proc nimProcToPy[T](o: T): PPyObject
+
+proc newPyNone*(): PPyObject {.inline.} =
+    incRef(pyLib.Py_None)
+    pyLib.Py_None
 
 proc refCapsuleDestructor(c: PPyObject) {.cdecl.} =
     let o = pyLib.PyCapsule_GetPointer(c, nil)
     GC_unref(cast[ref int](o))
 
-proc newPyNone(): PPyObject {.inline.} =
-    incRef(pyLib.Py_None)
-    pyLib.Py_None
+proc newPyCapsule[T](v: ref T): PPyObject =
+    GC_ref(v)
+    pyLib.PyCapsule_New(cast[pointer](v), nil, refCapsuleDestructor)
 
 proc nimValueToPy[T](v: T): PPyObject {.inline.} =
     when T is void:
@@ -493,18 +489,19 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
         if v.isNil:
             newPyNone()
         else:
-            GC_ref(v)
-            pyLib.PyCapsule_New(cast[pointer](v), nil, refCapsuleDestructor)
+            newPyCapsule(v)
     elif T is bool:
         pyLib.PyBool_FromLong(clong(v))
     elif T is Complex:
         pyLib.Py_BuildValue("D", unsafeAddr v)
-    elif T is not Table and T is object:
+    elif T is Table:
+        nimTabToPy(v)
+    elif T is object:
         nimObjToPy(v)
     elif T is tuple:
         nimTupleToPy(v)
-    elif T is Table:
-        nimTabToPy(v)
+    elif T is (proc):
+        nimProcToPy(v)
     else:
         unknownTypeCompileError(v)
 
@@ -619,12 +616,12 @@ proc nimTabToPy[T: Table](t: T): PPyObject =
         else:
             let kk = nimValueToPy(k)
             let ret = pyLib.PyDict_SetItem(result, kk, vv)
-            decref kk
+            decRef kk
         decRef vv
         if ret != 0:
             cannotSerializeErr($k)
 
-proc nimObjToPy[T: not Table](o: T): PPyObject =
+proc nimObjToPy[T](o: T): PPyObject =
     result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
     for k, v in fieldPairs(o):
         let vv = nimValueToPy(v)
@@ -678,45 +675,101 @@ proc updateStackBottom() {.inline.} =
     elif not defined(nimpySuppressGCCrashWarning):
         {.error: "Use newer Nim, or compile with -d:nimpySuppressGCCrashWarning and experience potential crashes in GC".}
 
-proc makeWrapper(originalName: string, name, prc: NimNode): NimNode =
-    let selfIdent = newIdentNode("self")
-    let argsIdent = newIdentNode("args")
+iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
+    var formalParams: NimNode
+    if prc.kind == nnkProcDef:
+        formalParams = prc.params
+    elif prc.kind == nnkProcTy:
+        formalParams = prc[0]
+    else:
+        # Assume prc is typed
+        var impl = getImpl(prc)
+        if impl.kind == nnkNilLit:
+            impl = getTypeImpl(prc)
+            expectKind(impl, nnkProcTy)
+            formalParams = impl[0]
+        else:
+            if impl.kind != nnkProcDef:
+              echo treeRepr(impl)
+            expectKind(impl, nnkProcDef)
+            formalParams = impl.params
 
-    result = newProc(name, params = [bindSym"PPyObject", newIdentDefs(selfIdent, bindSym"PPyObject"), newIdentDefs(argsIdent, bindSym"PPyObject")])
-    result.addPragma(newIdentNode("cdecl"))
-    result.body = newStmtList()
+    var iParam = 0
+    for i in 1 ..< formalParams.len:
+        let pp = formalParams[i]
+        for j in 0 .. pp.len - 3:
+            yield (iParam, pp[j], copyNimTree(pp[^2]), pp[^1])
+            inc iParam
 
+macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject): PPyObject =
     let pyValueVarSection = newNimNode(nnkVarSection)
-    result.body.add(pyValueVarSection)
 
     let parseArgsStmts = newNimNode(nnkStmtList)
-    let origCall = newCall(prc.name)
+    parseArgsStmts.add(pyValueVarSection)
+    let origCall = newCall(prc)
 
     var numArgs = 0
     var numArgsReq = 0
     for a in prc.arguments:
         let argIdent = newIdentNode("arg" & $a.idx & $a.name)
-        pyValueVarSection.add(newIdentDefs(argIdent, newCall(bindSym"valueTypeForArgType", a.typ)))
+        # XXX: The newCall("type", a.typ) should be just `a.typ` but compilation fails. Nim bug?
+        pyValueVarSection.add(newIdentDefs(argIdent, newCall(bindSym"valueTypeForArgType", newCall("type", a.typ))))
         if a.default.kind != nnkEmpty:
-            parseArgsStmts.add(newCall(bindSym"parseArg", argsIdent, newLit(a.idx), a.default, argIdent))
+            parseArgsStmts.add(newCall(bindSym"parseArg", argsTuple, newLit(a.idx), a.default, argIdent))
         elif numArgsReq < numArgs:
             # Exported procedures _must_ have all their arguments w/ a default
             # value follow the required ones
             error("Default-valued arguments must follow the regular ones", prc)
         else:
-            parseArgsStmts.add(newCall(bindSym"parseArg", argsIdent, newLit(a.idx), argIdent))
+            parseArgsStmts.add(newCall(bindSym"parseArg", argsTuple, newLit(a.idx), argIdent))
             inc numArgsReq
         origCall.add(argIdent)
         inc numArgs
 
     let argsLen = newLit(numArgs)
     let argsLenReq = newLit(numArgsReq)
-    let nameLit = newLit(originalName)
-    result.body.add quote do:
+    let nameLit = newLit($prc)
+    result = quote do:
         updateStackBottom()
-        if verifyArgs(`argsIdent`, `argsLen`, `argsLenReq`, `nameLit`):
+        if verifyArgs(`argsTuple`, `argsLen`, `argsLenReq`, `nameLit`):
             `parseArgsStmts`
-            return nimValueToPy(`origCall`)
+            nimValueToPy(`origCall`)
+        else:
+            PPyObject(nil)
+
+type NimPyProcBase* = ref object {.inheritable, pure.}
+    c: proc(args: PPyObject, p: NimPyProcBase): PPyObject {.cdecl.}
+
+proc callNimProc(self, args: PPyObject): PPyObject {.cdecl.} =
+    let np = cast[NimPyProcBase](pyLib.PyCapsule_GetPointer(self, nil))
+    np.c(args, np)
+
+proc nimProcToPy[T](o: T): PPyObject =
+    var md {.global.}: PyMethodDef
+    if md.ml_name.isNil:
+        md.ml_name = "anonymous"
+        md.ml_flags = Py_MLFLAGS_VARARGS
+        md.ml_meth = callNimProc
+
+    type NimProcS[T] = ref object of NimPyProcBase
+        p: T
+
+    proc doCall(args: PPyObject, p: NimPyProcBase): PPyObject {.cdecl.} =
+        var anonymous: T
+        anonymous = cast[NimProcS[T]](p).p
+        callNimProcWithPythonArgs(anonymous, args)
+
+    let np = NimProcS[T](p: o, c: doCall)
+    let self = newPyCapsule(np)
+    result = pyLib.PyCFunction_NewEx(addr md, self, nil)
+    decRef self
+
+proc makeWrapper(originalName: string, name, prc: NimNode): NimNode =
+    let selfIdent = newIdentNode("self")
+    let argsIdent = newIdentNode("args")
+    result = newProc(name, params = [bindSym"PPyObject", newIdentDefs(selfIdent, bindSym"PPyObject"), newIdentDefs(argsIdent, bindSym"PPyObject")])
+    result.addPragma(newIdentNode("cdecl"))
+    result.body = newCall(bindSym("callNimProcWithPythonArgs"), prc.name, argsIdent)
 
 proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode =
     let modulename = modulename.splitFile.name

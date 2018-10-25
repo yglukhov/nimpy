@@ -176,6 +176,19 @@ proc test*() =
         check(pfn.testUnsupportedException, Exception)
         check(pfn.testCustomException, IndexError)
 
+    block: # Function objects
+        let pfn = pyImport("pyfromnim")
+        var
+            aa, bb = 0
+            cc = ""
+        proc myFn(a, b: int, c: string) =
+            aa = a
+            bb = b
+            cc = c
+        discard pfn.call_callback(myFn)
+        doAssert(aa == 1)
+        doAssert(bb == 2)
+        doAssert(cc == "Hello")
 
 when isMainModule:
     test()
