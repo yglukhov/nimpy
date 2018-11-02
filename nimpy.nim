@@ -3,8 +3,6 @@ import dynlib, macros, ospaths, strutils, complex, strutils, sequtils, typetrait
 
 import nimpy/py_lib as lib
 
-import fragments/ffi/cpp
-
 type
     PyObject* = ref object
         rawPyObj: PPyObject
@@ -970,45 +968,56 @@ proc pyBuiltinsModule*(): PyObject =
     initPyLibIfNeeded()
     pyImport(if pyLib.pythonVersion == 3: "builtins" else: "__builtin__")
 
-# find python headers at compile time
-const
-    cmd = "python -c 'import sysconfig; print(sysconfig.get_paths()[\"include\"])'"
-    includeFolder = gorgeEx(cmd)
-    includeFolderError = includeFolder.exitCode
-    includeFolderStr = includeFolder.output
-when includeFolderError == 0:
-    # do this only on unix systems for now, sorry windows users but this needs a windows shell version
-    when not defined(windows):
-        const hasPythonHeader* = staticExec("[ -f '" & includeFolderStr & "/Python.h" & "' ] && echo 'true' || echo 'false'") == "true"
-        {.passC: "-I" & includeFolderStr .}
+when defined cpp:
+    import fragments/ffi/cpp
 
-when declared(hasPythonHeader) and hasPythonHeader:
-    defineCppType(PyThreadState, "PyThreadState", "<Python.h>")
+    # find python headers at compile time
+    const
+        cmd = "python -c 'import sysconfig; print(sysconfig.get_paths()[\"include\"])'"
+        includeFolder = gorgeEx(cmd)
+        includeFolderError = includeFolder.exitCode
+        includeFolderStr = includeFolder.output
+    when includeFolderError == 0:
+        # do this only on unix systems for now, sorry windows users but this needs a windows shell version
+        when not defined(windows):
+            const hasPythonHeader* = staticExec("[ -f '" & includeFolderStr & "/Python.h" & "' ] && echo 'true' || echo 'false'") == "true"
+            {.passC: "-I" & includeFolderStr .}
 
-    var pyThread {.threadvar.}: ptr PyThreadState
+    when declared(hasPythonHeader) and hasPythonHeader:
+        defineCppType(PyThreadState, "PyThreadState", "<Python.h>")
 
-    proc initPyThreadFrame*() =
-        # https://stackoverflow.com/questions/42974139/valueerror-call-stack-is-not-deep-enough-when-calling-ipython-embed-method
-        # needed to use stuff like pandas.query() otherwise crash (call stack is not deep enough)
-        initPyLibIfNeeded()
+        var pyThread {.threadvar.}: ptr PyThreadState
 
-        if pyThread != nil:
-            return
+        proc initPyThreadFrame*() =
+            # https://stackoverflow.com/questions/42974139/valueerror-call-stack-is-not-deep-enough-when-calling-ipython-embed-method
+            # needed to use stuff like pandas.query() otherwise crash (call stack is not deep enough)
+            initPyLibIfNeeded()
+
+            if pyThread != nil:
+                return
+            
+            let
+                pyThreadStateGet = cast[proc(): ptr PyThreadState {.cdecl.}](pyLib.module.symAddr("PyThreadState_Get"))
+                pyThread = pyThreadStateGet()
+                pyImportAddModule = cast[proc(str: cstring): pointer {.cdecl.}](pyLib.module.symAddr("PyImport_AddModule"))
+                pyModuleGetDict = cast[proc(p: pointer): pointer {.cdecl.}](pyLib.module.symAddr("PyModule_GetDict"))
+                pyCodeNewEmpty = cast[proc(str1, str2: cstring; i: cint): pointer {.cdecl.}](pyLib.module.symAddr("PyCode_NewEmpty"))
+                pyFrameNew = cast[proc(p1, p2, p3, p4: pointer): pointer {.cdecl.}](pyLib.module.symAddr("PyFrame_New"))
+                main_module = pyImportAddModule("__main__")
+                main_dict = pyModuleGetDict(main_module)
+                code_object = pyCodeNewEmpty("null.py", "f", 0)
+                root_frame = pyFrameNew(pyThread, code_object, main_dict, main_dict)
+            pyThread[].frame = root_frame
+    else:
+        when not defined(windows):
+            static:
+                echo "Warning: nimpy could not find Python.h header, make sure to install python devel package"
         
-        let
-            pyThreadStateGet = cast[proc(): ptr PyThreadState {.cdecl.}](pyLib.module.symAddr("PyThreadState_Get"))
-            pyThread = pyThreadStateGet()
-            pyImportAddModule = cast[proc(str: cstring): pointer {.cdecl.}](pyLib.module.symAddr("PyImport_AddModule"))
-            pyModuleGetDict = cast[proc(p: pointer): pointer {.cdecl.}](pyLib.module.symAddr("PyModule_GetDict"))
-            pyCodeNewEmpty = cast[proc(str1, str2: cstring; i: cint): pointer {.cdecl.}](pyLib.module.symAddr("PyCode_NewEmpty"))
-            pyFrameNew = cast[proc(p1, p2, p3, p4: pointer): pointer {.cdecl.}](pyLib.module.symAddr("PyFrame_New"))
-            main_module = pyImportAddModule("__main__")
-            main_dict = pyModuleGetDict(main_module)
-            code_object = pyCodeNewEmpty("null.py", "f", 0)
-            root_frame = pyFrameNew(pyThread, code_object, main_dict, main_dict)
-        pyThread[].frame = root_frame
+        proc initPyThreadFrame*() =
+            initPyLibIfNeeded()
 else:
     proc initPyThreadFrame*() =
+        echo "Warning: nimpy initPyThreadFrame works only in cpp mode"
         initPyLibIfNeeded()
 
 # init main thread as default behavior
