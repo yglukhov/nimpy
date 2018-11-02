@@ -315,7 +315,7 @@ proc pyObjToNimTuple(o: PPyObject, vv: var tuple) =
 proc finalizePyObject(o: PyObject) =
     decRef o.rawPyObj
 
-proc newPyObjectConsumingRef(o: PPyObject): PyObject =
+proc newPyObjectConsumingRef(o: PPyObject): PyObject {.discardable.} =
     assert(not o.isNil, "internal error")
     result.new(finalizePyObject)
     result.rawPyObj = o
