@@ -977,10 +977,12 @@ const
     includeFolderError = includeFolder.exitCode
     includeFolderStr = includeFolder.output
 when includeFolderError == 0:
-    {.passC: "-I" & includeFolderStr .}
-    const canUsePythonHeader = true
+    # do this only on unix systems for now, sorry windows users but this needs a windows shell version
+    when not defined(windows):
+        const hasPythonHeader* = staticExec("[ -f '" & includeFolderStr & "/Python.h" & "' ] && echo 'true' || echo 'false'") == "true"
+        {.passC: "-I" & includeFolderStr .}
 
-when declared canUsePythonHeader:
+when declared(hasPythonHeader) and hasPythonHeader:
     defineCppType(PyThreadState, "PyThreadState", "<Python.h>")
 
     var pyThread {.threadvar.}: ptr PyThreadState
