@@ -8,6 +8,7 @@ license       = "MIT"
 # Dependencies
 
 requires "nim >= 0.17.0"
+requires "fragments >= 0.1.22"
 
 import oswalkdir, ospaths, strutils
 
