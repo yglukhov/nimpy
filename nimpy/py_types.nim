@@ -287,6 +287,7 @@ type
     # the string value corresponds to the Python Exception
     # while the enum identifier corresponds to the Nim exception (excl. "pe")
     PythonErrorKind* = enum
+        peException = "Exception" # general exception, if no equivalent Nim Exception
         peArithmeticError = "ArithmeticError"
         peFloatingPointError = "FloatingPointError"
         peOverflowError = "OverflowError"
@@ -299,7 +300,6 @@ type
         peOutOfMemError = "MemoryError"
         peKeyError = "KeyError"
         peIndexError = "IndexError"
-        peException = "Exception" # general exception, if no equivalent Nim Exception
 
 
 proc isNil*(p: PPyObject): bool {.borrow.}
