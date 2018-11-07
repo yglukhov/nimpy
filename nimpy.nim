@@ -855,7 +855,10 @@ template toPyObjectArgument*[T](v: T): PPyObject =
     nimValueToPy(v)
 
 proc to*(v: PyObject, T: typedesc): T {.inline.} =
-    pyObjToNim(v.rawPyObj, result)
+    when T is void:
+        discard
+    else:
+        pyObjToNim(v.rawPyObj, result)
 
 proc toJson*(v: PyObject): JsonNode {.inline.} =
     pyObjToJson(v.rawPyObj, result)

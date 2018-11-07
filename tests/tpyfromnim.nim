@@ -34,7 +34,7 @@ proc test*() =
 
     block:
         var lst = py.list(py.`range`(0, 4))
-        discard lst.reverse()
+        lst.reverse().to(void) # `x.to(void)` is the same as `discard x`
         doAssert(lst[0].to(int) == 3)
         doAssert(lst[1].to(int) == 2)
         doAssert(lst[3].to(int) == 0)
