@@ -50,7 +50,11 @@ type
 
         PyType_IsSubtype*: proc(t1, t2: PyTypeObject): cint {.cdecl.}
 
-        PyComplex_AsCComplex*: proc(op: PPyObject): Complex {.cdecl.}
+        when declared(Complex64):
+            PyComplex_AsCComplex*: proc(op: PPyObject): Complex64 {.cdecl.}
+        else:
+            PyComplex_AsCComplex*: proc(op: PPyObject): Complex {.cdecl.}
+
         PyComplex_RealAsDouble*: proc(op: PPyObject): cdouble {.cdecl.}
         PyComplex_ImagAsDouble*: proc(op: PPyObject): cdouble {.cdecl.}
 

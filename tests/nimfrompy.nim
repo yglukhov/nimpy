@@ -19,10 +19,17 @@ proc reverseArray(a: seq[int]): seq[int] {.exportpy.} = a.reversed()
 proc reverseVec3(a: array[3, float]): array[3, float] {.exportpy.} = [a[2], a[1], a[0]]
 proc flipBool(b: bool): bool {.exportpy.} = not b
 
-proc complexSqrt(x: Complex): Complex {.exportpy.} = sqrt(x)
-proc complexSeqSqrt(a: seq[Complex]): seq[Complex] {.exportpy.} =
-    result = newSeq[Complex](a.len)
-    for i, aa in a: result[i] = sqrt(aa)
+when declared(Complex64):
+    proc complexSqrt(x: Complex64): Complex64 {.exportpy.} = sqrt(x)
+    proc complexSeqSqrt(a: seq[Complex64]): seq[Complex64] {.exportpy.} =
+        result = newSeq[Complex64](a.len)
+        for i, aa in a: result[i] = sqrt(aa)
+else:
+    proc complexSqrt(x: Complex): Complex {.exportpy.} = sqrt(x)
+    proc complexSeqSqrt(a: seq[Complex]): seq[Complex] {.exportpy.} =
+        result = newSeq[Complex](a.len)
+        for i, aa in a: result[i] = sqrt(aa)
+
 
 proc sumIntsWithCustomName(a, b: int32): int {.exportpy: "sum_ints".} = a + b
 

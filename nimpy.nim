@@ -355,7 +355,15 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
             v.re = pyLib.PyComplex_RealAsDouble(o)
             v.im = pyLib.PyComplex_ImagAsDouble(o)
         else:
-            v = pyLib.PyComplex_AsCComplex(o)
+            let vv = pyLib.PyComplex_AsCComplex(o)
+            when declared(Complex64):
+                when T is Complex64:
+                    v = vv
+                else:
+                    v.re = vv.re
+                    v.im = vv.im
+            else:
+                v = vv
     elif T is string:
         pyObjToNimStr(o, v)
     elif T is seq:
@@ -493,7 +501,14 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
     elif T is bool:
         pyLib.PyBool_FromLong(clong(v))
     elif T is Complex:
-        pyLib.Py_BuildValue("D", unsafeAddr v)
+        when declared(Complex64):
+            when T is Complex64:
+                pyLib.Py_BuildValue("D", unsafeAddr v)
+            else:
+                let vv = complex64(v.re, v.im)
+                pyLib.Py_BuildValue("D", unsafeAddr vv)
+        else:
+            pyLib.Py_BuildValue("D", unsafeAddr v)
     elif T is Table:
         nimTabToPy(v)
     elif T is object:
@@ -571,7 +586,11 @@ proc `%`(o: PPyObject): JsonNode =
         pyObjToNim(o, x)
         result = % x
     of pbComplex:
-        var x: Complex
+        when declared(Complex64):
+          var x: Complex64
+        else:
+          var x: Complex
+
         pyObjToNim(o, x)
         result = %* { "real" : x.re,
                       "imag" : x.im }
