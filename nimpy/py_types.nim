@@ -269,6 +269,19 @@ type
 
     PyTypeObject* = PyTypeObject3
 
+    PyThreadState2* = object
+        next*: ptr PyThreadState2
+        interp*: pointer
+        frame*: pointer
+        # XXX: There's a lot more.
+
+    PyThreadState3* = object
+        prev*: ptr PyThreadState3
+        next*: ptr PyThreadState3
+        interp*: pointer
+        frame*: pointer
+        # XXX: There's a lot more.
+
     RawPyBuffer* = object # Same as Py_buffer in Python C API
         buf*: pointer
         obj*: PPyObject
