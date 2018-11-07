@@ -116,7 +116,7 @@ type
 
 var pyObjectStartOffset*: uint
 var pyLib*: PyLib
-
+var pyThreadFrameInited {.threadvar.}: bool
 
 proc to*(p: PPyObject, t: typedesc): ptr t {.inline.} =
     result = cast[ptr t](cast[uint](p) + pyObjectStartOffset)
@@ -339,7 +339,7 @@ proc pythonLibHandleFromExternalLib(): LibHandle {.inline.} =
         raise newException(Exception, "Could not load python libpython. Tried " & s)
 
 proc loadPyLibFromThisProcess*(): PyLib {.inline.} =
-  loadPyLibFromModule(pythonLibHandleForThisProcess())
+    loadPyLibFromModule(pythonLibHandleForThisProcess())
 
 proc initPyLib() =
     assert(pyLib.isNil)
@@ -358,6 +358,43 @@ proc initPyLib() =
 
     pyLib = loadPyLibFromModule(m)
 
+proc initPyThreadFrame() =
+    # https://stackoverflow.com/questions/42974139/valueerror-call-stack-is-not-deep-enough-when-calling-ipython-embed-method
+    # needed for eval and stuff like pandas.query() otherwise crash (call stack is not deep enough)
+    if unlikely pyLib.isNil: initPyLib()
+    pyThreadFrameInited = true
+
+    let
+        pyThreadStateGet = cast[proc(): pointer {.cdecl.}](pyLib.module.symAddr("PyThreadState_Get"))
+        pyThread = pyThreadStateGet()
+
+    case pyLib.pythonVersion
+    of 2:
+        if not cast[ptr PyThreadState2](pyThread).frame.isNil: return
+    of 3:
+        if not cast[ptr PyThreadState3](pyThread).frame.isNil: return
+    else:
+        doAssert(false, "unreachable")
+
+    let
+        pyImportAddModule = cast[proc(str: cstring): pointer {.cdecl.}](pyLib.module.symAddr("PyImport_AddModule"))
+        pyModuleGetDict = cast[proc(p: pointer): pointer {.cdecl.}](pyLib.module.symAddr("PyModule_GetDict"))
+        pyCodeNewEmpty = cast[proc(str1, str2: cstring; i: cint): pointer {.cdecl.}](pyLib.module.symAddr("PyCode_NewEmpty"))
+        pyFrameNew = cast[proc(p1, p2, p3, p4: pointer): pointer {.cdecl.}](pyLib.module.symAddr("PyFrame_New"))
+        main_module = pyImportAddModule("__main__")
+        main_dict = pyModuleGetDict(main_module)
+        code_object = pyCodeNewEmpty("null.py", "f", 0)
+        root_frame = pyFrameNew(pyThread, code_object, main_dict, main_dict)
+
+    case pyLib.pythonVersion
+    of 2:
+        cast[ptr PyThreadState2](pyThread).frame = root_frame
+    of 3:
+        cast[ptr PyThreadState3](pyThread).frame = root_frame
+    else:
+        doAssert(false, "unreachable")
+
 proc initPyLibIfNeeded*() {.inline.} =
-    if unlikely pyLib.isNil:
-        initPyLib()
+    if unlikely(not pyThreadFrameInited):
+        initPyThreadFrame()
+

@@ -23,6 +23,11 @@ proc test*() =
             excMsg = getCurrentExceptionMsg()
         doAssert(excMsg.endsWith("Exception'>: hello"))
 
+    block: # eval
+        let py = pyBuiltinsModule()
+        doAssert(py.eval("3+3").to(int) == 6)
+        doAssert(py.eval(""" "hello" * 2 """).to(string) == "hellohello")
+
     block:
         var ints = newSeq[int]()
         var strs = newSeq[string]()
