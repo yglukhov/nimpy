@@ -467,10 +467,25 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
     elif T is int64:
         pyLib.Py_BuildValue("L", v)
     elif T is int:
-        when sizeof(int) == sizeof(int32):
-            pyLib.Py_BuildValue("i", v)
-        elif sizeof(int) == sizeof(int64):
-            pyLib.Py_BuildValue("L", v)
+        when sizeof(int) == sizeof(int64):
+            nimValueToPy(int64(v))
+        elif sizeof(int) == sizeof(int32):
+            nimValueToPy(int32(v))
+        elif sizeof(int) == sizeof(int16):
+            nimValueToPy(int16(v))
+        elif sizeof(int) == sizeof(int8):
+            nimValueToPy(int8(v))
+        else:
+            {.error: "Unkown int size".}
+    elif T is uint:
+        when sizeof(uint) == sizeof(uint64):
+            nimValueToPy(uint64(v))
+        elif sizeof(uint) == sizeof(uint32):
+            nimValueToPy(uint32(v))
+        elif sizeof(uint) == sizeof(uint16):
+            nimValueToPy(uint16(v))
+        elif sizeof(uint) == sizeof(uint8):
+            nimValueToPy(uint8(v))
         else:
             {.error: "Unkown int size".}
     elif T is int8:
