@@ -203,6 +203,9 @@ proc initModuleTypes[PyTypeObj](p: PPyObject, m: var PyModuleDesc) =
         incRef(typ)
         discard pyLib.PyModule_AddObject(p, m.types[i].name, typ)
 
+    pyLib.NimPyException = pyLib.PyErr_NewException("nimpy.NimPyException", nil, nil)
+    discard pyLib.PyModule_AddObject(p, "NimPyException", pyLib.NimPyException)
+
 proc initModule2(m: var PyModuleDesc) =
     initCommon(m)
     const PYTHON_ABI_VERSION = 1013
@@ -767,7 +770,13 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject): PPyObject =
         updateStackBottom()
         if verifyArgs(`argsTuple`, `argsLen`, `argsLenReq`, `nameLit`):
             `parseArgsStmts`
-            nimValueToPy(`origCall`)
+            try:
+                nimValueToPy(`origCall`)
+            except:
+                let e = getCurrentException()
+                let err = pyLib.PyErr_NewException("nimpy" & "." & $(e.name), pyLib.NimPyException, nil)
+                pyLib.PyErr_SetString(err, "Unexpected error encountered: " & getCurrentExceptionMsg())
+                PPyObject(nil)
         else:
             PPyObject(nil)
 
