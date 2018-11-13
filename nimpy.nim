@@ -775,6 +775,7 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject): PPyObject =
             except:
                 let e = getCurrentException()
                 let err = pyLib.PyErr_NewException("nimpy" & "." & $(e.name), pyLib.NimPyException, nil)
+                decRef err
                 pyLib.PyErr_SetString(err, "Unexpected error encountered: " & getCurrentExceptionMsg())
                 PPyObject(nil)
         else:
