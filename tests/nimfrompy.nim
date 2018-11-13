@@ -2,8 +2,19 @@ import ../nimpy
 import algorithm, complex, tables
 from tpyfromnim import nil
 
+
+type
+    JackError* = object of Exception
+
+
 proc greet(name: string): string {.exportpy.} =
     return "Hello, " & name & "!"
+
+proc greetEveryoneExceptJack(name: string): string {.exportpy.} =
+    if name == "Jack":
+        raise newException(JackError, "Cannot greet Jack")
+    else:
+        return "Hello, " & name & "!"
 
 proc somethingThatReturnsEmptyString(): string {.exportpy.} =
     discard
