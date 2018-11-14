@@ -34,6 +34,8 @@ type
         PyObject_GetBuffer*: proc(o: PPyObject, b: var RawPyBuffer, flags: cint): cint {.cdecl.}
         PyBuffer_Release*: proc(b: var RawPyBuffer) {.cdecl.}
 
+        PyErr_NewException*: proc(name: cstring, base: PPyObject, dict: PPyObject): PPyObject {.cdecl.}
+
         PyIter_Next*: proc(o: PPyObject): PPyObject {.cdecl.}
 
         PyLong_AsLongLong*: proc(l: PPyObject): int64 {.cdecl.}
@@ -112,6 +114,7 @@ type
         PyExc_IndexError*: PPyObject
         PyExc_KeyError*: PPyObject
 
+        NimPyException*: PPyObject
 
 
 var pyObjectStartOffset*: uint
@@ -258,6 +261,8 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     load PyErr_Fetch
     load PyErr_NormalizeException
     load PyErr_GivenExceptionMatches
+
+    load PyErr_NewException
 
     loadVar PyExc_ArithmeticError
     loadVar PyExc_FloatingPointError

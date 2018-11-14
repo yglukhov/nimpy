@@ -2,6 +2,13 @@ import cmath, os
 import nimfrompy as s
 
 assert(s.greet("world") == "Hello, world!")
+assert(s.greetEveryoneExceptJack("world") == "Hello, world!")
+try:
+    s.greetEveryoneExceptJack("Jack")
+    assert False, "Expected s.greetEveryoneExceptJack to throw JackError."
+except s.NimPyException as e:
+    assert "Cannot greet Jack" in repr(e)
+    assert "JackError" in repr(e)
 assert(s.somethingThatReturnsEmptyString() == "")
 assert(s.sumInts(4, 5) == 9)
 assert(abs(s.sumFloats(4.1, 5.2) - 9.3) < 0.0001)
