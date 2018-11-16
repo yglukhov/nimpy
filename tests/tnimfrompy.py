@@ -60,6 +60,8 @@ assert(s.tupleDiff((5, 4), (2, 3)) == (3, 1))
 
 assert(s.testDefaultArgs("hello, ", "world") == s.testDefaultArgs("hello, "))
 
+assert(s.testJsonArgument({"foo": 666, "bar": False, "baz": 42.0}) == "ok")
+
 s.testPyFromNim()
 
 print("Tests complete!")

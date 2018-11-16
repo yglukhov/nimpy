@@ -1,5 +1,5 @@
 import ../nimpy
-import algorithm, complex, tables
+import algorithm, complex, tables, json
 from tpyfromnim import nil
 
 
@@ -97,6 +97,12 @@ proc testPyFromNim() {.exportpy.} =
 
 proc testDefaultArgs(a: string, b: string = "world"): string {.exportpy.} =
     result = a & b
+
+proc testJsonArgument(n: JsonNode): string {.exportpy.} =
+    assert(n["foo"].getInt() == 666)
+    assert(n["bar"].getBool() == false)
+    assert(n["baz"].getFloat() > 41 and n["baz"].getFloat() < 43)
+    return "ok"
 
 type TestType = ref object of PyNimObjectBaseToInheritFromForAnExportedType
 

@@ -375,6 +375,8 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
     elif T is array:
         conversionTypeCheck(pyLib.PyList_Type)
         pyObjToNimArray(o, v)
+    elif T is JsonNode:
+        pyObjToJson(o, v)
     elif T is ref:
         if cast[pointer](o) == cast[pointer](pyLib.Py_None):
             v = nil
