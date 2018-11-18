@@ -240,26 +240,30 @@ proc initModule3(m: var PyModuleDesc): PPyObject =
         result = PyModule_Create2(pymod, PYTHON_ABI_VERSION)
         initModuleTypes[PyTypeObject3Obj](result, m)
 
-template declarePyModuleIfNeededAux(name: untyped) =
+template declarePyModuleIfNeededAux(name: static[string]) =
     when not declared(gPythonLocalModuleDesc):
-        const nameStr = astToStr(name)
-
         var gPythonLocalModuleDesc {.inject.}: PyModuleDesc
-        initPythonModuleDesc(gPythonLocalModuleDesc, nameStr, nil)
+        initPythonModuleDesc(gPythonLocalModuleDesc, name, nil)
         {.push stackTrace: off.}
-        proc `py2init name`() {.exportc: "init" & nameStr, dynlib.} =
+        proc py2init() {.exportc: "init" & name, dynlib.} =
             initModule2(gPythonLocalModuleDesc)
 
-        proc `py3init name`(): PPyObject {.exportc: "PyInit_" & nameStr, dynlib.} =
+        proc py3init(): PPyObject {.exportc: "PyInit_" & name, dynlib.} =
             initModule3(gPythonLocalModuleDesc)
         {.pop.}
 
 macro declarePyModuleIfNeededAuxMacro(modulename: static[string]): typed =
     let modulename = modulename.splitFile.name
-    result = newCall(bindSym("declarePyModuleIfNeededAux"), newIdentNode(modulename))
+    result = newCall(bindSym("declarePyModuleIfNeededAux"), newLit(modulename))
 
 template declarePyModuleIfNeeded() =
     declarePyModuleIfNeededAuxMacro(instantiationInfo(0).filename)
+
+template pyExportModuleName*(n: static[string]) =
+    when declared(gPythonLocalModuleDesc):
+        {.error: "pyExportModuleName can be used only once per module and should come before all exportpy definitions".}
+    else:
+        declarePyModuleIfNeededAux(n)
 
 ################################################################################
 ################################################################################
@@ -890,6 +894,7 @@ template addType(m: var PyModuleDesc, T: typed) =
 template pyexportTypeExperimental*(T: typed) =
     declarePyModuleIfNeeded()
     addType(gPythonLocalModuleDesc, T)
+
 
 
 ################################################################################

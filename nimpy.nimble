@@ -1,5 +1,3 @@
-# Package
-
 version       = "0.1.0"
 author        = "Yuriy Glukhov"
 description   = "Nim python integration lib"
@@ -19,6 +17,8 @@ task test, "Run tests":
         let sf = f.path.splitFile()
         if sf.ext == ".nim" and not sf.name.startsWith("t"):
             exec "nim c --app:lib --out:" & f.path.changeFileExt(pluginExtension) & " " & f.path
+
+    mvFile("tests/custommodulename".changeFileExt(pluginExtension), "tests/_mycustommodulename".changeFileExt(pluginExtension))
 
     for f in walkDir("tests"):
         # Run all python modules starting with "t"
