@@ -722,7 +722,7 @@ proc updateStackBottom() {.inline.} =
 
 iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
     var formalParams: NimNode
-    if prc.kind == nnkProcDef:
+    if prc.kind in {nnkProcDef, nnkFuncDef}:
         formalParams = prc.params
     elif prc.kind == nnkProcTy:
         formalParams = prc[0]
@@ -734,9 +734,9 @@ iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
             expectKind(impl, nnkProcTy)
             formalParams = impl[0]
         else:
-            if impl.kind != nnkProcDef:
+            if impl.kind notin {nnkProcDef, nnkFuncDef}:
               echo treeRepr(impl)
-            expectKind(impl, nnkProcDef)
+            expectKind(impl, {nnkProcDef, nnkFuncDef})
             formalParams = impl.params
 
     var iParam = 0
@@ -852,7 +852,7 @@ proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode
 macro exportpyAux(prc: untyped, modulename, procName: static[string], wrap: static[bool]): untyped =
     exportProc(prc, modulename, procName, wrap)
 
-template exportpyAuxAux(prc: untyped{nkProcDef}, procName: static[string]) =
+template exportpyAuxAux(prc: untyped{nkProcDef|nkFuncDef}, procName: static[string]) =
     declarePyModuleIfNeeded()
     exportpyAux(prc, instantiationInfo().filename, procName, true)
 
@@ -876,7 +876,7 @@ macro exportpy*(nameOrProc: untyped, maybeProc: untyped = nil): untyped =
     # if procDef.kind in {nnkIdent, nnkSym}:
     #     result = newCall(bindSym"exportpyIdent", procDef, newLit(procName))
     # else:
-    expectKind(procDef, nnkProcDef)
+    expectKind(procDef, {nnkProcDef, nnkFuncDef})
     result = newCall(bindSym"exportpyAuxAux", procDef, newLit(procName))
 
 template addType(m: var PyModuleDesc, T: typed) =

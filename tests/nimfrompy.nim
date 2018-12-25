@@ -19,7 +19,7 @@ proc greetEveryoneExceptJack(name: string): string {.exportpy.} =
 proc somethingThatReturnsEmptyString(): string {.exportpy.} =
     discard
 
-proc sumInts(a, b: int32): int {.exportpy.} = a + b
+func sumInts(a, b: int32): int {.exportpy.} = a + b
 proc sumFloats(a, b: float): float {.exportpy.} = a + b
 proc sumAssorted(a, b: int32, c: uint8, d: int64, e: float32, f: float64, g: float): float {.exportpy.} =
     a.float + b.float + c.float + d.float + e + f + g
