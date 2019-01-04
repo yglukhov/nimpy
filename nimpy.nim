@@ -336,10 +336,10 @@ proc conversionError(toType: string) =
     raise newException(Exception, "Cannot convert python object to " & toType)
 
 proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
-    template conversionTypeCheck(what: untyped): untyped =
+    template conversionTypeCheck(what: untyped): untyped {.used.} =
         if not checkObjSubclass(o, what):
             raise newException(Exception, "Cannot convert python object to " & $T)
-    template conversionErrorCheck(): untyped =
+    template conversionErrorCheck(): untyped {.used.} =
         if unlikely(not pyLib.PyErr_Occurred().isNil):
             conversionError($T)
 
@@ -695,6 +695,7 @@ proc parseArg[T](argTuple: PPyObject, argIdx: int, default: T, result: var T) =
         result = default
 
 proc verifyArgs(argTuple: PPyObject, argsLen, argsLenReq: int, funcName: string): bool =
+    # WARNING! Do not let GC happen in this proc!
     let sz = pyLib.PyTuple_Size(argTuple)
     result = if argsLen > argsLenReq:
         # We have some optional arguments, argsLen is the upper limit
@@ -702,7 +703,9 @@ proc verifyArgs(argTuple: PPyObject, argsLen, argsLenReq: int, funcName: string)
     else:
         sz == argsLen
     if not result:
+        GC_disable()
         pyLib.PyErr_SetString(pyLib.PyExc_TypeError, funcName & "() takes exactly " & $argsLen & " arguments (" & $sz & " given)")
+        GC_enable()
 
 template seqTypeForOpenarrayType[T](t: type openarray[T]): typedesc = seq[T]
 template valueTypeForArgType(t: typedesc): typedesc =
@@ -712,13 +715,8 @@ template valueTypeForArgType(t: typedesc): typedesc =
         t
 
 proc updateStackBottom() {.inline.} =
-    when declared(nimGC_setStackBottom):
-        var a {.volatile.}: int
-        const tolerance = 8'u
-        nimGC_setStackBottom(cast[pointer](cast[uint](addr a) + tolerance * cast[uint](sizeof(pointer))))
-        nimGC_setStackBottom(cast[pointer](cast[uint](addr a) - tolerance * cast[uint](sizeof(pointer))))
-    elif not defined(nimpySuppressGCCrashWarning):
-        {.error: "Use newer Nim, or compile with -d:nimpySuppressGCCrashWarning and experience potential crashes in GC".}
+    var a {.volatile.}: int
+    nimGC_setStackBottom(cast[pointer](cast[uint](addr a)))
 
 iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
     var formalParams: NimNode
@@ -746,6 +744,11 @@ iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
             yield (iParam, pp[j], copyNimTree(pp[^2]), pp[^1])
             inc iParam
 
+proc pythonException(e: ref Exception): PPyObject =
+    let err = pyLib.PyErr_NewException("nimpy" & "." & $(e.name), pyLib.NimPyException, nil)
+    decRef err
+    pyLib.PyErr_SetString(err, "Unexpected error encountered: " & getCurrentExceptionMsg())
+
 macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject): PPyObject =
     let pyValueVarSection = newNimNode(nnkVarSection)
 
@@ -753,20 +756,24 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject): PPyObject =
     parseArgsStmts.add(pyValueVarSection)
     let origCall = newCall(prc)
 
+    let argsTupleIdent = newIdentNode("pyArgs")
+
     var numArgs = 0
     var numArgsReq = 0
     for a in prc.arguments:
         let argIdent = newIdentNode("arg" & $a.idx & $a.name)
+        if a.typ.kind == nnkEmpty:
+          error("Typeless arguments are not supported by nimpy: " & $a.name, a.name)
         # XXX: The newCall("type", a.typ) should be just `a.typ` but compilation fails. Nim bug?
         pyValueVarSection.add(newIdentDefs(argIdent, newCall(bindSym"valueTypeForArgType", newCall("type", a.typ))))
         if a.default.kind != nnkEmpty:
-            parseArgsStmts.add(newCall(bindSym"parseArg", argsTuple, newLit(a.idx), a.default, argIdent))
+            parseArgsStmts.add(newCall(bindSym"parseArg", argsTupleIdent, newLit(a.idx), a.default, argIdent))
         elif numArgsReq < numArgs:
             # Exported procedures _must_ have all their arguments w/ a default
             # value follow the required ones
             error("Default-valued arguments must follow the regular ones", prc)
         else:
-            parseArgsStmts.add(newCall(bindSym"parseArg", argsTuple, newLit(a.idx), argIdent))
+            parseArgsStmts.add(newCall(bindSym"parseArg", argsTupleIdent, newLit(a.idx), argIdent))
             inc numArgsReq
         origCall.add(argIdent)
         inc numArgs
@@ -777,17 +784,25 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject): PPyObject =
     result = quote do:
         updateStackBottom()
         if verifyArgs(`argsTuple`, `argsLen`, `argsLenReq`, `nameLit`):
-            `parseArgsStmts`
-            try:
-                nimValueToPy(`origCall`)
-            except:
-                let e = getCurrentException()
-                let err = pyLib.PyErr_NewException("nimpy" & "." & $(e.name), pyLib.NimPyException, nil)
-                decRef err
-                pyLib.PyErr_SetString(err, "Unexpected error encountered: " & getCurrentExceptionMsg())
-                PPyObject(nil)
+            when `prc` is proc {.closure.}:
+                # When proc is a closure, we already don't need to prevent inlining
+                let `argsTupleIdent` {.used.} = `argsTuple`
+                `parseArgsStmts`
+                try:
+                    nimValueToPy(`origCall`)
+                except Exception as e:
+                    pythonException(e)
+            else:
+                # Prevent inlining (See #67)
+                var p {.volatile.}: proc(a: PPyObject): PPyObject {.nimcall.} = proc(`argsTupleIdent`: PPyObject): PPyObject {.nimcall.} =
+                    `parseArgsStmts`
+                    try:
+                        nimValueToPy(`origCall`)
+                    except Exception as e:
+                        pythonException(e)
+                p(`argsTuple`)
         else:
-            PPyObject(nil)
+          PPyObject(nil)
 
 type NimPyProcBase* = ref object {.inheritable, pure.}
     c: proc(args: PPyObject, p: NimPyProcBase): PPyObject {.cdecl.}
