@@ -782,10 +782,10 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject): PPyObject =
     let argsLenReq = newLit(numArgsReq)
     let nameLit = newLit($prc)
     result = quote do:
-        updateStackBottom()
         if verifyArgs(`argsTuple`, `argsLen`, `argsLenReq`, `nameLit`):
             when `prc` is proc {.closure.}:
-                # When proc is a closure, we already don't need to prevent inlining
+                # When proc is a closure, we don't need to prevent inlining,
+                # because updateStackBottom must have been called at this point.
                 let `argsTupleIdent` {.used.} = `argsTuple`
                 `parseArgsStmts`
                 try:
@@ -793,6 +793,7 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject): PPyObject =
                 except Exception as e:
                     pythonException(e)
             else:
+                updateStackBottom()
                 # Prevent inlining (See #67)
                 var p {.volatile.}: proc(a: PPyObject): PPyObject {.nimcall.} = proc(`argsTupleIdent`: PPyObject): PPyObject {.nimcall.} =
                     `parseArgsStmts`
@@ -802,12 +803,13 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject): PPyObject =
                         pythonException(e)
                 p(`argsTuple`)
         else:
-          PPyObject(nil)
+            PPyObject(nil)
 
 type NimPyProcBase* = ref object {.inheritable, pure.}
     c: proc(args: PPyObject, p: NimPyProcBase): PPyObject {.cdecl.}
 
 proc callNimProc(self, args: PPyObject): PPyObject {.cdecl.} =
+    updateStackBottom()
     let np = cast[NimPyProcBase](pyLib.PyCapsule_GetPointer(self, nil))
     np.c(args, np)
 
