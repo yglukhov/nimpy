@@ -727,15 +727,12 @@ iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
     else:
         # Assume prc is typed
         var impl = getImpl(prc)
-        if impl.kind == nnkNilLit:
-            impl = getTypeImpl(prc)
-            expectKind(impl, nnkProcTy)
-            formalParams = impl[0]
-        else:
-            if impl.kind notin {nnkProcDef, nnkFuncDef}:
-              echo treeRepr(impl)
-            expectKind(impl, {nnkProcDef, nnkFuncDef})
+        if impl.kind in {nnkProcDef, nnkFuncDef}:
             formalParams = impl.params
+        else:
+            let ty = getTypeImpl(prc)
+            expectKind(ty, nnkProcTy)
+            formalParams = ty[0]
 
     var iParam = 0
     for i in 1 ..< formalParams.len:
