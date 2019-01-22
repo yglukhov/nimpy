@@ -1,3 +1,4 @@
+import sys
 import cmath, os
 import nimfrompy as s
 
@@ -12,15 +13,24 @@ assert(s.greet(*greet_args, **greet_kwargs) == "Hello, world!")
 try:
     s.greet()
 except TypeError as e:
-    assert("TypeError('greet() takes exactly 2 arguments (0 given)')" in repr(e))
+    if sys.version_info <= (3, 6):
+        assert("TypeError('greet() takes exactly 2 arguments (0 given)',)" in repr(e))
+    else:
+        assert("TypeError('greet() takes exactly 2 arguments (0 given)')" in repr(e))
 try:
     s.greet(greeting="Hi")
 except TypeError as e:
-    assert("TypeError('greet() missing 1 required positional argument: name')" in repr(e))
+    if sys.version_info <= (3, 6):
+        assert("TypeError('greet() missing 1 required positional argument: name',)" in repr(e))
+    else:
+        assert("TypeError('greet() missing 1 required positional argument: name')" in repr(e))
 try:
     s.greet(name="world", invalid="foo")
 except TypeError as e:
-    assert("TypeError('greet() got an unexpected keyword argument invalid')" in repr(e))
+    if sys.version_info <= (3, 6):
+        assert("TypeError('greet() got an unexpected keyword argument invalid',)" in repr(e))
+    else:
+        assert("TypeError('greet() got an unexpected keyword argument invalid')" in repr(e))
 
 assert(s.greetEveryoneExceptJack("world") == "Hello, world!")
 try:
