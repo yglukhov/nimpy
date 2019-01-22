@@ -585,6 +585,11 @@ iterator items*(o: PyObject): PyObject =
         yield newPyObjectConsumingRef(i)
     decRef it
 
+iterator keys*(o: PPyObject): PyObject =
+    let keys = newPyObject(pyLib.PyDict_Keys(o))
+    for i in items(keys):
+        yield i
+
 proc `$`*(p: PPyObject): string =
     assert(not p.isNil)
     let s = pyLib.PyObject_Str(p)
@@ -684,23 +689,31 @@ proc nimTupleToPy[T](o: T): PPyObject =
         discard pyLib.PyTuple_SetItem(result, i, nimValueToPy(f))
         inc i
 
-proc parseArguments[T](argTuple, kwargsDict: PPyObject, argIdx: int, argName: string, result: var T) =
-  if not argTuple.isNil:
-      if argIdx < pyLib.PyTuple_Size(argTuple):
-          pyObjToNim(pyLib.PyTuple_GetItem(argTuple, argIdx), result)
-      else:
-          if not kwargsDict.isNil:
-            let key = strToPyObject(argName)
-            let item = pyLib.PyDict_GetItem(kwargsDict, key)
-            if not item.isNil:
-                pyObjToNim(item, result)
+proc setPyArg[T](argTuple: PPyObject, argIdx: int, argVal: var T): bool =
+    if not argTuple.isNil:
+        if argIdx < pyLib.PyTuple_Size(argTuple):
+            pyObjToNim(pyLib.PyTuple_GetItem(argTuple, argIdx), argVal)
+            result = true
 
-proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argsNames: seq[string], funcName: string): bool =
+proc setPyKwarg[T](kwargsDict: PPyObject, argName: cstring, argVal: var T): bool =
+    if not kwargsDict.isNil:
+        let item = pyLib.PyDict_GetItemString(kwargsDict, argName)
+        if not item.isNil:
+            pyObjToNim(item, argVal)
+            result = true
+
+proc parseArg[T](argTuple, kwargsDict: PPyObject, argIdx: int, argName: cstring, result: var T) =
+    let isArgSet = setPyArg(argTuple, argIdx, result)
+    if not isArgSet:
+        discard setPyKwarg(kwargsDict, argName, result)
+
+proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNames: openarray[cstring], funcName: string): bool =
     # WARNING! Do not let GC happen in this proc!
     let
         arg_sz = if argTuple.isNil: 0 else: pyLib.PyTuple_Size(argTuple)
         kwarg_sz = if kwargsDict.isNil: 0 else: pyLib.PyDict_Size(kwargsDict)
         sz = arg_sz + kwarg_sz
+        req_idx = max(0, argsLenReq - arg_sz - 1)
 
     result = if argsLen > argsLenReq:
         # We have some optional arguments, argsLen is the upper limit
@@ -708,21 +721,25 @@ proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argsN
     else:
         sz == argsLen
 
-    if not kwargsDict.isNil:
-        var given: seq[string]
-        pyObjToNim(pyLib.PyDict_Keys(kwargsDict), given)
-        for n in given:
-            if not(n in argsNames):
-                GC_disable()
-                pyLib.PyErr_SetString(pyLib.PyExc_TypeError, funcName & "() got an unexpected keyword argument " & n)
-                GC_enable()
-                return false
-
     if not result:
         GC_disable()
         pyLib.PyErr_SetString(pyLib.PyExc_TypeError, funcName & "() takes exactly " & $argsLen & " arguments (" & $sz & " given)")
         GC_enable()
-        return false
+        result = false
+
+    if not kwargsDict.isNil:
+        for k in keys(kwargsDict):
+            if $k notin argNames:
+                GC_disable()
+                pyLib.PyErr_SetString(pyLib.PyExc_TypeError, funcName & "() got an unexpected keyword argument " & $k)
+                GC_enable()
+                result = false
+            # maybe the req argument is in kwargs?
+            elif req_idx > 0 and $k notin argNames[req_idx..^1]:
+                GC_disable()
+                pyLib.PyErr_SetString(pyLib.PyExc_TypeError, funcName & "() missing 1 required positional argument: " & $k)
+                GC_enable()
+                result = false
 
 template seqTypeForOpenarrayType[T](t: type openarray[T]): typedesc = seq[T]
 template valueTypeForArgType(t: typedesc): typedesc =
@@ -778,11 +795,13 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PP
     var
         numArgs = 0
         numArgsReq = 0
-        argsNames = newSeq[string]()
+        argName: cstring
+        argNames = newSeq[cstring]()
 
     for a in prc.arguments:
         let argIdent = newIdentNode("arg" & $a.idx & $a.name)
-        argsNames.add($a.name)
+        argName = $a.name
+        argNames.add(argName)
         if a.typ.kind == nnkEmpty:
             error("Typeless arguments are not supported by nimpy: " & $a.name, a.name)
         # XXX: The newCall("type", a.typ) should be just `a.typ` but compilation fails. Nim bug?
@@ -796,8 +815,8 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PP
         else:
             pyValueVarSection.add(newIdentDefs(argIdent, newCall(bindSym"valueTypeForArgType", newCall("type", a.typ))))
             inc numArgsReq
-        parseArgsStmts.add(newCall(bindSym"parseArguments", argsTupleIdent, kwargsDictIdent,
-                                   newLit(a.idx), newLit($a.name), argIdent))
+        parseArgsStmts.add(newCall(bindSym"parseArg", argsTupleIdent, kwargsDictIdent,
+                                   newLit(a.idx), newLit($argName), argIdent))
         origCall.add(argIdent)
         inc numArgs
 
@@ -807,7 +826,7 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PP
         nameLit = newLit($prc)
     result = quote do:
         # did we get enought arguments? or correct arguments names?
-        if not verifyArgs(`argsTuple`, `kwargsDict`, `argsLen`, `argsLenReq`, `argsNames`, `nameLit`):
+        if not verifyArgs(`argsTuple`, `kwargsDict`, `argsLen`, `argsLenReq`, `argNames`, `nameLit`):
             return PPyObject(nil)
 
         when `prc` is proc {.closure.}:
