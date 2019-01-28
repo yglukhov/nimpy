@@ -85,9 +85,10 @@ Does nim default garbage collector (GC) work?
 </summary>
 
   nimpy internally does everything needed to run the GC properly (keeps the stack bottom
-  actual), and doesn't introduce any special rules on top. So the GC question boils down
-  to proper GC usage in nim shared libraries, you'd better lookup elsewhere. The following
-  guidelines are by no means comprehensive, but should be enough for the quick start:
+  actual, and appropriate nim references alive), and doesn't introduce any special rules
+  on top. So the GC question boils down to proper GC usage in nim shared libraries,
+  you'd better lookup elsewhere. The following guidelines are by no means comprehensive,
+  but should be enough for the quick start:
   - If it's known there will be only one nimpy module in the process, you should be fine.
   - If there is more than one nimpy module, it is recommended to [move nim runtime out
     to a separate shared library](https://nim-lang.org/docs/nimc.html#dll-generation).
