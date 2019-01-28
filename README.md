@@ -35,6 +35,7 @@ let py = pyBuiltinsModule()
 let s = py.sum(py.range(0, 5)).to(int)
 assert(s == 10)
 ```
+Note: here nimpy relies on your local python installation.
 
 ## Misc
 The library is designed with ABI compatibility in mind. That is
