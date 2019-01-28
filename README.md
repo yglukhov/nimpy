@@ -78,6 +78,26 @@ contains a very basic test for this (grep `numpy`). Higher level API might
 be considered in the future, PRs are welcome.
 </details>
 
+<details>
+<summary> <b>Question:</b>
+
+Does nim default garbage collector (GC) work?
+</summary>
+
+  nimpy internally does everything needed to run the GC properly (keeps the stack bottom
+  actual), and doesn't introduce any special rules on top. So the GC question boils down
+  to proper GC usage in nim shared libraries, you'd better lookup elsewhere. The following
+  guidelines are by no means comprehensive, but should be enough for the quick start:
+  - If it's known there will be only one nimpy module in the process, you should be fine.
+  - If there is more than one nimpy module, it is recommended to [move nim runtime out
+    to a separate shared library](https://nim-lang.org/docs/nimc.html#dll-generation).
+    However it might not be needed if nim references are known to never travel between
+    nim shared libraries.
+  - If you hit any GC problems with nimpy, whether you followed these guidelines or not,
+    please report them to nimpy tracker :)
+
+</details>
+
 ## Future directions
 * exporting Nim types/functions as Python classes/methods
 * High level buffer API
