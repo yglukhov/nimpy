@@ -1,36 +1,38 @@
-import sys
 import cmath, os
 import nimfrompy as s
 
 assert(s.greet("world") == "Hello, world!")
-assert(s.greet("world", "Hello") == "Hello, world!")
+assert(s.greet("world", "Hello", "!") == "Hello, world!")
 assert(s.greet("world", greeting="Hello") == "Hello, world!")
-assert(s.greet(name="world", greeting="Hello") == "Hello, world!")
+assert(s.greet(name="world", greeting="Hello", suffix="!") == "Hello, world!")
 greet_args = ("world", )
-greet_kwargs = {'greeting': "Hello", }
+greet_kwargs = {'greeting': "Hello", 'suffix': "!"}
 assert(s.greet(*greet_args, **greet_kwargs) == "Hello, world!")
 
 try:
     s.greet()
+    assert(False)
 except TypeError as e:
-    if sys.version_info <= (3, 6):
-        assert("TypeError('greet() takes exactly 2 arguments (0 given)',)" in repr(e))
-    else:
-        assert("TypeError('greet() takes exactly 2 arguments (0 given)')" in repr(e))
+    expected = "TypeError('greet() takes exactly 3 arguments (0 given)',)"
+    assert(expected[:-2] in repr(e))
 try:
     s.greet(greeting="Hi")
+    assert(False)
 except TypeError as e:
-    if sys.version_info <= (3, 6):
-        assert("TypeError('greet() missing 1 required positional argument: name',)" in repr(e))
-    else:
-        assert("TypeError('greet() missing 1 required positional argument: name')" in repr(e))
+    expected = "TypeError('greet() missing 1 required positional argument: name',)"
+    assert(expected[:-2] in repr(e))
 try:
     s.greet(name="world", invalid="foo")
+    assert(False)
 except TypeError as e:
-    if sys.version_info <= (3, 6):
-        assert("TypeError('greet() got an unexpected keyword argument invalid',)" in repr(e))
-    else:
-        assert("TypeError('greet() got an unexpected keyword argument invalid')" in repr(e))
+    expected = "TypeError('greet() got an unexpected keyword argument invalid',)"
+    assert(expected[:-2] in repr(e))
+try:
+    s.greet("hello", "world", greeting="foo")
+    assert(False)
+except TypeError as e:
+    expected = "TypeError('greet() got multiple values for argument greeting',)"
+    assert(expected[:-2] in repr(e))
 
 assert(s.greetEveryoneExceptJack("world") == "Hello, world!")
 try:

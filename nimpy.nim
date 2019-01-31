@@ -585,10 +585,24 @@ iterator items*(o: PyObject): PyObject =
         yield newPyObjectConsumingRef(i)
     decRef it
 
-iterator keys*(o: PPyObject): PyObject =
-    let keys = newPyObject(pyLib.PyDict_Keys(o))
-    for i in items(keys):
-        yield i
+iterator dictKeys(o: PPyObject): PyObject =
+    let keys = pyLib.PyDict_Keys(o)
+    let it = pyLib.PyObject_GetIter(keys)
+    while true:
+        let i = pyLib.PyIter_Next(it)
+        if i.isNil: break
+        yield newPyObjectConsumingRef(i)
+    decRef it
+
+proc contains*(o: PPyObject, k: cstring): bool =
+    # TODO: should we check if o is a dict?
+    result = pyLib.PyDict_Contains(o, pyLib.PyUnicode_FromString(k)) == 1
+
+proc `==`*(o: PPyObject, k: cstring): bool =
+    if pyLib.PyUnicode_CompareWithASCIIString.isNil:
+        result = pyLib.PyString_AsString(o) == k
+    else:
+        result = pyLib.PyUnicode_CompareWithASCIIString(o, k) == 0
 
 proc `$`*(p: PPyObject): string =
     assert(not p.isNil)
@@ -689,13 +703,13 @@ proc nimTupleToPy[T](o: T): PPyObject =
         discard pyLib.PyTuple_SetItem(result, i, nimValueToPy(f))
         inc i
 
-proc setPyArg[T](argTuple: PPyObject, argIdx: int, argVal: var T): bool =
+proc getPyArg[T](argTuple: PPyObject, argIdx: int, argVal: var T): bool =
     if not argTuple.isNil:
         if argIdx < pyLib.PyTuple_Size(argTuple):
             pyObjToNim(pyLib.PyTuple_GetItem(argTuple, argIdx), argVal)
             result = true
 
-proc setPyKwarg[T](kwargsDict: PPyObject, argName: cstring, argVal: var T): bool =
+proc getPyKwarg[T](kwargsDict: PPyObject, argName: cstring, argVal: var T): bool =
     if not kwargsDict.isNil:
         let item = pyLib.PyDict_GetItemString(kwargsDict, argName)
         if not item.isNil:
@@ -703,17 +717,24 @@ proc setPyKwarg[T](kwargsDict: PPyObject, argName: cstring, argVal: var T): bool
             result = true
 
 proc parseArg[T](argTuple, kwargsDict: PPyObject, argIdx: int, argName: cstring, result: var T) =
-    let isArgSet = setPyArg(argTuple, argIdx, result)
+    let isArgSet = getPyArg(argTuple, argIdx, result)
     if not isArgSet:
-        discard setPyKwarg(kwargsDict, argName, result)
+        discard getPyKwarg(kwargsDict, argName, result)
+
+template raisePyException(tp, msg: untyped): untyped =
+    GC_disable()
+    pyLib.PyErr_SetString(tp, msg)
+    GC_enable()
+    result = false
 
 proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNames: openarray[cstring], funcName: string): bool =
     # WARNING! Do not let GC happen in this proc!
     let
-        arg_sz = if argTuple.isNil: 0 else: pyLib.PyTuple_Size(argTuple)
-        kwarg_sz = if kwargsDict.isNil: 0 else: pyLib.PyDict_Size(kwargsDict)
-        sz = arg_sz + kwarg_sz
-        req_idx = max(0, argsLenReq - arg_sz - 1)
+        nargs = if argTuple.isNil: 0 else: pyLib.PyTuple_Size(argTuple)
+        nkwargs = if kwargsDict.isNil: 0 else: pyLib.PyDict_Size(kwargsDict)
+        sz = nargs + nkwargs
+    var
+        nkwarg_left = nkwargs
 
     result = if argsLen > argsLenReq:
         # We have some optional arguments, argsLen is the upper limit
@@ -722,24 +743,42 @@ proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNa
         sz == argsLen
 
     if not result:
-        GC_disable()
-        pyLib.PyErr_SetString(pyLib.PyExc_TypeError, funcName & "() takes exactly " & $argsLen & " arguments (" & $sz & " given)")
-        GC_enable()
-        result = false
+        raisePyException(pyLib.PyExc_TypeError, funcName & "() takes exactly " & $argsLen & " arguments (" & $sz & " given)")
 
-    if not kwargsDict.isNil:
-        for k in keys(kwargsDict):
-            if $k notin argNames:
-                GC_disable()
-                pyLib.PyErr_SetString(pyLib.PyExc_TypeError, funcName & "() got an unexpected keyword argument " & $k)
-                GC_enable()
-                result = false
-            # maybe the req argument is in kwargs?
-            elif req_idx > 0 and $k notin argNames[req_idx..^1]:
-                GC_disable()
-                pyLib.PyErr_SetString(pyLib.PyExc_TypeError, funcName & "() missing 1 required positional argument: " & $k)
-                GC_enable()
-                result = false
+    for i in 0..<sz:
+        # maybe is arg
+        if i < nargs:
+            continue
+        # we get required kwarg
+        elif i < argsLenReq and nkwargs > 0:
+            if argNames[i] notin kwargsDict:
+                raisePyException(pyLib.PyExc_TypeError, funcName & "() missing 1 required positional argument: " & $argNames[i])
+            else:
+                dec nkwarg_left
+        # we get optional kwarg
+        elif nkwargs > 0:
+            if argNames[i] in kwargsDict:
+                dec nkwarg_left
+
+    # something is wrong, find out what
+    if nkwarg_left > 0:
+        # maybe we have args also defined as kwargs
+        if nargs > 0:
+          for i in 0..nargs:
+              if argNames[i] in kwargsDict:
+                  raisePyException(pyLib.PyExc_TypeError, funcName & "() got multiple values for argument " & $argNames[i])
+
+        # maybe we have an invalid kwarg
+        var
+            found = false
+
+        for k in dictKeys(kwargsDict):
+            found = false
+            for a in argNames:
+                if k.rawPyObj == a:
+                    found = true
+            if not found:
+                raisePyException(pyLib.PyExc_TypeError, funcName & "() got an unexpected keyword argument " & $k)
 
 template seqTypeForOpenarrayType[T](t: type openarray[T]): typedesc = seq[T]
 template valueTypeForArgType(t: typedesc): typedesc =

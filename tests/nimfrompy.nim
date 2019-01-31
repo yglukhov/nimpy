@@ -7,8 +7,8 @@ type
     JackError* = object of Exception
 
 
-proc greet(name: string, greeting: string="Hello"): string {.exportpy.} =
-    return greeting & ", " & name & "!"
+proc greet(name: string, greeting: string="Hello", suffix: string="!"): string {.exportpy.} =
+    return greeting & ", " & name & suffix
 
 proc greetEveryoneExceptJack(name: string): string {.exportpy.} =
     if name == "Jack":
