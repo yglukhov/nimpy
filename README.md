@@ -22,6 +22,7 @@ nim c --app:lib --out:mymodule.so mymodule
 # test.py
 import mymodule
 assert(mymodule.greet("world") == "Hello, world!")
+assert(mymodule.greet(name="world") == "Hello, world!")
 ```
 
 ## Calling python from nim

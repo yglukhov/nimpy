@@ -2,6 +2,38 @@ import cmath, os
 import nimfrompy as s
 
 assert(s.greet("world") == "Hello, world!")
+assert(s.greet("world", "Hello", "!") == "Hello, world!")
+assert(s.greet("world", greeting="Hello") == "Hello, world!")
+assert(s.greet(name="world", greeting="Hello", suffix="!") == "Hello, world!")
+greet_args = ("world", )
+greet_kwargs = {'greeting': "Hello", 'suffix': "!"}
+assert(s.greet(*greet_args, **greet_kwargs) == "Hello, world!")
+
+try:
+    s.greet()
+    assert(False)
+except TypeError as e:
+    expected = "TypeError('greet() takes exactly 3 arguments (0 given)',)"
+    assert(expected[:-2] in repr(e))
+try:
+    s.greet(greeting="Hi")
+    assert(False)
+except TypeError as e:
+    expected = "TypeError('greet() missing 1 required positional argument: name',)"
+    assert(expected[:-2] in repr(e))
+try:
+    s.greet(name="world", invalid="foo")
+    assert(False)
+except TypeError as e:
+    expected = "TypeError('greet() got an unexpected keyword argument invalid',)"
+    assert(expected[:-2] in repr(e))
+try:
+    s.greet("hello", "world", greeting="foo")
+    assert(False)
+except TypeError as e:
+    expected = "TypeError('greet() got multiple values for argument greeting',)"
+    assert(expected[:-2] in repr(e))
+
 assert(s.greetEveryoneExceptJack("world") == "Hello, world!")
 try:
     s.greetEveryoneExceptJack("Jack")
@@ -16,8 +48,8 @@ assert(abs(s.sumAssorted(1, 2, 3, 4, 5, 6, 7) - 28) < 0.0001)
 assert(s.sumIntsInArray([1, 2, 3, 4, 5, 6, 7]) == 28)
 assert(s.reverseArray([1, 2, 3]) == [3, 2, 1])
 assert(s.reverseVec3([1, 2, 3]) == [3, 2, 1])
-assert(s.flipBool(False) == True)
-assert(s.flipBool(True) == False)
+assert(s.flipBool(False) is True)
+assert(s.flipBool(True) is False)
 
 assert(s.complexSqrt(complex(1, -1)) == cmath.sqrt(complex(1, -1)))
 assert(s.complexSeqSqrt([complex(1, -1), complex(1, 1)]) == [cmath.sqrt(complex(1, -1)), cmath.sqrt(complex(1, 1))])
@@ -31,14 +63,14 @@ assert(s.getIntTable()[0] == 1.0)
 assert(s.getIntTable()[1] == 15.0)
 assert(s.getIntTable()[10] == 5.0)
 
-assert(s.TestType() != None)
+assert(s.TestType() is not None)
 
 assert(s.getMyObj()["a"] == 5)
 assert(s.getMyObj()["c"] == "hello")
 assert(s.validateMyObj(s.getMyObj()))
 
 assert(s.validateMyRefObj(s.getMyRefObj()))
-assert(s.getNilObj() == None)
+assert(s.getNilObj() is None)
 assert(s.validateNilObj(s.getNilObj()))
 
 s.voidProc()

@@ -62,6 +62,9 @@ type
 
         PyUnicode_AsUTF8String*: proc(o: PPyObject): PPyObject {.cdecl.}
         PyBytes_AsStringAndSize*: proc(o: PPyObject, s: ptr ptr char, len: ptr Py_ssize_t): cint {.cdecl.}
+        PyUnicode_FromString*: proc(s: cstring): PPyObject {.cdecl.}
+        PyUnicode_CompareWithASCIIString*: proc(o: PPyObject, s: cstring): cint {.cdecl.}
+        PyString_AsString*: proc(o: PPyObject): cstring {.cdecl.}
 
         PyDict_Type*: PyTypeObject
         PyDict_New*: proc(): PPyObject {.cdecl.}
@@ -72,6 +75,7 @@ type
         PyDict_SetItem*: proc(o: PPyObject, k, v: PPyObject): cint {.cdecl.}
         PyDict_Keys*: proc(o: PPyObject): PPyObject {.cdecl.}
         PyDict_Values*: proc(o: PPyObject): PPyObject {.cdecl.}
+        PyDict_Contains*: proc(o: PPyObject, k: PPyObject): cint {.cdecl.}
 
         PyDealloc*: proc(o: PPyObject) {.nimcall.}
 
@@ -204,12 +208,21 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
         # Needed for compatibility with Python 2
         load PyBytes_Type, "PyString_Type"
 
+
+    maybeload PyUnicode_FromString
+    if pl.PyUnicode_FromString.isNil:
+        load PyUnicode_FromString, "PyString_FromString"
+
     load PyType_IsSubtype
 
     maybeLoad PyComplex_AsCComplex
     if pl.PyComplex_AsCComplex.isNil:
         load PyComplex_RealAsDouble
         load PyComplex_ImagAsDouble
+
+    maybeLoad PyUnicode_CompareWithASCIIString
+    if pl.PyUnicode_CompareWithASCIIString.isNil:
+        load PyString_AsString
 
     maybeLoad PyUnicode_AsUTF8String
     if pl.PyUnicode_AsUTF8String.isNil:
@@ -233,6 +246,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     load PyDict_SetItem
     load PyDict_Keys
     load PyDict_Values
+    load PyDict_Contains
 
     if pl.pythonVersion == 3:
         pl.PyDealloc = deallocPythonObj[PyTypeObject3]

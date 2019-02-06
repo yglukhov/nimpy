@@ -145,13 +145,12 @@ proc privateRawPyObj*(p: PyObject): PPyObject {.inline.} =
     # Don't use this
     p.rawPyObj
 
-proc addMethod(m: var PyModuleDesc, name, doc: cstring, f: PyCFunction) =
-    let def = PyMethodDef(ml_name: name, ml_meth: f, ml_flags: Py_MLFLAGS_VARARGS,
+proc addMethod(m: var PyModuleDesc, name, doc: cstring, f: PyCFunctionWithKeywords) =
+    let def = PyMethodDef(ml_name: name, ml_meth: f, ml_flags: Py_MLFLAGS_VARARGS or Py_MLFLAGS_KEYWORDS,
                           ml_doc: doc)
     m.methods.add(def)
 
 proc newNimObjToPyObj(typ: PyTypeObject, o: PyNimObject): PPyObject =
-    # echo "New called"
     GC_ref(o)
     result = cast[PPyObject](addr o.py_object)
     o.py_object.ob_type = typ
@@ -586,6 +585,25 @@ iterator items*(o: PyObject): PyObject =
         yield newPyObjectConsumingRef(i)
     decRef it
 
+iterator dictKeys(o: PPyObject): PyObject =
+    let keys = pyLib.PyDict_Keys(o)
+    let it = pyLib.PyObject_GetIter(keys)
+    while true:
+        let i = pyLib.PyIter_Next(it)
+        if i.isNil: break
+        yield newPyObjectConsumingRef(i)
+    decRef it
+
+proc contains*(o: PPyObject, k: cstring): bool =
+    # TODO: should we check if o is a dict?
+    result = pyLib.PyDict_Contains(o, pyLib.PyUnicode_FromString(k)) == 1
+
+proc `==`*(o: PPyObject, k: cstring): bool =
+    if pyLib.PyUnicode_CompareWithASCIIString.isNil:
+        result = pyLib.PyString_AsString(o) == k
+    else:
+        result = pyLib.PyUnicode_CompareWithASCIIString(o, k) == 0
+
 proc `$`*(p: PPyObject): string =
     assert(not p.isNil)
     let s = pyLib.PyObject_Str(p)
@@ -685,27 +703,82 @@ proc nimTupleToPy[T](o: T): PPyObject =
         discard pyLib.PyTuple_SetItem(result, i, nimValueToPy(f))
         inc i
 
-proc parseArg[T](argTuple: PPyObject, argIdx: int, result: var T) =
-    pyObjToNim(pyLib.PyTuple_GetItem(argTuple, argIdx), result)
+proc getPyArg[T](argTuple: PPyObject, argIdx: int, argVal: var T): bool =
+    if not argTuple.isNil:
+        if argIdx < pyLib.PyTuple_Size(argTuple):
+            pyObjToNim(pyLib.PyTuple_GetItem(argTuple, argIdx), argVal)
+            result = true
 
-proc parseArg[T](argTuple: PPyObject, argIdx: int, default: T, result: var T) =
-    if argIdx < pyLib.PyTuple_Size(argTuple):
-        pyObjToNim(pyLib.PyTuple_GetItem(argTuple, argIdx), result)
-    else:
-        result = default
+proc getPyKwarg[T](kwargsDict: PPyObject, argName: cstring, argVal: var T): bool =
+    if not kwargsDict.isNil:
+        let item = pyLib.PyDict_GetItemString(kwargsDict, argName)
+        if not item.isNil:
+            pyObjToNim(item, argVal)
+            result = true
 
-proc verifyArgs(argTuple: PPyObject, argsLen, argsLenReq: int, funcName: string): bool =
+proc parseArg[T](argTuple, kwargsDict: PPyObject, argIdx: int, argName: cstring, result: var T) =
+    let isArgSet = getPyArg(argTuple, argIdx, result)
+    if not isArgSet:
+        discard getPyKwarg(kwargsDict, argName, result)
+
+template raisePyException(tp, msg: untyped): untyped =
+    GC_disable()
+    pyLib.PyErr_SetString(tp, msg)
+    GC_enable()
+    result = false
+
+proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNames: openarray[cstring], funcName: string): bool =
     # WARNING! Do not let GC happen in this proc!
-    let sz = pyLib.PyTuple_Size(argTuple)
+    let
+        nargs = if argTuple.isNil: 0 else: pyLib.PyTuple_Size(argTuple)
+        nkwargs = if kwargsDict.isNil: 0 else: pyLib.PyDict_Size(kwargsDict)
+        sz = nargs + nkwargs
+    var
+        nkwarg_left = nkwargs
+
     result = if argsLen > argsLenReq:
         # We have some optional arguments, argsLen is the upper limit
         sz >= argsLenReq and sz <= argsLen
     else:
         sz == argsLen
+
     if not result:
-        GC_disable()
-        pyLib.PyErr_SetString(pyLib.PyExc_TypeError, funcName & "() takes exactly " & $argsLen & " arguments (" & $sz & " given)")
-        GC_enable()
+        raisePyException(pyLib.PyExc_TypeError, funcName & "() takes exactly " & $argsLen & " arguments (" & $sz & " given)")
+
+    for i in 0..<sz:
+        # maybe is arg
+        if i < nargs:
+            continue
+        # we get required kwarg
+        elif i < argsLenReq and nkwargs > 0:
+            if argNames[i] notin kwargsDict:
+                raisePyException(pyLib.PyExc_TypeError, funcName & "() missing 1 required positional argument: " & $argNames[i])
+            else:
+                dec nkwarg_left
+        # we get optional kwarg
+        elif nkwargs > 0:
+            if argNames[i] in kwargsDict:
+                dec nkwarg_left
+
+    # something is wrong, find out what
+    if nkwarg_left > 0:
+        # maybe we have args also defined as kwargs
+        if nargs > 0:
+          for i in 0..nargs:
+              if argNames[i] in kwargsDict:
+                  raisePyException(pyLib.PyExc_TypeError, funcName & "() got multiple values for argument " & $argNames[i])
+
+        # maybe we have an invalid kwarg
+        var
+            found = false
+
+        for k in dictKeys(kwargsDict):
+            found = false
+            for a in argNames:
+                if k.rawPyObj == a:
+                    found = true
+            if not found:
+                raisePyException(pyLib.PyExc_TypeError, funcName & "() got an unexpected keyword argument " & $k)
 
 template seqTypeForOpenarrayType[T](t: type openarray[T]): typedesc = seq[T]
 template valueTypeForArgType(t: typedesc): typedesc =
@@ -746,84 +819,98 @@ proc pythonException(e: ref Exception): PPyObject =
     decRef err
     pyLib.PyErr_SetString(err, "Unexpected error encountered: " & getCurrentExceptionMsg())
 
-macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject): PPyObject =
-    let pyValueVarSection = newNimNode(nnkVarSection)
+macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PPyObject): PPyObject =
+    let
+        pyValueVarSection = newNimNode(nnkVarSection)
+        parseArgsStmts = newNimNode(nnkStmtList)
 
-    let parseArgsStmts = newNimNode(nnkStmtList)
     parseArgsStmts.add(pyValueVarSection)
-    let origCall = newCall(prc)
 
-    let argsTupleIdent = newIdentNode("pyArgs")
+    let
+        origCall = newCall(prc)
+        argsTupleIdent = newIdentNode("pyArgs")
+        kwargsDictIdent = newIdentNode("pyKargs")
 
-    var numArgs = 0
-    var numArgsReq = 0
+    var
+        numArgs = 0
+        numArgsReq = 0
+        argName: cstring
+        argNames = newSeq[cstring]()
+
     for a in prc.arguments:
         let argIdent = newIdentNode("arg" & $a.idx & $a.name)
+        argName = $a.name
+        argNames.add(argName)
         if a.typ.kind == nnkEmpty:
-          error("Typeless arguments are not supported by nimpy: " & $a.name, a.name)
+            error("Typeless arguments are not supported by nimpy: " & $a.name, a.name)
         # XXX: The newCall("type", a.typ) should be just `a.typ` but compilation fails. Nim bug?
-        pyValueVarSection.add(newIdentDefs(argIdent, newCall(bindSym"valueTypeForArgType", newCall("type", a.typ))))
         if a.default.kind != nnkEmpty:
-            parseArgsStmts.add(newCall(bindSym"parseArg", argsTupleIdent, newLit(a.idx), a.default, argIdent))
+            # if we have a default, set it during var declaration
+            pyValueVarSection.add(newIdentDefs(argIdent, newCall(bindSym"valueTypeForArgType", newCall("type", a.typ)), a.default))
         elif numArgsReq < numArgs:
             # Exported procedures _must_ have all their arguments w/ a default
             # value follow the required ones
             error("Default-valued arguments must follow the regular ones", prc)
         else:
-            parseArgsStmts.add(newCall(bindSym"parseArg", argsTupleIdent, newLit(a.idx), argIdent))
+            pyValueVarSection.add(newIdentDefs(argIdent, newCall(bindSym"valueTypeForArgType", newCall("type", a.typ))))
             inc numArgsReq
+        parseArgsStmts.add(newCall(bindSym"parseArg", argsTupleIdent, kwargsDictIdent,
+                                   newLit(a.idx), newLit($argName), argIdent))
         origCall.add(argIdent)
         inc numArgs
 
-    let argsLen = newLit(numArgs)
-    let argsLenReq = newLit(numArgsReq)
-    let nameLit = newLit($prc)
+    let
+        argsLen = newLit(numArgs)
+        argsLenReq = newLit(numArgsReq)
+        nameLit = newLit($prc)
     result = quote do:
-        if verifyArgs(`argsTuple`, `argsLen`, `argsLenReq`, `nameLit`):
-            when `prc` is proc {.closure.}:
-                # When proc is a closure, we don't need to prevent inlining,
-                # because updateStackBottom must have been called at this point.
-                let `argsTupleIdent` {.used.} = `argsTuple`
+        # did we get enought arguments? or correct arguments names?
+        if not verifyArgs(`argsTuple`, `kwargsDict`, `argsLen`, `argsLenReq`, `argNames`, `nameLit`):
+            return PPyObject(nil)
+
+        when `prc` is proc {.closure.}:
+            # When proc is a closure, we don't need to prevent inlining,
+            # because updateStackBottom must have been called at this point.
+            let `argsTupleIdent` {.used.} = `argsTuple`
+            let `kwargsDictIdent` {.used.} = `kwargsDict`
+            `parseArgsStmts`
+            try:
+                nimValueToPy(`origCall`)
+            except Exception as e:
+                pythonException(e)
+        else:
+            updateStackBottom()
+            # Prevent inlining (See #67)
+            var p {.volatile.}: proc(a, kwg: PPyObject): PPyObject {.nimcall.} = proc(`argsTupleIdent`, `kwargsDictIdent`: PPyObject): PPyObject {.nimcall.} =
                 `parseArgsStmts`
                 try:
                     nimValueToPy(`origCall`)
                 except Exception as e:
                     pythonException(e)
-            else:
-                updateStackBottom()
-                # Prevent inlining (See #67)
-                var p {.volatile.}: proc(a: PPyObject): PPyObject {.nimcall.} = proc(`argsTupleIdent`: PPyObject): PPyObject {.nimcall.} =
-                    `parseArgsStmts`
-                    try:
-                        nimValueToPy(`origCall`)
-                    except Exception as e:
-                        pythonException(e)
-                p(`argsTuple`)
-        else:
-            PPyObject(nil)
+            p(`argsTuple`, `kwargsDict`)
 
 type NimPyProcBase* = ref object {.inheritable, pure.}
-    c: proc(args: PPyObject, p: NimPyProcBase): PPyObject {.cdecl.}
+    c: proc(args, kwargs: PPyObject, p: NimPyProcBase): PPyObject {.cdecl.}
 
-proc callNimProc(self, args: PPyObject): PPyObject {.cdecl.} =
+proc callNimProc(self, args, kwargs: PPyObject): PPyObject {.cdecl.} =
     updateStackBottom()
     let np = cast[NimPyProcBase](pyLib.PyCapsule_GetPointer(self, nil))
-    np.c(args, np)
+    np.c(args, kwargs, np)
 
 proc nimProcToPy[T](o: T): PPyObject =
     var md {.global.}: PyMethodDef
     if md.ml_name.isNil:
         md.ml_name = "anonymous"
-        md.ml_flags = Py_MLFLAGS_VARARGS
+        md.ml_flags = Py_MLFLAGS_VARARGS or Py_MLFLAGS_KEYWORDS
         md.ml_meth = callNimProc
 
     type NimProcS[T] = ref object of NimPyProcBase
         p: T
 
-    proc doCall(args: PPyObject, p: NimPyProcBase): PPyObject {.cdecl.} =
+    proc doCall(args: PPyObject, kwargs: PPyObject, p: NimPyProcBase): PPyObject {.cdecl.} =
         var anonymous: T
         anonymous = cast[NimProcS[T]](p).p
-        callNimProcWithPythonArgs(anonymous, args)
+        callNimProcWithPythonArgs(anonymous, args, kwargs)
 
     let np = NimProcS[T](p: o, c: doCall)
     let self = newPyCapsule(np)
@@ -833,9 +920,10 @@ proc nimProcToPy[T](o: T): PPyObject =
 proc makeWrapper(originalName: string, name, prc: NimNode): NimNode =
     let selfIdent = newIdentNode("self")
     let argsIdent = newIdentNode("args")
-    result = newProc(name, params = [bindSym"PPyObject", newIdentDefs(selfIdent, bindSym"PPyObject"), newIdentDefs(argsIdent, bindSym"PPyObject")])
+    let kwargsIdent = newIdentNode("kwargs")
+    result = newProc(name, params = [bindSym"PPyObject", newIdentDefs(selfIdent, bindSym"PPyObject"), newIdentDefs(argsIdent, bindSym"PPyObject"), newIdentDefs(kwargsIdent, bindSym"PPyObject")])
     result.addPragma(newIdentNode("cdecl"))
-    result.body = newCall(bindSym("callNimProcWithPythonArgs"), prc.name, argsIdent)
+    result.body = newCall(bindSym("callNimProcWithPythonArgs"), prc.name, argsIdent, kwargsIdent)
 
 proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode =
     let modulename = modulename.splitFile.name
@@ -860,8 +948,6 @@ proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode
         result.add(makeWrapper(procName, procIdent, prc))
 
     result.add(newCall(bindSym"addMethod", newIdentNode("gPythonLocalModuleDesc"), newLit(procName), comment, procIdent))
-    # echo "procname: ", procName
-    # echo repr result
 
 macro exportpyAux(prc: untyped, modulename, procName: static[string], wrap: static[bool]): untyped =
     exportProc(prc, modulename, procName, wrap)

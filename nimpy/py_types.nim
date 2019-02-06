@@ -5,9 +5,11 @@ type
 
     PyCFunction* = proc(s, a: PPyObject): PPyObject {.cdecl.}
 
+    PyCFunctionWithKeywords* = proc(s, a, k: PPyObject): PPyObject {.cdecl.}
+
     PyMethodDef* = object
         ml_name*: cstring
-        ml_meth*: PyCFunction
+        ml_meth*: PyCFunctionWithKeywords
         ml_flags*: cint
         ml_doc*: cstring
 
