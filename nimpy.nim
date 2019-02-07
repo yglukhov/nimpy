@@ -819,7 +819,7 @@ proc pythonException(e: ref Exception): PPyObject =
     decRef err
     pyLib.PyErr_SetString(err, "Unexpected error encountered: " & getCurrentExceptionMsg())
 
-macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PPyObject): PPyObject =
+macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PPyObject, isClosure: static[bool]): PPyObject =
     let
         pyValueVarSection = newNimNode(nnkVarSection)
         parseArgsStmts = newNimNode(nnkStmtList)
@@ -863,14 +863,16 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PP
         argsLen = newLit(numArgs)
         argsLenReq = newLit(numArgsReq)
         nameLit = newLit($prc)
-    result = quote do:
+    result = newNimNode(nnkStmtList)
+    result.add quote do:
         # did we get enought arguments? or correct arguments names?
         if not verifyArgs(`argsTuple`, `kwargsDict`, `argsLen`, `argsLenReq`, `argNames`, `nameLit`):
             return PPyObject(nil)
 
-        when `prc` is proc {.closure.}:
-            # When proc is a closure, we don't need to prevent inlining,
-            # because updateStackBottom must have been called at this point.
+    if isClosure:
+        # When proc is a closure, we don't need to prevent inlining,
+        # because updateStackBottom must have been called at this point.
+        result.add quote do:
             let `argsTupleIdent` {.used.} = `argsTuple`
             let `kwargsDictIdent` {.used.} = `kwargsDict`
             `parseArgsStmts`
@@ -878,15 +880,17 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PP
                 nimValueToPy(`origCall`)
             except Exception as e:
                 pythonException(e)
-        else:
+    else:
+        result.add quote do:
             updateStackBottom()
             # Prevent inlining (See #67)
-            var p {.volatile.}: proc(a, kwg: PPyObject): PPyObject {.nimcall.} = proc(`argsTupleIdent`, `kwargsDictIdent`: PPyObject): PPyObject {.nimcall.} =
+            proc pp(`argsTupleIdent`, `kwargsDictIdent`: PPyObject): PPyObject {.nimcall.} =
                 `parseArgsStmts`
                 try:
                     nimValueToPy(`origCall`)
                 except Exception as e:
                     pythonException(e)
+            var p {.volatile.}: proc(a, kwg: PPyObject): PPyObject {.nimcall.} = pp
             p(`argsTuple`, `kwargsDict`)
 
 type NimPyProcBase* = ref object {.inheritable, pure.}
@@ -910,7 +914,7 @@ proc nimProcToPy[T](o: T): PPyObject =
     proc doCall(args: PPyObject, kwargs: PPyObject, p: NimPyProcBase): PPyObject {.cdecl.} =
         var anonymous: T
         anonymous = cast[NimProcS[T]](p).p
-        callNimProcWithPythonArgs(anonymous, args, kwargs)
+        callNimProcWithPythonArgs(anonymous, args, kwargs, true)
 
     let np = NimProcS[T](p: o, c: doCall)
     let self = newPyCapsule(np)
@@ -923,7 +927,7 @@ proc makeWrapper(originalName: string, name, prc: NimNode): NimNode =
     let kwargsIdent = newIdentNode("kwargs")
     result = newProc(name, params = [bindSym"PPyObject", newIdentDefs(selfIdent, bindSym"PPyObject"), newIdentDefs(argsIdent, bindSym"PPyObject"), newIdentDefs(kwargsIdent, bindSym"PPyObject")])
     result.addPragma(newIdentNode("cdecl"))
-    result.body = newCall(bindSym("callNimProcWithPythonArgs"), prc.name, argsIdent, kwargsIdent)
+    result.body = newCall(bindSym("callNimProcWithPythonArgs"), prc.name, argsIdent, kwargsIdent, newLit(false))
 
 proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode =
     let modulename = modulename.splitFile.name
@@ -948,6 +952,8 @@ proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode
         result.add(makeWrapper(procName, procIdent, prc))
 
     result.add(newCall(bindSym"addMethod", newIdentNode("gPythonLocalModuleDesc"), newLit(procName), comment, procIdent))
+    # echo "procname: ", procName
+    # echo repr result
 
 macro exportpyAux(prc: untyped, modulename, procName: static[string], wrap: static[bool]): untyped =
     exportProc(prc, modulename, procName, wrap)
