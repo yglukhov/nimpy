@@ -104,3 +104,6 @@ Does nim default garbage collector (GC) work?
 * exporting Nim types/functions as Python classes/methods
 * High level buffer API
 
+## Stargazers over time
+
+[![Stargazers over time](https://starcharts.herokuapp.com/yglukhov/nimpy.svg)](https://starcharts.herokuapp.com/yglukhov/nimpy)
