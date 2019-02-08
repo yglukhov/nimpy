@@ -94,8 +94,16 @@ assert(s.testDefaultArgs("hello, ", "world") == s.testDefaultArgs("hello, "))
 
 assert(s.testJsonArgument({"foo": 666, "bar": False, "baz": 42.0}) == "ok")
 
-s.testPyFromNim()
-
 assert(s.testLambda(lambda x: x + 5) == 8)
+assert(s.testLambda2(lambda x: x + 5) == 8)
+
+receivedString = ""
+def receiveString(x):
+    global receivedString
+    receivedString = x
+s.testVoidLambda(receiveString)
+assert(receivedString == "hello")
+
+s.testPyFromNim()
 
 print("Tests complete!")

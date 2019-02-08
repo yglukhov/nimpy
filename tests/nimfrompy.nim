@@ -107,6 +107,12 @@ proc testJsonArgument(n: JsonNode): string {.exportpy.} =
 proc testLambda(p: PyObject): int {.exportpy.} =
     p.callObject(3).to(int)
 
+proc testLambda2(p: proc(a: int): int): int {.exportpy.} =
+    p(3)
+
+proc testVoidLambda(p: proc(a: string)) {.exportpy.} =
+    p("hello")
+
 type TestType = ref object of PyNimObjectBaseToInheritFromForAnExportedType
 
 pyexportTypeExperimental(TestType)
