@@ -104,6 +104,9 @@ proc testJsonArgument(n: JsonNode): string {.exportpy.} =
     assert(n["baz"].getFloat() > 41 and n["baz"].getFloat() < 43)
     return "ok"
 
+proc testLambda(p: PyObject): int {.exportpy.} =
+    p.callObject(3).to(int)
+
 type TestType = ref object of PyNimObjectBaseToInheritFromForAnExportedType
 
 pyexportTypeExperimental(TestType)

@@ -1022,18 +1022,14 @@ proc to*(v: PyObject, T: typedesc): T {.inline.} =
 proc toJson*(v: PyObject): JsonNode {.inline.} =
     pyObjToJson(v.rawPyObj, result)
 
-proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject], kwargs: openarray[PyNamedArg] = []): PPyObject =
-    let callable = pyLib.PyObject_GetAttrString(o.rawPyObj, name)
-    if callable.isNil:
-        raise newException(Exception, "No callable attribute: " & $name)
-
+proc callObject(callable: PPyObject, args: openarray[PPyObject], kwargs: openarray[PyNamedArg] = []): PPyObject =
     let argTuple = pyLib.PyTuple_New(args.len)
     for i, v in args:
         assert(not v.isNil, "nimpy internal error v.isNil")
         discard pyLib.PyTuple_SetItem(argTuple, i, v)
 
     var argDict: PPyObject = nil
-    if kwargs.len > 0:
+    if kwargs.len != 0:
         argDict = pyLib.PyDict_New()
         for v in kwargs:
             assert(not v.obj.isNil, "nimpy internal error v.obj.isNil")
@@ -1041,10 +1037,21 @@ proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject], kwarg
 
     result = pyLib.PyObject_Call(callable, argTuple, argDict)
     decRef argTuple
-    decRef callable
 
+proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject], kwargs: openarray[PyNamedArg] = []): PPyObject =
+    let callable = pyLib.PyObject_GetAttrString(o.rawPyObj, name)
+    if callable.isNil:
+        raise newException(Exception, "No callable attribute: " & $name)
+    result = callObject(callable, args, kwargs)
+    decRef callable
     if unlikely result.isNil:
         raisePythonError()
+
+proc callObject*(o: PyObject, args: varargs[PPyObject, toPyObjectArgument]): PyObject {.inline.} =
+    let res = callObject(o.rawPyObj, args)
+    if unlikely res.isNil:
+        raisePythonError()
+    newPyObjectConsumingRef(res)
 
 proc callMethod*(o: PyObject, name: cstring, args: varargs[PPyObject, toPyObjectArgument]): PyObject {.inline.} =
     newPyObjectConsumingRef(callMethodAux(o, name, args))

@@ -96,4 +96,6 @@ assert(s.testJsonArgument({"foo": 666, "bar": False, "baz": 42.0}) == "ok")
 
 s.testPyFromNim()
 
+assert(s.testLambda(lambda x: x + 5) == 8)
+
 print("Tests complete!")
