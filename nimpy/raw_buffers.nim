@@ -34,9 +34,15 @@ const
     PyBUF_SHADOW*         = 0x400
 
 proc getBuffer*(o: PyObject, buf: var RawPyBuffer, flags: cint) =
-  if unlikely pyLib.PyObject_GetBuffer(o.privateRawPyObj, buf, flags) != 0:
-    raisePythonError()
+  let gb = pyLib.PyObject_GetBuffer
+  if likely(not gb.isNil):
+      if unlikely gb(o.privateRawPyObj, buf, flags) != 0:
+          raisePythonError()
+  else:
+      raise newException(Exception, "nimpy: Buffer API is not available")
 
 proc release*(buf: var RawPyBuffer) =
-  pyLib.PyBuffer_Release(buf)
+  let rb = pyLib.PyBuffer_Release
+  if likely(not rb.isNil):
+      rb(buf)
 

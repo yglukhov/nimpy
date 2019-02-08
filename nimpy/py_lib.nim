@@ -188,8 +188,8 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     load PyObject_GetIter
     load PyObject_GetItem
     load PyObject_SetItem
-    load PyObject_GetBuffer
-    load PyBuffer_Release
+    maybeLoad PyObject_GetBuffer
+    maybeLoad PyBuffer_Release
 
     load PyIter_Next
 
