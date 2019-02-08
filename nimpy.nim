@@ -279,6 +279,8 @@ proc pyObjToJson(o: PPyobject, n: var JsonNode)
 proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T])
 proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U])
 proc pyObjToNimArray[T, I](o: PPyObject, s: var array[I, T])
+proc pyObjToProc[T](o: PPyObject, v: var T)
+
 proc pyObjToNimStr(o: PPyObject, v: var string) =
     if unlikely(not pyStringToNim(o, v)):
         # Name the type that is unable to be converted.
@@ -395,6 +397,8 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
     elif T is tuple:
         conversionTypeCheck(pyLib.PyTuple_Type)
         pyObjToNimTuple(o, v)
+    elif T is proc {.closure.}:
+        pyObjToProc(o, v)
     else:
         unknownTypeCompileError(v)
 
@@ -929,6 +933,28 @@ proc makeWrapper(originalName: string, name, prc: NimNode): NimNode =
     result.addPragma(newIdentNode("cdecl"))
     result.body = newCall(bindSym("callNimProcWithPythonArgs"), prc.name, argsIdent, kwargsIdent, newLit(false))
 
+proc callObjectRaw(o: PyObject, args: varargs[PPyObject, toPyObjectArgument]): PPyObject
+
+macro pyObjToProcAux(o: PyObject, T: type): untyped =
+    result = newProc(procType = nnkLambda)
+    let inst = T.getTypeInst()
+    if inst.len < 2 or inst.kind != nnkBracketExpr or inst[1].kind != nnkProcTy:
+        echo "Unexpected closure type AST: ", treeRepr(inst)
+        assert(false)
+    result.params = T.getTypeInst[1][0]
+    let theCall = newCall(bindSym"callObjectRaw", o)
+    for a in inst[1].arguments:
+        theCall.add(a.name)
+    result.body = quote do:
+        let res = `theCall`
+        when declared(result):
+            pyObjToNim(res, result)
+        decRef res
+
+proc pyObjToProc[T](o: PPyObject, v: var T) =
+    let o = newPyObjectConsumingRef(o)
+    v = pyObjToProcAux(o, T)
+
 proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode =
     let modulename = modulename.splitFile.name
 
@@ -1022,7 +1048,7 @@ proc to*(v: PyObject, T: typedesc): T {.inline.} =
 proc toJson*(v: PyObject): JsonNode {.inline.} =
     pyObjToJson(v.rawPyObj, result)
 
-proc callObject(callable: PPyObject, args: openarray[PPyObject], kwargs: openarray[PyNamedArg] = []): PPyObject =
+proc callObjectAux(callable: PPyObject, args: openarray[PPyObject], kwargs: openarray[PyNamedArg] = []): PPyObject =
     let argTuple = pyLib.PyTuple_New(args.len)
     for i, v in args:
         assert(not v.isNil, "nimpy internal error v.isNil")
@@ -1042,16 +1068,18 @@ proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject], kwarg
     let callable = pyLib.PyObject_GetAttrString(o.rawPyObj, name)
     if callable.isNil:
         raise newException(Exception, "No callable attribute: " & $name)
-    result = callObject(callable, args, kwargs)
+    result = callObjectAux(callable, args, kwargs)
     decRef callable
-    if unlikely result.isNil:
-        raisePythonError()
+    if unlikely result.isNil: raisePythonError()
 
 proc callObject*(o: PyObject, args: varargs[PPyObject, toPyObjectArgument]): PyObject {.inline.} =
-    let res = callObject(o.rawPyObj, args)
-    if unlikely res.isNil:
-        raisePythonError()
+    let res = callObjectAux(o.rawPyObj, args)
+    if unlikely res.isNil: raisePythonError()
     newPyObjectConsumingRef(res)
+
+proc callObjectRaw(o: PyObject, args: varargs[PPyObject, toPyObjectArgument]): PPyObject =
+    result = callObjectAux(o.rawPyObj, args)
+    if unlikely result.isNil: raisePythonError()
 
 proc callMethod*(o: PyObject, name: cstring, args: varargs[PPyObject, toPyObjectArgument]): PyObject {.inline.} =
     newPyObjectConsumingRef(callMethodAux(o, name, args))
