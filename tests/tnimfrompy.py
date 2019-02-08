@@ -47,7 +47,9 @@ assert(abs(s.sumFloats(4.1, 5.2) - 9.3) < 0.0001)
 assert(abs(s.sumAssorted(1, 2, 3, 4, 5, 6, 7) - 28) < 0.0001)
 assert(s.sumIntsInArray([1, 2, 3, 4, 5, 6, 7]) == 28)
 assert(s.reverseArray([1, 2, 3]) == [3, 2, 1])
+assert(s.reverseArray((1, 2, 3)) == [3, 2, 1]) # Python tuples should be convertible to nim seqs
 assert(s.reverseVec3([1, 2, 3]) == [3, 2, 1])
+assert(s.reverseVec3((1, 2, 3)) == [3, 2, 1]) # Python tuples should be convertible to nim seqs
 assert(s.flipBool(False) is True)
 assert(s.flipBool(True) is False)
 

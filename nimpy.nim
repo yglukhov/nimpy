@@ -332,17 +332,20 @@ proc newPyObject(o: PPyObject): PyObject =
     incRef o
     newPyObjectConsumingRef(o)
 
-proc conversionError(toType: string) =
-    pyLib.PyErr_Clear()
+proc raiseConversionError(toType: string) =
     raise newException(Exception, "Cannot convert python object to " & toType)
+
+proc clearAndRaiseConversionError(toType: string) =
+    pyLib.PyErr_Clear()
+    raiseConversionError(toType)
 
 proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
     template conversionTypeCheck(what: untyped): untyped {.used.} =
         if not checkObjSubclass(o, what):
-            raise newException(Exception, "Cannot convert python object to " & $T)
+            raiseConversionError($T)
     template conversionErrorCheck(): untyped {.used.} =
         if unlikely(not pyLib.PyErr_Occurred().isNil):
-            conversionError($T)
+            clearAndRaiseConversionError($T)
 
     when T is int|int32|int64|int16|uint32|uint64|uint16|uint8|int8|char:
         let ll = pyLib.PyLong_AsLongLong(o)
@@ -375,10 +378,8 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
     elif T is string:
         pyObjToNimStr(o, v)
     elif T is seq:
-        conversionTypeCheck(pyLib.PyList_Type)
         pyObjToNimSeq(o, v)
     elif T is array:
-        conversionTypeCheck(pyLib.PyList_Type)
         pyObjToNimArray(o, v)
     elif T is JsonNode:
         pyObjToJson(o, v)
@@ -403,13 +404,22 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
         unknownTypeCompileError(v)
 
 proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T]) =
-    # assert(PyList_Check(o) != 0)
-    let sz = int(pyLib.PyList_Size(o))
-    assert(sz >= 0)
-    v = newSeq[T](sz)
-    for i in 0 ..< sz:
-        pyObjToNim(pyLib.PyList_GetItem(o, i), v[i])
-        # PyList_GetItem # No DECREF. Returns borrowed ref.
+    if checkObjSubclass(o, pyLib.PyList_Type):
+        let sz = int(pyLib.PyList_Size(o))
+        assert(sz >= 0)
+        v = newSeq[T](sz)
+        for i in 0 ..< sz:
+            pyObjToNim(pyLib.PyList_GetItem(o, i), v[i])
+            # PyList_GetItem # No DECREF. Returns borrowed ref.
+    elif checkObjSubclass(o, pyLib.PyTuple_Type):
+        let sz = int(pyLib.PyTuple_Size(o))
+        assert(sz >= 0)
+        v = newSeq[T](sz)
+        for i in 0 ..< sz:
+            pyObjToNim(pyLib.PyTuple_GetItem(o, i), v[i])
+            # PyTuple_GetItem # No DECREF. Returns borrowed ref.
+    else:
+        raiseConversionError($type(v))
 
 proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U]) =
     ## call this either:
@@ -435,12 +445,25 @@ proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U]) =
     decRef vs
 
 proc pyObjToNimArray[T, I](o: PPyObject, s: var array[I, T]) =
-    # assert(PyList_Check(o) != 0)
-    let sz = int(pyLib.PyList_Size(o))
-    assert(sz == s.len)
-    for i in 0 ..< sz:
-        pyObjToNim(pyLib.PyList_GetItem(o, i), s[i])
-        # PyList_GetItem # No DECREF. Returns borrowed ref.
+    var done = false
+    if checkObjSubclass(o, pyLib.PyList_Type):
+        let sz = int(pyLib.PyList_Size(o))
+        if sz == s.len:
+            for i in 0 ..< sz:
+                pyObjToNim(pyLib.PyList_GetItem(o, i), s[i])
+                # PyList_GetItem # No DECREF. Returns borrowed ref.
+            done = true
+    elif checkObjSubclass(o, pyLib.PyTuple_Type):
+        let sz = int(pyLib.PyTuple_Size(o))
+        if sz == s.len:
+            for i in 0 ..< sz:
+                pyObjToNim(pyLib.PyTuple_GetItem(o, i), s[i])
+                # PyList_GetItem # No DECREF. Returns borrowed ref.
+            done = true
+
+    if not done:
+        raiseConversionError($type(s))
+
 
 proc nimArrToPy[T](s: openarray[T]): PPyObject
 proc nimTabToPy[T: Table](t: T): PPyObject
