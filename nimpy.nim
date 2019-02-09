@@ -951,6 +951,10 @@ proc makeWrapper(originalName: string, name, prc: NimNode): NimNode =
 
 proc callObjectRaw(o: PyObject, args: varargs[PPyObject, toPyObjectArgument]): PPyObject
 
+template objToNimAux(res: untyped) =
+    when declared(result):
+        pyObjToNim(res, result)
+
 macro pyObjToProcAux(o: PyObject, T: type): untyped =
     result = newProc(procType = nnkLambda)
     let inst = T.getTypeInst()
@@ -963,8 +967,7 @@ macro pyObjToProcAux(o: PyObject, T: type): untyped =
         theCall.add(a.name)
     result.body = quote do:
         let res = `theCall`
-        when declared(result):
-            pyObjToNim(res, result)
+        objToNimAux(res)
         decRef res
 
 proc pyObjToProc[T](o: PPyObject, v: var T) =
