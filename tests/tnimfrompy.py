@@ -91,6 +91,7 @@ assert(s.someFunc2(__builtins__) == 10)
 assert(s.someFunc3() == os.getcwd())
 
 assert(s.tupleDiff((5, 4), (2, 3)) == (3, 1))
+assert(s.tupleDiff([5, 4], (2, 3)) == (3, 1)) # Python lists should be convertible to nim tuples
 
 assert(s.testDefaultArgs("hello, ", "world") == s.testDefaultArgs("hello, "))
 
