@@ -106,6 +106,8 @@ def receiveString(x):
 s.testVoidLambda(receiveString)
 assert(receivedString == "hello")
 
+assert(s.testNilLambda(None) == True)
+
 s.testPyFromNim()
 
 print("Tests complete!")

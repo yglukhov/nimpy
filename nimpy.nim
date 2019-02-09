@@ -971,8 +971,11 @@ macro pyObjToProcAux(o: PyObject, T: type): untyped =
         decRef res
 
 proc pyObjToProc[T](o: PPyObject, v: var T) =
-    let o = newPyObject(o)
-    v = pyObjToProcAux(o, T)
+    if cast[pointer](o) == cast[pointer](pyLib.Py_None):
+        v = nil
+    else:
+        let o = newPyObject(o)
+        v = pyObjToProcAux(o, T)
 
 proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode =
     let modulename = modulename.splitFile.name
