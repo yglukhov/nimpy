@@ -604,28 +604,25 @@ proc baseType(o: PPyObject): PyBaseType =
         returnIfSubclass(k, v)
     # if we have not returned until here, `pbUnknown` is returned
 
+iterator rawItems(o: PPyObject): PPyObject =
+    let it = pyLib.PyObject_GetIter(o)
+    while true:
+        let i = pyLib.PyIter_Next(it)
+        if i.isNil: break
+        yield i
+    decRef it
+
 iterator items*(o: PyObject): PyObject =
-    let it = pyLib.PyObject_GetIter(o.rawPyObj)
-    while true:
-        let i = pyLib.PyIter_Next(it)
-        if i.isNil: break
+    for i in o.rawPyObj.rawItems:
         yield newPyObjectConsumingRef(i)
-    decRef it
 
-iterator dictKeys(o: PPyObject): PyObject =
-    let keys = pyLib.PyDict_Keys(o)
-    let it = pyLib.PyObject_GetIter(keys)
-    while true:
-        let i = pyLib.PyIter_Next(it)
-        if i.isNil: break
-        yield newPyObjectConsumingRef(i)
-    decRef it
-
-proc contains*(o: PPyObject, k: cstring): bool =
+proc pyDictHasKey(o: PPyObject, k: cstring): bool =
     # TODO: should we check if o is a dict?
-    result = pyLib.PyDict_Contains(o, pyLib.PyUnicode_FromString(k)) == 1
+    let pk = pyLib.PyUnicode_FromString(k)
+    result = pyLib.PyDict_Contains(o, pk) == 1
+    decRef pk
 
-proc `==`*(o: PPyObject, k: cstring): bool =
+proc `==`(o: PPyObject, k: cstring): bool =
     if pyLib.PyUnicode_CompareWithASCIIString.isNil:
         result = pyLib.PyString_AsString(o) == k
     else:
@@ -649,11 +646,11 @@ proc `%`(o: PPyObject): JsonNode =
     of pbLong:
         var x: int
         pyObjToNim(o, x)
-        result = % x
+        result = %x
     of pbFloat:
         var x: float
         pyObjToNim(o, x)
-        result = % x
+        result = %x
     of pbComplex:
         when declared(Complex64):
           var x: Complex64
@@ -661,23 +658,26 @@ proc `%`(o: PPyObject): JsonNode =
           var x: Complex
 
         pyObjToNim(o, x)
-        result = %* { "real" : x.re,
-                      "imag" : x.im }
+        result = %*{ "real" : x.re,
+                     "imag" : x.im }
     of pbList, pbTuple:
         result = newJArray()
-        let pyObj = PyObject(rawPyObj: o)
-        for x in pyObj:
-            add(result, % (x.rawPyObj))
+        for x in o.rawItems:
+            add(result, %x)
+            decRef x
+
     of pbBytes, pbUnicode, pbString:
         result = % $o
     of pbDict:
         # dictionaries are represented as `JObjects`, where the Python dict's keys
         # are stored as strings
         result = newJObject()
-        let pyObj = PyObject(rawPyObj: o)
-        for key in pyObj:
-            let val = pyLib.PyDict_GetItem(o, key.rawPyObj)
-            result[$key] = % val
+        for key in o.rawItems:
+            let val = pyLib.PyDict_GetItem(o, key)
+            result[$key] = %val
+            decRef key
+            # No DECREF for val here. PyDict_GetItem returns a borrowed ref.
+
     of pbObject: # not used, for objects currently end up as `pbUnknown`
         result = newJString($o)
     of pbCapsule: # not used
@@ -685,7 +685,7 @@ proc `%`(o: PPyObject): JsonNode =
             "`pbCapsule` in JSON.")
 
 proc pyObjToJson(o: PPyObject, n: var JsonNode) =
-    n = % o
+    n = %o
 
 proc PyObject_CallObject(o: PPyObject): PPyObject =
     let args = pyLib.PyTuple_New(0)
@@ -697,7 +697,7 @@ proc cannotSerializeErr(k: string) =
 
 proc nimTabToPy[T: Table](t: T): PPyObject =
     result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
-    for k, v in pairs(t):
+    for k, v in t:
         let vv = nimValueToPy(v)
         when type(k) is string:
             let ret = pyLib.PyDict_SetItemString(result, k, vv)
@@ -730,29 +730,24 @@ proc nimTupleToPy[T](o: T): PPyObject =
         discard pyLib.PyTuple_SetItem(result, i, nimValueToPy(f))
         inc i
 
-proc getPyArg[T](argTuple: PPyObject, argIdx: int, argVal: var T): bool =
-    if not argTuple.isNil:
-        if argIdx < pyLib.PyTuple_Size(argTuple):
-            pyObjToNim(pyLib.PyTuple_GetItem(argTuple, argIdx), argVal)
-            result = true
-
-proc getPyKwarg[T](kwargsDict: PPyObject, argName: cstring, argVal: var T): bool =
-    if not kwargsDict.isNil:
-        let item = pyLib.PyDict_GetItemString(kwargsDict, argName)
-        if not item.isNil:
-            pyObjToNim(item, argVal)
-            result = true
+proc getPyArg(argTuple, argDict: PPyObject, argIdx: int, argName: cstring): PPyObject =
+    # argTuple can never be nil
+    if argIdx < pyLib.PyTuple_Size(argTuple):
+        result = pyLib.PyTuple_GetItem(argTuple, argIdx)
+    if result.isNil and not argDict.isNil:
+        result = pyLib.PyDict_GetItemString(argDict, argName)
 
 proc parseArg[T](argTuple, kwargsDict: PPyObject, argIdx: int, argName: cstring, result: var T) =
-    let isArgSet = getPyArg(argTuple, argIdx, result)
-    if not isArgSet:
-        discard getPyKwarg(kwargsDict, argName, result)
+    let arg = getPyArg(argTuple, kwargsDict, argIdx, argName)
+    if not arg.isNil:
+        pyObjToNim(arg, result)
+    # TODO: What do we do if arg is nil???
 
 template raisePyException(tp, msg: untyped): untyped =
     GC_disable()
     pyLib.PyErr_SetString(tp, msg)
     GC_enable()
-    result = false
+    return false
 
 proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNames: openarray[cstring], funcName: string): bool =
     # WARNING! Do not let GC happen in this proc!
@@ -778,13 +773,13 @@ proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNa
             continue
         # we get required kwarg
         elif i < argsLenReq and nkwargs > 0:
-            if argNames[i] notin kwargsDict:
+            if not pyDictHasKey(kwargsDict, argNames[i]):
                 raisePyException(pyLib.PyExc_TypeError, funcName & "() missing 1 required positional argument: " & $argNames[i])
             else:
                 dec nkwarg_left
         # we get optional kwarg
         elif nkwargs > 0:
-            if argNames[i] in kwargsDict:
+            if pyDictHasKey(kwargsDict, argNames[i]):
                 dec nkwarg_left
 
     # something is wrong, find out what
@@ -792,18 +787,16 @@ proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNa
         # maybe we have args also defined as kwargs
         if nargs > 0:
           for i in 0..nargs:
-              if argNames[i] in kwargsDict:
+              if pyDictHasKey(kwargsDict, argNames[i]):
                   raisePyException(pyLib.PyExc_TypeError, funcName & "() got multiple values for argument " & $argNames[i])
 
         # maybe we have an invalid kwarg
-        var
-            found = false
-
-        for k in dictKeys(kwargsDict):
-            found = false
+        for k in kwargsDict.rawItems:
+            var found = false
             for a in argNames:
-                if k.rawPyObj == a:
+                if k == a:
                     found = true
+                    break
             if not found:
                 raisePyException(pyLib.PyExc_TypeError, funcName & "() got an unexpected keyword argument " & $k)
 
@@ -975,7 +968,7 @@ macro pyObjToProcAux(o: PyObject, T: type): untyped =
         decRef res
 
 proc pyObjToProc[T](o: PPyObject, v: var T) =
-    let o = newPyObjectConsumingRef(o)
+    let o = newPyObject(o)
     v = pyObjToProcAux(o, T)
 
 proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode =
