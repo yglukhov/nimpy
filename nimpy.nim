@@ -278,8 +278,9 @@ proc toString*(b: RawPyBuffer): string =
 proc pyObjToJson(o: PPyobject, n: var JsonNode)
 proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T])
 proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U])
-proc pyObjToNimArray[T, I](o: PPyObject, s: var array[I, T])
+proc pyObjToNimArray[T, I](o: PPyObject, v: var array[I, T])
 proc pyObjToProc[T](o: PPyObject, v: var T)
+proc pyObjToNimTuple(o: PPyObject, v: var tuple)
 
 proc pyObjToNimStr(o: PPyObject, v: var string) =
     if unlikely(not pyStringToNim(o, v)):
@@ -311,14 +312,6 @@ proc pyObjToNimObj(o: PPyObject, vv: var object) =
         let f = pyLib.PyDict_GetItemString(o, k)
         pyObjToNim(f, v)
         # No DECREF here. PyDict_GetItemString returns a borrowed ref.
-
-proc pyObjToNimTuple(o: PPyObject, vv: var tuple) =
-    var i = 0
-    for v in fields(vv):
-        let f = pyLib.PyTuple_GetItem(o, i)
-        pyObjToNim(f, v)
-        # No DECREF here. PyTuple_GetItem returns a borrowed ref.
-        inc i
 
 proc finalizePyObject(o: PyObject) =
     decRef o.rawPyObj
@@ -396,30 +389,36 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
     elif T is object:
         pyObjToNimObj(o, v)
     elif T is tuple:
-        conversionTypeCheck(pyLib.PyTuple_Type)
         pyObjToNimTuple(o, v)
     elif T is proc {.closure.}:
         pyObjToProc(o, v)
     else:
         unknownTypeCompileError(v)
 
-proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T]) =
+proc getListOrTupleAccessors(o: PPyObject):
+      tuple[getSize: proc(l: PPyObject): Py_ssize_t {.cdecl.},
+            getItem: proc(l: PPyObject, index: Py_ssize_t): PPyObject {.cdecl.}] =
     if checkObjSubclass(o, pyLib.PyList_Type):
-        let sz = int(pyLib.PyList_Size(o))
-        assert(sz >= 0)
-        v = newSeq[T](sz)
-        for i in 0 ..< sz:
-            pyObjToNim(pyLib.PyList_GetItem(o, i), v[i])
-            # PyList_GetItem # No DECREF. Returns borrowed ref.
+        result.getSize = pyLib.PyList_Size
+        result.getItem = pyLib.PyList_GetItem
     elif checkObjSubclass(o, pyLib.PyTuple_Type):
-        let sz = int(pyLib.PyTuple_Size(o))
-        assert(sz >= 0)
-        v = newSeq[T](sz)
-        for i in 0 ..< sz:
-            pyObjToNim(pyLib.PyTuple_GetItem(o, i), v[i])
-            # PyTuple_GetItem # No DECREF. Returns borrowed ref.
-    else:
+        result.getSize = pyLib.PyTuple_Size
+        result.getItem = pyLib.PyTuple_GetItem
+
+proc pyObjFillArray[T](o: PPyObject, getItem: proc(l: PPyObject, index: Py_ssize_t): PPyObject {.cdecl.}, v: var openarray[T]) =
+    for i in 0 ..< v.len:
+        pyObjToNim(getItem(o, i), v[i])
+        # No DECREF. getItem returns borrowed ref.
+
+proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T]) =
+    let (getSize, getItem) = getListOrTupleAccessors(o)
+    if unlikely getSize.isNil:
         raiseConversionError($type(v))
+
+    let sz = int(getSize(o))
+    assert(sz >= 0)
+    v = newSeq[T](sz)
+    pyObjFillArray(o, getItem, v)
 
 proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U]) =
     ## call this either:
@@ -444,25 +443,32 @@ proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U]) =
     decRef ks
     decRef vs
 
-proc pyObjToNimArray[T, I](o: PPyObject, s: var array[I, T]) =
-    var done = false
-    if checkObjSubclass(o, pyLib.PyList_Type):
-        let sz = int(pyLib.PyList_Size(o))
-        if sz == s.len:
-            for i in 0 ..< sz:
-                pyObjToNim(pyLib.PyList_GetItem(o, i), s[i])
-                # PyList_GetItem # No DECREF. Returns borrowed ref.
-            done = true
-    elif checkObjSubclass(o, pyLib.PyTuple_Type):
-        let sz = int(pyLib.PyTuple_Size(o))
-        if sz == s.len:
-            for i in 0 ..< sz:
-                pyObjToNim(pyLib.PyTuple_GetItem(o, i), s[i])
-                # PyList_GetItem # No DECREF. Returns borrowed ref.
-            done = true
+proc pyObjToNimArray[T, I](o: PPyObject, v: var array[I, T]) =
+    let (getSize, getItem) = getListOrTupleAccessors(o)
+    if not getSize.isNil:
+        let sz = int(getSize(o))
+        if sz == v.len:
+            pyObjFillArray(o, getItem, v)
+            return
 
-    if not done:
-        raiseConversionError($type(s))
+    raiseConversionError($type(v))
+
+proc tupleSize[T](): int {.compileTime.} =
+    var o: T
+    for f in fields(o): inc result
+
+proc pyObjToNimTuple(o: PPyObject, v: var tuple) =
+    let (getSize, getItem) = getListOrTupleAccessors(o)
+    const sz = tupleSize[type(v)]()
+    if not getSize.isNil and getSize(o) == sz:
+        var i = 0
+        for f in fields(v):
+            let pf = getItem(o, i)
+            pyObjToNim(pf, f)
+            # No DECREF here. PyTuple_GetItem returns a borrowed ref.
+            inc i
+    else:
+        raiseConversionError($type(v))
 
 
 proc nimArrToPy[T](s: openarray[T]): PPyObject
@@ -717,10 +723,6 @@ proc nimObjToPy[T](o: T): PPyObject =
         decRef vv
         if ret != 0:
             cannotSerializeErr(k)
-
-proc tupleSize[T](): int {.compileTime.} =
-    var o: T
-    for f in fields(o): inc result
 
 proc nimTupleToPy[T](o: T): PPyObject =
     const sz = tupleSize[T]()
