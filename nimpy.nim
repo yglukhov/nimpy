@@ -809,9 +809,16 @@ template valueTypeForArgType(t: typedesc): typedesc =
     else:
         t
 
+when compileOption("threads"):
+    var gcInited {.threadVar.}: bool
+
 proc updateStackBottom() {.inline.} =
     var a {.volatile.}: int
     nimGC_setStackBottom(cast[pointer](cast[uint](addr a)))
+    when compileOption("threads"):
+        if not gcInited:
+            gcInited = true
+            setupForeignThreadGC()
 
 iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
     var formalParams: NimNode
@@ -906,13 +913,13 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PP
         result.add quote do:
             updateStackBottom()
             # Prevent inlining (See #67)
-            proc pp(`argsTupleIdent`, `kwargsDictIdent`: PPyObject): PPyObject {.nimcall.} =
+            proc noinline(`argsTupleIdent`, `kwargsDictIdent`: PPyObject): PPyObject {.nimcall.} =
                 `parseArgsStmts`
                 try:
                     nimValueToPy(`origCall`)
                 except Exception as e:
                     pythonException(e)
-            var p {.volatile.}: proc(a, kwg: PPyObject): PPyObject {.nimcall.} = pp
+            var p {.volatile.}: proc(a, kwg: PPyObject): PPyObject {.nimcall.} = noinline
             p(`argsTuple`, `kwargsDict`)
 
 type NimPyProcBase* = ref object {.inheritable, pure.}
