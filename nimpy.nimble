@@ -16,7 +16,7 @@ task test, "Run tests":
         # Compile all nim modules, except those starting with "t"
         let sf = f.path.splitFile()
         if sf.ext == ".nim" and not sf.name.startsWith("t"):
-            exec "nim c --app:lib --out:" & f.path.changeFileExt(pluginExtension) & " " & f.path
+            exec "nim c --threads:on --app:lib --out:" & f.path.changeFileExt(pluginExtension) & " " & f.path
 
     mvFile("tests/custommodulename".changeFileExt(pluginExtension), "tests/_mycustommodulename".changeFileExt(pluginExtension))
 
