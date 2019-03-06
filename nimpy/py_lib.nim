@@ -400,18 +400,21 @@ proc initPyThreadFrame() =
         pyModuleGetDict = cast[proc(p: pointer): pointer {.cdecl.}](pyLib.module.symAddr("PyModule_GetDict"))
         pyCodeNewEmpty = cast[proc(str1, str2: cstring; i: cint): pointer {.cdecl.}](pyLib.module.symAddr("PyCode_NewEmpty"))
         pyFrameNew = cast[proc(p1, p2, p3, p4: pointer): pointer {.cdecl.}](pyLib.module.symAddr("PyFrame_New"))
-        main_module = pyImportAddModule("__main__")
-        main_dict = pyModuleGetDict(main_module)
-        code_object = pyCodeNewEmpty("null.py", "f", 0)
-        root_frame = pyFrameNew(pyThread, code_object, main_dict, main_dict)
 
-    case pyLib.pythonVersion
-    of 2:
-        cast[ptr PyThreadState2](pyThread).frame = root_frame
-    of 3:
-        cast[ptr PyThreadState3](pyThread).frame = root_frame
-    else:
-        doAssert(false, "unreachable")
+    if not pyImportAddModule.isNil and not pyModuleGetDict.isNil and not pyCodeNewEmpty.isNil and not pyFrameNew.isNil:
+        let
+            main_module = pyImportAddModule("__main__")
+            main_dict = pyModuleGetDict(main_module)
+            code_object = pyCodeNewEmpty("null.py", "f", 0)
+            root_frame = pyFrameNew(pyThread, code_object, main_dict, main_dict)
+
+        case pyLib.pythonVersion
+        of 2:
+            cast[ptr PyThreadState2](pyThread).frame = root_frame
+        of 3:
+            cast[ptr PyThreadState3](pyThread).frame = root_frame
+        else:
+            doAssert(false, "unreachable")
 
 proc initPyLibIfNeeded*() {.inline.} =
     if unlikely(not pyThreadFrameInited):
