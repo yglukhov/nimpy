@@ -116,6 +116,14 @@ proc testVoidLambda(p: proc(a: string)) {.exportpy.} =
 proc testNilLambda(p: proc(a: string)): bool {.exportpy.} =
     p.isNil
 
+# Issue #95
+import strutils
+proc strutils(a: int): int {.exportpy.} = a * 2 # Issue #95
+
+iterator testIterator(s: string): int {.exportpy.} =
+    for i in 0 ..< s.len:
+        yield i
+
 type TestType = ref object of PyNimObjectBaseToInheritFromForAnExportedType
 
 pyexportTypeExperimental(TestType)
