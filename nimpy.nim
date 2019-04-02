@@ -112,6 +112,12 @@ type
         doc: cstring
         methods: seq[PyMethodDef]
         types: seq[PyTypeDesc]
+        iterators: seq[PyIteratorDesc]
+
+    PyIteratorDesc = object
+        name: cstring
+        doc: cstring
+        newFunc: Newfunc
 
     PyTypeDesc = object
         module: ptr PyModuleDesc
@@ -122,6 +128,12 @@ type
         methods: seq[PyMethodDef]
         members: seq[PyMemberDef]
         origSize: int
+
+    PyIterRef = ref object
+        iter: iterator(): PPyObject
+
+    PyIteratorObj = object of PyObjectVarHeadObj
+        iRef: PyIterRef
 
     PyNamedArg = tuple
         name: cstring
@@ -149,6 +161,9 @@ proc addMethod(m: var PyModuleDesc, name, doc: cstring, f: PyCFunctionWithKeywor
     let def = PyMethodDef(ml_name: name, ml_meth: f, ml_flags: Py_MLFLAGS_VARARGS or Py_MLFLAGS_KEYWORDS,
                           ml_doc: doc)
     m.methods.add(def)
+
+proc addIterator(m: var PyModuleDesc, name, doc: cstring, newFunc: Newfunc) =
+    m.iterators.add(PyIteratorDesc(name: name, doc: doc, newFunc: newFunc))
 
 proc newNimObjToPyObj(typ: PyTypeObject, o: PyNimObject): PPyObject =
     GC_ref(o)
@@ -183,6 +198,33 @@ proc destructNimObj(o: PPyObject) {.cdecl.} =
 proc freeNimObj(p: pointer) {.cdecl.} =
     raise newException(Exception, "Internal pynim error. Free called on Nim object.")
 
+proc destructNimIterator(o: PPyObject) {.cdecl.} =
+    let n = to(o, PyIteratorObj)
+    GC_unref(n.iRef)
+
+when compileOption("threads"):
+    var gcInited {.threadVar.}: bool
+
+proc updateStackBottom() {.inline.} =
+    var a {.volatile.}: int
+    nimGC_setStackBottom(cast[pointer](cast[uint](addr a)))
+    when compileOption("threads"):
+        if not gcInited:
+            gcInited = true
+            setupForeignThreadGC()
+
+proc pythonException(e: ref Exception): PPyObject =
+    let err = pyLib.PyErr_NewException("nimpy" & "." & $(e.name), pyLib.NimPyException, nil)
+    decRef err
+    pyLib.PyErr_SetString(err, "Unexpected error encountered: " & getCurrentExceptionMsg())
+
+proc iterNext(i: PPyObject): PPyObject {.cdecl.} =
+    updateStackBottom()
+    try:
+        i.to(PyIteratorObj).iRef.iter()
+    except Exception as e:
+        pythonException(e)
+
 proc initModuleTypes[PyTypeObj](p: PPyObject, m: var PyModuleDesc) =
     for i in 0 ..< m.types.len:
         let typ = pyAlloc(sizeof(PyTypeObj))
@@ -201,6 +243,30 @@ proc initModuleTypes[PyTypeObj](p: PPyObject, m: var PyModuleDesc) =
         discard pyLib.PyType_Ready(cast[PyTypeObject](typ))
         incRef(typ)
         discard pyLib.PyModule_AddObject(p, m.types[i].name, typ)
+
+    let selfIter = if m.iterators.len != 0:
+            cast[Getiterfunc](pyLib.module.symAddr("PyObject_SelfIter"))
+        else:
+            nil
+
+    for i in 0 ..< m.iterators.len:
+        let typ = pyAlloc(sizeof(PyTypeObj))
+        let ty = typ.to(PyTypeObj)
+        ty.tp_name = m.iterators[i].name
+
+        ty.tp_basicsize = sizeof(PyIteratorObj)
+        ty.tp_flags = Py_TPFLAGS_DEFAULT_EXTERNAL
+        ty.tp_doc = m.iterators[i].doc
+        ty.tp_new = m.iterators[i].newFunc
+        ty.tp_free = freeNimObj
+        ty.tp_dealloc = destructNimIterator
+        ty.tp_iternext = cast[Iternextfunc](iterNext)
+        ty.tp_iter = selfIter
+
+        discard pyLib.PyType_Ready(cast[PyTypeObject](typ))
+        incRef(typ)
+        discard pyLib.PyModule_AddObject(p, m.iterators[i].name, typ)
+
 
     pyLib.NimPyException = pyLib.PyErr_NewException("nimpy.NimPyException", nil, nil)
     discard pyLib.PyModule_AddObject(p, "NimPyException", pyLib.NimPyException)
@@ -809,33 +875,24 @@ template valueTypeForArgType(t: typedesc): typedesc =
     else:
         t
 
-when compileOption("threads"):
-    var gcInited {.threadVar.}: bool
-
-proc updateStackBottom() {.inline.} =
-    var a {.volatile.}: int
-    nimGC_setStackBottom(cast[pointer](cast[uint](addr a)))
-    when compileOption("threads"):
-        if not gcInited:
-            gcInited = true
-            setupForeignThreadGC()
-
-iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
-    var formalParams: NimNode
-    if prc.kind in {nnkProcDef, nnkFuncDef}:
-        formalParams = prc.params
+proc getFormalParams(prc: NimNode): NimNode =
+    if prc.kind in {nnkProcDef, nnkFuncDef, nnkIteratorDef}:
+        result = prc.params
     elif prc.kind == nnkProcTy:
-        formalParams = prc[0]
+        result = prc[0]
     else:
         # Assume prc is typed
         var impl = getImpl(prc)
         if impl.kind in {nnkProcDef, nnkFuncDef}:
-            formalParams = impl.params
+            result = impl.params
         else:
             let ty = getTypeImpl(prc)
             expectKind(ty, nnkProcTy)
-            formalParams = ty[0]
+            result = ty[0]
+    result.expectKind(nnkFormalParams)
 
+iterator arguments(formalParams: NimNode): tuple[idx: int, name, typ, default: NimNode] =
+    formalParams.expectKind(nnkFormalParams)
     var iParam = 0
     for i in 1 ..< formalParams.len:
         let pp = formalParams[i]
@@ -843,12 +900,7 @@ iterator arguments(prc: NimNode): tuple[idx: int, name, typ, default: NimNode] =
             yield (iParam, pp[j], copyNimTree(pp[^2]), pp[^1])
             inc iParam
 
-proc pythonException(e: ref Exception): PPyObject =
-    let err = pyLib.PyErr_NewException("nimpy" & "." & $(e.name), pyLib.NimPyException, nil)
-    decRef err
-    pyLib.PyErr_SetString(err, "Unexpected error encountered: " & getCurrentExceptionMsg())
-
-macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PPyObject, isClosure: static[bool]): PPyObject =
+proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: NimNode): tuple[parseArgs, call: NimNode] =
     let
         pyValueVarSection = newNimNode(nnkVarSection)
         parseArgsStmts = newNimNode(nnkStmtList)
@@ -857,8 +909,6 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PP
 
     let
         origCall = newCall(prc)
-        argsTupleIdent = newIdentNode("pyArgs")
-        kwargsDictIdent = newIdentNode("pyKargs")
 
     var
         numArgs = 0
@@ -866,7 +916,7 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PP
         argName: cstring
         argNames = newSeq[cstring]()
 
-    for a in prc.arguments:
+    for a in formalParams.arguments:
         let argIdent = newIdentNode("arg" & $a.idx & $a.name)
         argName = $a.name
         argNames.add(argName)
@@ -883,7 +933,7 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PP
         else:
             pyValueVarSection.add(newIdentDefs(argIdent, newCall(bindSym"valueTypeForArgType", newCall("type", a.typ))))
             inc numArgsReq
-        parseArgsStmts.add(newCall(bindSym"parseArg", argsTupleIdent, kwargsDictIdent,
+        parseArgsStmts.add(newCall(bindSym"parseArg", argsTuple, kwargsDict,
                                    newLit(a.idx), newLit($argName), argIdent))
         origCall.add(argIdent)
         inc numArgs
@@ -892,35 +942,22 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PP
         argsLen = newLit(numArgs)
         argsLenReq = newLit(numArgsReq)
         nameLit = newLit($prc)
-    result = newNimNode(nnkStmtList)
-    result.add quote do:
-        # did we get enought arguments? or correct arguments names?
+
+    result.parseArgs = quote do:
         if not verifyArgs(`argsTuple`, `kwargsDict`, `argsLen`, `argsLenReq`, `argNames`, `nameLit`):
             return PPyObject(nil)
+        `parseArgsStmts`
 
-    if isClosure:
-        # When proc is a closure, we don't need to prevent inlining,
-        # because updateStackBottom must have been called at this point.
-        result.add quote do:
-            let `argsTupleIdent` {.used.} = `argsTuple`
-            let `kwargsDictIdent` {.used.} = `kwargsDict`
-            `parseArgsStmts`
-            try:
-                nimValueToPy(`origCall`)
-            except Exception as e:
-                pythonException(e)
-    else:
-        result.add quote do:
-            updateStackBottom()
-            # Prevent inlining (See #67)
-            proc noinline(`argsTupleIdent`, `kwargsDictIdent`: PPyObject): PPyObject {.nimcall.} =
-                `parseArgsStmts`
-                try:
-                    nimValueToPy(`origCall`)
-                except Exception as e:
-                    pythonException(e)
-            var p {.volatile.}: proc(a, kwg: PPyObject): PPyObject {.nimcall.} = noinline
-            p(`argsTuple`, `kwargsDict`)
+    result.call = origCall
+
+macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PPyObject): PPyObject =
+    let (parseArgs, call) = makeCallNimProcWithPythonArgs(prc, prc.getFormalParams, argsTuple, kwargsDict)
+    result = quote do:
+        `parseArgs`
+        try:
+            nimValueToPy(`call`)
+        except Exception as e:
+            pythonException(e)
 
 type NimPyProcBase* = ref object {.inheritable, pure.}
     c: proc(args, kwargs: PPyObject, p: NimPyProcBase): PPyObject {.cdecl.}
@@ -943,20 +980,51 @@ proc nimProcToPy[T](o: T): PPyObject =
     proc doCall(args: PPyObject, kwargs: PPyObject, p: NimPyProcBase): PPyObject {.cdecl.} =
         var anonymous: T
         anonymous = cast[NimProcS[T]](p).p
-        callNimProcWithPythonArgs(anonymous, args, kwargs, true)
+        callNimProcWithPythonArgs(anonymous, args, kwargs)
 
     let np = NimProcS[T](p: o, c: doCall)
     let self = newPyCapsule(np)
     result = pyLib.PyCFunction_NewEx(addr md, self, nil)
     decRef self
 
-proc makeWrapper(originalName: string, name, prc: NimNode): NimNode =
-    let selfIdent = newIdentNode("self")
+proc makeProcWrapper(name, prc: NimNode): NimNode =
+    let procName = prc.name
     let argsIdent = newIdentNode("args")
     let kwargsIdent = newIdentNode("kwargs")
-    result = newProc(name, params = [bindSym"PPyObject", newIdentDefs(selfIdent, bindSym"PPyObject"), newIdentDefs(argsIdent, bindSym"PPyObject"), newIdentDefs(kwargsIdent, bindSym"PPyObject")])
-    result.addPragma(newIdentNode("cdecl"))
-    result.body = newCall(bindSym("callNimProcWithPythonArgs"), prc.name, argsIdent, kwargsIdent, newLit(false))
+    let (parseArgs, call) = makeCallNimProcWithPythonArgs(procName, prc.getFormalParams, argsIdent, kwargsIdent)
+    result = quote do:
+        proc `name`(self, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.cdecl.} =
+            updateStackBottom()
+            # Prevent inlining (See #67)
+            proc noinline(`argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.nimcall.} =
+                `parseArgs`
+                try:
+                    nimValueToPy(`call`)
+                except Exception as e:
+                    pythonException(e)
+            var p {.volatile.}: proc(a, kwg: PPyObject): PPyObject {.nimcall.} = noinline
+            p(`argsIdent`, `kwargsIdent`)
+
+proc newPyIterator(typ: PyTypeObject, it: iterator(): PPyObject): PPyObject =
+    result = cast[PPyObject](typ.tp_alloc(typ, 0))
+    if result.isNil: return # Is exception needed here??
+    let io = result.to(PyIteratorObj)
+    io.iRef = PyIterRef(iter: it)
+    GC_ref(io.iRef)
+
+proc makeIteratorConstructor(name, prc: NimNode): NimNode =
+    let procName = prc.name
+    let argsIdent = newIdentNode("args")
+    let kwargsIdent = newIdentNode("kwargs")
+    let (parseArgs, call) = makeCallNimProcWithPythonArgs(procName, prc.getFormalParams, argsIdent, kwargsIdent)
+
+    result = quote do:
+        proc `name`(self: PyTypeObject, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.cdecl.} =
+            `parseArgs`
+            newPyIterator self, iterator(): PPyObject =
+                for i in `call`:
+                    yield nimValueToPy(i)
+                yield nil
 
 proc callObjectRaw(o: PyObject, args: varargs[PPyObject, toPyObjectArgument]): PPyObject
 
@@ -972,7 +1040,7 @@ macro pyObjToProcAux(o: PyObject, T: type): untyped =
         assert(false)
     result.params = T.getTypeInst[1][0]
     let theCall = newCall(bindSym"callObjectRaw", o)
-    for a in inst[1].arguments:
+    for a in inst[1].getFormalParams.arguments:
         theCall.add(a.name)
     result.body = quote do:
         let res = `theCall`
@@ -1004,18 +1072,25 @@ proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode
     var procName = procName
     if procName.len == 0:
         procName = $procIdent
-    if wrap:
-        procIdent = newIdentNode($procIdent & "Py_wrapper")
-        result.add(makeWrapper(procName, procIdent, prc))
 
-    result.add(newCall(bindSym"addMethod", newIdentNode("gPythonLocalModuleDesc"), newLit(procName), comment, procIdent))
+    if prc.kind == nnkIteratorDef:
+        procIdent = newIdentNode($procIdent & "Py_newIter")
+        result.add(makeIteratorConstructor(procIdent, prc))
+        result.add(newCall(bindSym"addIterator", newIdentNode("gPythonLocalModuleDesc"), newLit(procName), comment, procIdent))
+        discard
+    else:
+        if wrap:
+            procIdent = newIdentNode($procIdent & "Py_wrapper")
+            result.add(makeProcWrapper(procIdent, prc))
+
+        result.add(newCall(bindSym"addMethod", newIdentNode("gPythonLocalModuleDesc"), newLit(procName), comment, procIdent))
     # echo "procname: ", procName
     # echo repr result
 
 macro exportpyAux(prc: untyped, modulename, procName: static[string], wrap: static[bool]): untyped =
     exportProc(prc, modulename, procName, wrap)
 
-template exportpyAuxAux(prc: untyped{nkProcDef|nkFuncDef}, procName: static[string]) =
+template exportpyAuxAux(prc: untyped{nkProcDef|nkFuncDef|nkIteratorDef}, procName: static[string]) =
     declarePyModuleIfNeeded()
     exportpyAux(prc, instantiationInfo().filename, procName, true)
 
@@ -1039,7 +1114,7 @@ macro exportpy*(nameOrProc: untyped, maybeProc: untyped = nil): untyped =
     # if procDef.kind in {nnkIdent, nnkSym}:
     #     result = newCall(bindSym"exportpyIdent", procDef, newLit(procName))
     # else:
-    expectKind(procDef, {nnkProcDef, nnkFuncDef})
+    expectKind(procDef, {nnkProcDef, nnkFuncDef, nnkIteratorDef})
     result = newCall(bindSym"exportpyAuxAux", procDef, newLit(procName))
 
 template addType(m: var PyModuleDesc, T: typed) =

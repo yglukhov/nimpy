@@ -109,6 +109,16 @@ assert(receivedString == "hello")
 
 assert(s.testNilLambda(None) == True)
 
+assert(s.strutils(5) == 10) # Issue #95
+
+
+numbers = []
+for i in s.testIterator("Hello"):
+    numbers.append(i)
+
+assert(numbers == [0, 1, 2, 3, 4])
+
+
 s.testPyFromNim()
 
 print("Tests complete!")
