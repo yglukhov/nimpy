@@ -341,7 +341,7 @@ proc toString*(b: RawPyBuffer): string =
         if ln != 0:
             copyMem(addr result[0], b.buf, ln)
 
-proc pyObjToJson(o: PPyobject, n: var JsonNode)
+proc pyObjToJson(o: PPyobject): JsonNode
 proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T])
 proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U])
 proc pyObjToNimArray[T, I](o: PPyObject, v: var array[I, T])
@@ -441,7 +441,7 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
     elif T is array:
         pyObjToNimArray(o, v)
     elif T is JsonNode:
-        pyObjToJson(o, v)
+        v = pyObjToJson(o)
     elif T is ref:
         if cast[pointer](o) == cast[pointer](pyLib.Py_None):
             v = nil
@@ -700,7 +700,7 @@ proc `==`(o: PPyObject, k: cstring): bool =
     else:
         result = pyLib.PyUnicode_CompareWithASCIIString(o, k) == 0
 
-proc `$`*(p: PPyObject): string =
+proc `$`(p: PPyObject): string =
     assert(not p.isNil)
     let s = pyLib.PyObject_Str(p)
     pyObjToNimStr(s, result)
@@ -708,7 +708,7 @@ proc `$`*(p: PPyObject): string =
 
 proc `$`*(o: PyObject): string {.inline.} = $o.rawPyObj
 
-proc `%`(o: PPyObject): JsonNode =
+proc pyObjToJson(o: PPyObject): JsonNode =
     ## convert the given PPyObject to a JsonNode
     let bType = o.baseType
     case bType
@@ -735,7 +735,7 @@ proc `%`(o: PPyObject): JsonNode =
     of pbList, pbTuple:
         result = newJArray()
         for x in o.rawItems:
-            add(result, %x)
+            result.add(pyObjToJson(x))
             decRef x
 
     of pbBytes, pbUnicode, pbString:
@@ -746,18 +746,15 @@ proc `%`(o: PPyObject): JsonNode =
         result = newJObject()
         for key in o.rawItems:
             let val = pyLib.PyDict_GetItem(o, key)
-            result[$key] = %val
+            result[$key] = pyObjToJson(val)
             decRef key
             # No DECREF for val here. PyDict_GetItem returns a borrowed ref.
 
     of pbObject: # not used, for objects currently end up as `pbUnknown`
-        result = newJString($o)
+        result = % $o
     of pbCapsule: # not used
         raise newException(Exception, "Cannot store object of base type " &
             "`pbCapsule` in JSON.")
-
-proc pyObjToJson(o: PPyObject, n: var JsonNode) =
-    n = %o
 
 proc PyObject_CallObject(o: PPyObject): PPyObject =
     let args = pyLib.PyTuple_New(0)
@@ -1077,7 +1074,6 @@ proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode
         procIdent = newIdentNode($procIdent & "Py_newIter")
         result.add(makeIteratorConstructor(procIdent, prc))
         result.add(newCall(bindSym"addIterator", newIdentNode("gPythonLocalModuleDesc"), newLit(procName), comment, procIdent))
-        discard
     else:
         if wrap:
             procIdent = newIdentNode($procIdent & "Py_wrapper")
@@ -1151,8 +1147,7 @@ proc to*(v: PyObject, T: typedesc): T {.inline.} =
     else:
         pyObjToNim(v.rawPyObj, result)
 
-proc toJson*(v: PyObject): JsonNode {.inline.} =
-    pyObjToJson(v.rawPyObj, result)
+proc toJson*(v: PyObject): JsonNode {.inline.} = pyObjToJson(v.rawPyObj)
 
 proc callObjectAux(callable: PPyObject, args: openarray[PPyObject], kwargs: openarray[PyNamedArg] = []): PPyObject =
     let argTuple = pyLib.PyTuple_New(args.len)
