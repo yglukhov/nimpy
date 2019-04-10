@@ -985,10 +985,9 @@ proc nimProcToPy[T](o: T): PPyObject =
     decRef self
 
 proc makeProcWrapper(name, prc: NimNode): NimNode =
-    let procName = prc.name
     let argsIdent = newIdentNode("args")
     let kwargsIdent = newIdentNode("kwargs")
-    let (parseArgs, call) = makeCallNimProcWithPythonArgs(procName, prc.getFormalParams, argsIdent, kwargsIdent)
+    let (parseArgs, call) = makeCallNimProcWithPythonArgs(prc.name, prc.getFormalParams, argsIdent, kwargsIdent)
     result = quote do:
         proc `name`(self, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.cdecl.} =
             updateStackBottom()
@@ -1010,18 +1009,22 @@ proc newPyIterator(typ: PyTypeObject, it: iterator(): PPyObject): PPyObject =
     GC_ref(io.iRef)
 
 proc makeIteratorConstructor(name, prc: NimNode): NimNode =
-    let procName = prc.name
     let argsIdent = newIdentNode("args")
     let kwargsIdent = newIdentNode("kwargs")
-    let (parseArgs, call) = makeCallNimProcWithPythonArgs(procName, prc.getFormalParams, argsIdent, kwargsIdent)
+    let (parseArgs, call) = makeCallNimProcWithPythonArgs(prc.name, prc.getFormalParams, argsIdent, kwargsIdent)
 
     result = quote do:
         proc `name`(self: PyTypeObject, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.cdecl.} =
-            `parseArgs`
-            newPyIterator self, iterator(): PPyObject =
-                for i in `call`:
-                    yield nimValueToPy(i)
-                yield nil
+            updateStackBottom()
+            # Prevent inlining (See #67)
+            proc noinline(self: PyTypeObject, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.nimcall.} =
+                `parseArgs`
+                newPyIterator self, iterator(): PPyObject =
+                    for i in `call`:
+                        yield nimValueToPy(i)
+                    yield nil
+            var p {.volatile.}: proc(s: PyTypeObject, a, kwg: PPyObject): PPyObject {.nimcall.} = noinline
+            p(self, `argsIdent`, `kwargsIdent`)
 
 proc callObjectRaw(o: PyObject, args: varargs[PPyObject, toPyObjectArgument]): PPyObject
 
@@ -1154,6 +1157,7 @@ proc callObjectAux(callable: PPyObject, args: openarray[PPyObject], kwargs: open
     for i, v in args:
         assert(not v.isNil, "nimpy internal error v.isNil")
         discard pyLib.PyTuple_SetItem(argTuple, i, v)
+        # No decRef here. PyTuple_SetItem "steals" the reference to v
 
     var argDict: PPyObject = nil
     if kwargs.len != 0:
@@ -1161,9 +1165,11 @@ proc callObjectAux(callable: PPyObject, args: openarray[PPyObject], kwargs: open
         for v in kwargs:
             assert(not v.obj.isNil, "nimpy internal error v.obj.isNil")
             discard pyLib.PyDict_SetItemString(argDict, v.name, v.obj)
+            decRef(v.obj)
 
     result = pyLib.PyObject_Call(callable, argTuple, argDict)
     decRef argTuple
+    if not argDict.isNil: decRef(argDict)
 
 proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject], kwargs: openarray[PyNamedArg] = []): PPyObject =
     let callable = pyLib.PyObject_GetAttrString(o.rawPyObj, name)
