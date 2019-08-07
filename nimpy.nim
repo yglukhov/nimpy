@@ -105,6 +105,13 @@ const
     Py_MLFLAGS_CLASS    = (1 shl 4)
     Py_MLFLAGS_STATIC   = (1 shl 5)
 
+    # Rich comparison opcodes
+    Py_LT = 0
+    Py_LE = 1
+    Py_EQ = 2
+    Py_NE = 3
+    Py_GT = 4
+    Py_GE = 5
 
 type
     PyModuleDesc = object
@@ -1272,3 +1279,11 @@ proc dir*(v: PyObject): seq[string] =
 proc pyBuiltinsModule*(): PyObject =
     initPyLibIfNeeded()
     pyImport(if pyLib.pythonVersion == 3: "builtins" else: "__builtin__")
+
+proc `==`*(a, b: PyObject): bool =
+    if a.isNil and b.isNil:
+        true
+    elif (not a.isNil) and (not b.isNil):
+        pyLib.PyObject_RichCompareBool(a.rawPyObj, b.rawPyObj, Py_EQ) == 1
+    else:
+        false

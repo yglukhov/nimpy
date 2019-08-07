@@ -31,6 +31,7 @@ type
         PyObject_GetIter*: proc(o: PPyObject): PPyObject {.cdecl.}
         PyObject_GetItem*: proc(o, k: PPyObject): PPyObject {.cdecl.}
         PyObject_SetItem*: proc(o, k, v: PPyObject): cint {.cdecl.}
+        PyObject_RichCompareBool*: proc(a, b: PPyObject, op: cint): cint {.cdecl.}
         PyObject_GetBuffer*: proc(o: PPyObject, b: var RawPyBuffer, flags: cint): cint {.cdecl.}
         PyBuffer_Release*: proc(b: var RawPyBuffer) {.cdecl.}
 
@@ -188,6 +189,8 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     load PyObject_GetIter
     load PyObject_GetItem
     load PyObject_SetItem
+    load PyObject_RichCompareBool
+
     maybeLoad PyObject_GetBuffer
     maybeLoad PyBuffer_Release
 

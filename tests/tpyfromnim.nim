@@ -195,6 +195,10 @@ proc test*() =
         doAssert(bb == 2)
         doAssert(cc == "Hello")
 
+    block: # Comparison
+        let py = pyBuiltinsModule()
+        doAssert(py.None == py.None)
+
 when isMainModule:
     test()
     echo "Test complete!"
