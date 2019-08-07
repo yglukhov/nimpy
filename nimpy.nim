@@ -312,10 +312,10 @@ proc initModule3(m: var PyModuleDesc): PPyObject =
         result = PyModule_Create2(pymod, PYTHON_ABI_VERSION)
         initModuleTypes[PyTypeObject3Obj](result, m)
 
-template declarePyModuleIfNeededAux(name: static[string]) =
+template declarePyModuleIfNeededAux(name, doc: static[cstring]) =
     when not declared(gPythonLocalModuleDesc):
         var gPythonLocalModuleDesc {.inject.}: PyModuleDesc
-        initPythonModuleDesc(gPythonLocalModuleDesc, name, nil)
+        initPythonModuleDesc(gPythonLocalModuleDesc, name, doc)
         {.push stackTrace: off.}
         proc py2init() {.exportc: "init" & name, dynlib.} =
             initModule2(gPythonLocalModuleDesc)
@@ -324,18 +324,21 @@ template declarePyModuleIfNeededAux(name: static[string]) =
             initModule3(gPythonLocalModuleDesc)
         {.pop.}
 
-macro declarePyModuleIfNeededAuxMacro(modulename: static[string]): typed =
-    let modulename = modulename.splitFile.name
-    result = newCall(bindSym("declarePyModuleIfNeededAux"), newLit(modulename))
-
 template declarePyModuleIfNeeded() =
-    declarePyModuleIfNeededAuxMacro(instantiationInfo(0).filename)
+    const moduleName = splitFile(instantiationInfo(0).filename).name
+    declarePyModuleIfNeededAux(moduleName, "")
 
-template pyExportModuleName*(n: static[string]) =
+template pyExportModuleName*(n: static[cstring]) {.deprecated: "Use pyExportModule instead".} =
     when declared(gPythonLocalModuleDesc):
         {.error: "pyExportModuleName can be used only once per module and should come before all exportpy definitions".}
     else:
-        declarePyModuleIfNeededAux(n)
+        declarePyModuleIfNeededAux(n, "")
+
+template pyExportModule*(name: static[cstring] = "", doc: static[cstring] = "") =
+    when declared(gPythonLocalModuleDesc):
+        {.error: "pyExportModule can be used only once per module and should come before all exportpy definitions".}
+    else:
+        declarePyModuleIfNeededAux(name, doc)
 
 ################################################################################
 ################################################################################
