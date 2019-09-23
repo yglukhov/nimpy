@@ -920,13 +920,12 @@ proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: Nim
     var
         numArgs = 0
         numArgsReq = 0
-        argName: cstring
-        argNames = newSeq[cstring]()
+        argNames = newNimNode(nnkBracket)
 
     for a in formalParams.arguments:
         let argIdent = newIdentNode("arg" & $a.idx & $a.name)
-        argName = $a.name
-        argNames.add(argName)
+        let argName = $a.name
+        argNames.add(newCall(ident"cstring", newLit(argName)))
         if a.typ.kind == nnkEmpty:
             error("Typeless arguments are not supported by nimpy: " & $a.name, a.name)
         # XXX: The newCall("type", a.typ) should be just `a.typ` but compilation fails. Nim bug?
@@ -941,7 +940,7 @@ proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: Nim
             pyValueVarSection.add(newIdentDefs(argIdent, newCall(bindSym"valueTypeForArgType", newCall("type", a.typ))))
             inc numArgsReq
         parseArgsStmts.add(newCall(bindSym"parseArg", argsTuple, kwargsDict,
-                                   newLit(a.idx), newLit($argName), argIdent))
+                                   newLit(a.idx), newLit(argName), argIdent))
         origCall.add(argIdent)
         inc numArgs
 
