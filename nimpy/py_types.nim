@@ -1,7 +1,7 @@
 
 type
     PPyObject* = distinct pointer
-    Py_ssize_t* = csize
+    Py_ssize_t* = int
 
     PyCFunction* = proc(s, a: PPyObject): PPyObject {.cdecl.}
 
