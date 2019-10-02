@@ -1,4 +1,4 @@
-import strscans, strutils, macros
+import strutils, macros
 
 import py_lib as lib
 import py_types

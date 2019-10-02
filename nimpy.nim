@@ -1,4 +1,4 @@
-import dynlib, macros, ospaths, strutils, complex, strutils, sequtils, typetraits, tables, json,
+import dynlib, macros, ospaths, strutils, complex, sequtils, typetraits, tables, json,
     nimpy/[py_types, py_utils]
 
 import nimpy/py_lib as lib
@@ -184,8 +184,6 @@ proc newPyNimObject[T](typ: PyTypeObject, args, kwds: PPyObject): PPyObject {.cd
 proc initPythonModuleDesc(m: var PyModuleDesc, name, doc: cstring) =
     m.name = name
     m.doc = doc
-    m.methods = @[]
-    m.types = @[]
 
 proc pyAlloc(sz: int): PPyObject {.inline.} =
     result = cast[PPyObject](alloc0(sz.uint + pyObjectStartOffset))
@@ -1128,9 +1126,8 @@ macro exportpy*(nameOrProc: untyped, maybeProc: untyped = nil): untyped =
 template addType(m: var PyModuleDesc, T: typed) =
     block:
         const name = astToStr(T)
-        const cname: cstring = name
         m.types.setLen(m.types.len + 1)
-        m.types[^1].name = cname
+        m.types[^1].name = static(cstring(name))
         m.types[^1].doc = "TestType docs..."
         m.types[^1].newFunc = newPyNimObject[T]
         var t: T
