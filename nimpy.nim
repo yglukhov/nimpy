@@ -1,4 +1,4 @@
-import dynlib, macros, os, strutils, complex, sequtils, typetraits, tables, json,
+import dynlib, macros, os, strutils, complex, typetraits, tables, json,
     nimpy/[py_types, py_utils]
 
 import nimpy/py_lib as lib
