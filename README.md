@@ -45,6 +45,138 @@ properly work with any. The C API symbols are loaded in runtime from whichever
 process has launched your module.
 
 
+## Publish to PYPI
+
+<details>
+  <summary> Tutorial to Publish to PYPI </summary>
+
+This tutorial assumes you already have a `setup.py` on your Repo,
+check Python Documentation if you dont know how to make a `setup.py`.
+
+You must have a valid active PyPI username and password to upload to PyPI,
+if you do not have one go to https://pypi.org/account/register and register yourself,
+if you do have one go to https://pypi.org/account/login and login to check if its working.
+
+Go to `https://github.com/USER/REPO/settings/actions`,
+where USER is your GitHub username, and REPO is your repo,
+check that GitHub Actions must be **Enabled**.
+
+Go to `https://github.com/USER/REPO/settings/secrets/new`,
+where USER is your GitHub username, and REPO is your repo.
+
+Create 2 new Secrets named `PYPI_USERNAME` and `PYPI_PASSWORD`,
+where PYPI_USERNAME is your PyPI username, and PYPI_PASSWORD is your PyPI password,
+Secrets wont need quotes, dont worry both will be Encrypted, not visible from the web, nor visible from Forks.
+
+On your Repo create a new file `/.github/workflows/nimpy_pypi_upload.yml`,
+create the folders if needed, create the file if needed, and paste the whole following content:
+
+```yaml
+name: Upload to PYPI
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions/setup-python@v1
+
+    - name: Set Global Environment Variables
+      uses: allenevans/set-env@v1.0.0
+      with:
+        CHOOSENIM_CHOOSE_VERSION: "1.0.4"
+        CHOOSENIM_NO_ANALYTICS: 1
+        TWINE_NON_INTERACTIVE: 1
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}   # https://github.com/USER/REPO/settings/secrets/new
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        MAIN_MODULE: "src/main.nim"
+        #TWINE_REPOSITORY_URL: "https://test.pypi.org/legacy/"  # Upload to PYPI Testing fake server.
+        #TWINE_REPOSITORY: "https://test.pypi.org/legacy/"
+
+    - name: Update Python PIP
+      run: pip3 install --upgrade --disable-pip-version-check pip setuptools twine
+
+    - name: Cache choosenim
+      id: cache-choosenim
+      uses: actions/cache@v1
+      with:
+        path: ~/.choosenim
+        key: ${{ runner.os }}-choosenim-$CHOOSENIM_CHOOSE_VERSION
+
+    - name: Cache nimble
+      id: cache-nimble
+      uses: actions/cache@v1
+      with:
+        path: ~/.nimble
+        key: ${{ runner.os }}-nimble-$CHOOSENIM_CHOOSE_VERSION
+
+    - name: Install Nim via Choosenim
+      if: steps.cache-choosenim.outputs.cache-hit != 'true' || steps.cache-nimble.outputs.cache-hit != 'true'
+      run: |
+        curl https://nim-lang.org/choosenim/init.sh -sSf > init.sh
+        sh init.sh -y
+
+    - name: Nimble Refresh
+      run: |
+        export PATH=$HOME/.nimble/bin:$PATH
+        nimble -y refresh
+
+    - name: Nimble Install dependencies
+      run: |
+        export PATH=$HOME/.nimble/bin:$PATH
+        nimble -y install nimpy
+
+    - name: Prepare Files
+      run: |
+        mkdir --verbose --parents dist/
+        rm --verbose --force --recursive *.c *.h *.so *.pyd *.egg-info/ dist/*.zip
+        cp --verbose --force ~/.choosenim/toolchains/nim-$CHOOSENIM_CHOOSE_VERSION/lib/nimbase.h nimbase.h
+
+    - name: Compile to C
+      run: |
+        export PATH=$HOME/.nimble/bin:$PATH
+        nim compileToC --compileOnly -d:release -d:danger -d:ssl --threads:on --app:lib --opt:speed --gc:markAndSweep --nimcache:. $MAIN_MODULE
+
+    - name: Publish to PYPI
+      run: |
+        python3 setup.py --verbose sdist --formats=zip
+        rm --verbose --force --recursive *.c *.h *.so *.pyd *.egg-info/
+        twine upload --verbose --disable-progress-bar dist/*.zip
+
+```
+
+Edit `CHOOSENIM_CHOOSE_VERSION` to the version you choose or the latest.
+Edit `MAIN_MODULE: "src/main.nim"` to your main module `.nim` file.
+
+If you want to upload to the Testing fake PyPI Server instead of the real one, uncomment the lines:
+
+```yaml
+TWINE_REPOSITORY_URL: "https://test.pypi.org/legacy/"  # Upload to PYPI Testing fake server.
+TWINE_REPOSITORY: "https://test.pypi.org/legacy/"
+```
+
+Commit and Push the YAML to GitHub.
+
+Go to `https://github.com/USER/REPO/releases/new`,
+where USER is your GitHub username, and REPO is your repo,
+create a new Release to trigger the new GitHub Action of the YAML,
+Editing an existing Release wont work, so the Release must be a new one.
+
+Wait for the GitHub Action to complete, you can check the progress at `https://github.com/USER/REPO/actions`,
+if the GitHub Actions is sucessful then you should have your project uploaded to PyPI.
+
+Remember that PyPI wont allow to Re-upload the same file even if you delete it,
+so if you want to overwrite the file uploaded to PyPI you must bump version up.
+
+From now on, everytime you make a new Release, it will be automatically uploaded to PYPI.
+
+</details>
+
+
 ## Troubleshooting, Q&A
 <details>
 <summary> <b>Question:</b>
