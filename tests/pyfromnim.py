@@ -39,5 +39,8 @@ def test_dict_json():
 def call_callback(fn):
     fn(1, 2, "Hello")
 
+def concat_strings(a, b):
+    return a + b
+
 import sys
 assert(len(sys.argv) > 0)

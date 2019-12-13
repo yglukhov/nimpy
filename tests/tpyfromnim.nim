@@ -199,6 +199,11 @@ proc test*() =
         let py = pyBuiltinsModule()
         doAssert(py.None == py.None)
 
+    block: # cstring args
+        let pfn = pyImport("pyfromnim")
+        let res = pfn.concat_strings(cstring("Hello"), " world").to(string)
+        doAssert(res == "Hello world")
+
 when isMainModule:
     test()
     echo "Test complete!"

@@ -577,6 +577,8 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
             v.rawPyObj
     elif T is string:
         strToPyObject(v)
+    elif T is cstring:
+        pyLib.Py_BuildValue("s", v)
     elif T is int32:
         pyLib.Py_BuildValue("i", v)
     elif T is int64:
