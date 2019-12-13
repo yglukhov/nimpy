@@ -7,12 +7,12 @@ license       = "MIT"
 
 requires "nim >= 0.17.0"
 
-import oswalkdir, ospaths, strutils
+import oswalkdir, os, strutils
 
 task test, "Run tests":
     let pluginExtension = when defined(windows): "pyd" else: "so"
 
-    for f in walkDir("tests"):
+    for f in oswalkdir.walkDir("tests"):
         # Compile all nim modules, except those starting with "t"
         let sf = f.path.splitFile()
         if sf.ext == ".nim" and not sf.name.startsWith("t"):
@@ -20,14 +20,14 @@ task test, "Run tests":
 
     mvFile("tests/custommodulename".changeFileExt(pluginExtension), "tests/_mycustommodulename".changeFileExt(pluginExtension))
 
-    for f in walkDir("tests"):
+    for f in oswalkdir.walkDir("tests"):
         # Run all python modules starting with "t"
         let sf = f.path.splitFile()
         if sf.ext == ".py" and sf.name.startsWith("t"):
             exec "python2 " & f.path
             exec "python3 " & f.path
 
-    for f in walkDir("tests"):
+    for f in oswalkdir.walkDir("tests"):
         # Run all nim modules starting with "t"
         let sf = f.path.splitFile()
         if sf.ext == ".nim" and sf.name.startsWith("t"):

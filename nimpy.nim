@@ -1,4 +1,4 @@
-import dynlib, macros, ospaths, strutils, complex, sequtils, typetraits, tables, json,
+import dynlib, macros, os, strutils, complex, typetraits, tables, json,
     nimpy/[py_types, py_utils]
 
 import nimpy/py_lib as lib
@@ -7,7 +7,7 @@ type
     PyObject* = ref object
         rawPyObj: PPyObject
 
-    PyNimObject = ref object {.inheritable.}
+    PyNimObject {.inheritable.} = ref object
         py_extra_dont_use: PyObject_HEAD_EXTRA
         py_object: PyObjectObj
 
@@ -963,7 +963,7 @@ macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PP
         except Exception as e:
             pythonException(e)
 
-type NimPyProcBase* = ref object {.inheritable, pure.}
+type NimPyProcBase* {.inheritable, pure.} = ref object
     c: proc(args, kwargs: PPyObject, p: NimPyProcBase): PPyObject {.cdecl.}
 
 proc callNimProc(self, args, kwargs: PPyObject): PPyObject {.cdecl.} =

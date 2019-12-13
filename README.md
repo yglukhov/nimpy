@@ -21,8 +21,8 @@ nim c --threads:on --app:lib --out:mymodule.so mymodule
 ```py
 # test.py
 import mymodule
-assert(mymodule.greet("world") == "Hello, world!")
-assert(mymodule.greet(name="world") == "Hello, world!")
+assert mymodule.greet("world") == "Hello, world!"
+assert mymodule.greet(name="world") == "Hello, world!"
 ```
 
 ## Calling python from nim
@@ -34,7 +34,7 @@ echo "Current dir is: ", os.getcwd().to(string)
 # sum(range(1, 5))
 let py = pyBuiltinsModule()
 let s = py.sum(py.range(0, 5)).to(int)
-assert(s == 10)
+assert s == 10
 ```
 Note: here nimpy relies on your local python installation.
 
