@@ -2,7 +2,7 @@
 
 Native language integration with Python has never been easier!
 
-## Implementing python module in nim
+## Implementing a Python Module in Nim
 ```nim
 # mymodule.nim - file name should match the module name you're going to import from python
 import nimpy
@@ -11,11 +11,11 @@ proc greet(name: string): string {.exportpy.} =
     return "Hello, " & name & "!"
 ```
 
-```
+```bash
 # Compile on Windows:
-nim c --threads:on --app:lib --out:mymodule.pyd mymodule
+$ nim c --threads:on --app:lib --out:mymodule.pyd mymodule
 # Compile on everything else:
-nim c --threads:on --app:lib --out:mymodule.so mymodule
+$ nim c --threads:on --app:lib --out:mymodule.so mymodule
 ```
 
 ```py
@@ -25,7 +25,7 @@ assert mymodule.greet("world") == "Hello, world!"
 assert mymodule.greet(name="world") == "Hello, world!"
 ```
 
-## Calling python from nim
+## Calling Python From Nim
 ```nim
 import nimpy
 let os = pyImport("os")
@@ -37,6 +37,45 @@ let s = py.sum(py.range(0, 5)).to(int)
 assert s == 10
 ```
 Note: here nimpy relies on your local python installation.
+
+
+## Importing Nim Extensions Directly
+
+For a convenient way to import your Nim extension modules directly, you can use
+[Nimporter](https://github.com/Pebaz/Nimporter). It scans Python's path to find
+Nim files and compiles them when imported. Subsequent imports utilize a cached
+version of the module so you must only pay for the compilation once. Changes to
+the Nim source files trigger a recompilation since Nimporter maintains a hash of
+the source. Both build artifacts and hashed sources are kept in the
+`__pycache__` directory so that the built `.pyd` or `.so` files do not clog up
+the filesystem. In addition, since the `__pycache__` directory is usually
+ignored via `.gitignore` for example, you can transparently use Nim code without
+any real impediments.
+
+To use Nimporter, just install via Pip:
+
+```bash
+$ pip3 install nimporter
+```
+
+Usage example:
+
+```nim
+# foo.nim
+import nimpy
+
+proc greet(name: string): string {.exportpy.} =
+    return "Hello, " & name & "!"
+```
+
+Now import and use the file without an explicit build step:
+
+```python
+import nimporter  # Now any Nim file on the path can be directly imported.
+import foo  # foo.nim is built, cached, and hashed
+
+print(foo.greet('Pebaz'))
+```
 
 ## Misc
 The library is designed with ABI compatibility in mind. That is
