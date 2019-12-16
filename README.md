@@ -2,7 +2,7 @@
 
 Native language integration with Python has never been easier!
 
-## Implementing python module in nim
+## Implementing a Python Module in Nim
 ```nim
 # mymodule.nim - file name should match the module name you're going to import from python
 import nimpy
@@ -11,7 +11,7 @@ proc greet(name: string): string {.exportpy.} =
     return "Hello, " & name & "!"
 ```
 
-```
+```bash
 # Compile on Windows:
 nim c --threads:on --app:lib --out:mymodule.pyd mymodule
 # Compile on everything else:
@@ -25,7 +25,7 @@ assert mymodule.greet("world") == "Hello, world!"
 assert mymodule.greet(name="world") == "Hello, world!"
 ```
 
-## Calling python from nim
+## Calling Python From Nim
 ```nim
 import nimpy
 let os = pyImport("os")
@@ -37,6 +37,13 @@ let s = py.sum(py.range(0, 5)).to(int)
 assert s == 10
 ```
 Note: here nimpy relies on your local python installation.
+
+
+## Importing Nim Extensions Directly
+
+For a convenient way to import your Nim extension modules directly, you can use
+[Nimporter](https://github.com/Pebaz/Nimporter).
+
 
 ## Misc
 The library is designed with ABI compatibility in mind. That is
