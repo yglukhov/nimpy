@@ -15,7 +15,7 @@ proc greet(name: string): string {.exportpy.} =
 # Compile on Windows:
 nim c --threads:on --app:lib --out:mymodule.pyd mymodule
 # Compile on everything else:
-$ nim c --threads:on --app:lib --out:mymodule.so mymodule
+nim c --threads:on --app:lib --out:mymodule.so mymodule
 ```
 
 ```py
@@ -44,30 +44,6 @@ Note: here nimpy relies on your local python installation.
 For a convenient way to import your Nim extension modules directly, you can use
 [Nimporter](https://github.com/Pebaz/Nimporter).
 
-To use Nimporter, just install via Pip:
-
-```bash
-$ pip3 install nimporter
-```
-
-Usage example:
-
-```nim
-# foo.nim
-import nimpy
-
-proc greet(name: string): string {.exportpy.} =
-    return "Hello, " & name & "!"
-```
-
-Now import and use the file without an explicit build step:
-
-```python
-import nimporter  # Now any Nim file on the path can be directly imported.
-import foo  # foo.nim is built, cached, and hashed
-
-print(foo.greet('Pebaz'))
-```
 
 ## Misc
 The library is designed with ABI compatibility in mind. That is
