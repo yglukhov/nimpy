@@ -13,7 +13,7 @@ proc greet(name: string): string {.exportpy.} =
 
 ```bash
 # Compile on Windows:
-$ nim c --threads:on --app:lib --out:mymodule.pyd mymodule
+nim c --threads:on --app:lib --out:mymodule.pyd mymodule
 # Compile on everything else:
 $ nim c --threads:on --app:lib --out:mymodule.so mymodule
 ```
@@ -42,15 +42,7 @@ Note: here nimpy relies on your local python installation.
 ## Importing Nim Extensions Directly
 
 For a convenient way to import your Nim extension modules directly, you can use
-[Nimporter](https://github.com/Pebaz/Nimporter). It scans Python's path to find
-Nim files and compiles them when imported. Subsequent imports utilize a cached
-version of the module so you must only pay for the compilation once. Changes to
-the Nim source files trigger a recompilation since Nimporter maintains a hash of
-the source. Both build artifacts and hashed sources are kept in the
-`__pycache__` directory so that the built `.pyd` or `.so` files do not clog up
-the filesystem. In addition, since the `__pycache__` directory is usually
-ignored via `.gitignore` for example, you can transparently use Nim code without
-any real impediments.
+[Nimporter](https://github.com/Pebaz/Nimporter).
 
 To use Nimporter, just install via Pip:
 
