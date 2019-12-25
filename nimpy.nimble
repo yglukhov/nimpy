@@ -7,7 +7,7 @@ license       = "MIT"
 
 requires "nim >= 0.17.0"
 
-import oswalkdir, strutils
+import oswalkdir, ospaths, strutils
 
 task test, "Run tests":
     let pluginExtension = when defined(windows): "pyd" else: "so"
