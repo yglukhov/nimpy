@@ -10,37 +10,37 @@ greet_kwargs = {'greeting': "Hello", 'suffix': "!"}
 assert(s.greet(*greet_args, **greet_kwargs) == "Hello, world!")
 
 try:
-    s.greet()
-    assert(False)
+  s.greet()
+  assert(False)
 except TypeError as e:
-    expected = "TypeError('greet() takes exactly 3 arguments (0 given)',)"
-    assert(expected[:-2] in repr(e))
+  expected = "TypeError('greet() takes exactly 3 arguments (0 given)',)"
+  assert(expected[:-2] in repr(e))
 try:
-    s.greet(greeting="Hi")
-    assert(False)
+  s.greet(greeting="Hi")
+  assert(False)
 except TypeError as e:
-    expected = "TypeError('greet() missing 1 required positional argument: name',)"
-    assert(expected[:-2] in repr(e))
+  expected = "TypeError('greet() missing 1 required positional argument: name',)"
+  assert(expected[:-2] in repr(e))
 try:
-    s.greet(name="world", invalid="foo")
-    assert(False)
+  s.greet(name="world", invalid="foo")
+  assert(False)
 except TypeError as e:
-    expected = "TypeError('greet() got an unexpected keyword argument invalid',)"
-    assert(expected[:-2] in repr(e))
+  expected = "TypeError('greet() got an unexpected keyword argument invalid',)"
+  assert(expected[:-2] in repr(e))
 try:
-    s.greet("hello", "world", greeting="foo")
-    assert(False)
+  s.greet("hello", "world", greeting="foo")
+  assert(False)
 except TypeError as e:
-    expected = "TypeError('greet() got multiple values for argument greeting',)"
-    assert(expected[:-2] in repr(e))
+  expected = "TypeError('greet() got multiple values for argument greeting',)"
+  assert(expected[:-2] in repr(e))
 
 assert(s.greetEveryoneExceptJack("world") == "Hello, world!")
 try:
-    s.greetEveryoneExceptJack("Jack")
-    assert False, "Expected s.greetEveryoneExceptJack to throw JackError."
+  s.greetEveryoneExceptJack("Jack")
+  assert False, "Expected s.greetEveryoneExceptJack to throw JackError."
 except s.NimPyException as e:
-    assert "Cannot greet Jack" in repr(e)
-    assert "JackError" in repr(e)
+  assert "Cannot greet Jack" in repr(e)
+  assert "JackError" in repr(e)
 assert(s.somethingThatReturnsEmptyString() == "")
 assert(s.sumInts(4, 5) == 9)
 assert(abs(s.sumFloats(4.1, 5.2) - 9.3) < 0.0001)
@@ -79,9 +79,9 @@ s.voidProc()
 
 excMsg = ""
 try:
-    print(s.sumInts(1, 2, 3))
+  print(s.sumInts(1, 2, 3))
 except TypeError as e:
-    excMsg = str(e)
+  excMsg = str(e)
 
 assert(excMsg == "sumInts() takes exactly 2 arguments (3 given)")
 
@@ -102,8 +102,8 @@ assert(s.testLambda2(lambda x: x + 5) == 8)
 
 receivedString = ""
 def receiveString(x):
-    global receivedString
-    receivedString = x
+  global receivedString
+  receivedString = x
 s.testVoidLambda(receiveString)
 assert(receivedString == "hello")
 
@@ -114,7 +114,7 @@ assert(s.strutils(5) == 10) # Issue #95
 
 numbers = []
 for i in s.testIterator("Hello"):
-    numbers.append(i)
+  numbers.append(i)
 
 assert(numbers == [0, 1, 2, 3, 4])
 

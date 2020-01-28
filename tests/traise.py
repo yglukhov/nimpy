@@ -1,49 +1,49 @@
 # raise all mapped exceptions in Python
 
 def testOSError():
-    raise(OSError)
+  raise(OSError)
 
 def testIOError():
-    raise(IOError)
+  raise(IOError)
 
 def testValueError():
-    raise(ValueError)
+  raise(ValueError)
 
 def testKeyError():
-    raise(KeyError)
+  raise(KeyError)
 
 def testEOFError():
-    raise(EOFError)
+  raise(EOFError)
 
 def testArithmeticError():
-    raise(ArithmeticError)
+  raise(ArithmeticError)
 
 def testZeroDivisionError():
-    raise(ZeroDivisionError)
+  raise(ZeroDivisionError)
 
 def testOverflowError():
-    raise(OverflowError)
+  raise(OverflowError)
 
 def testAssertionError():
-    raise(AssertionError)
+  raise(AssertionError)
 
 def testMemoryError():
-    raise(MemoryError)
+  raise(MemoryError)
 
 def testIndexError():
-    raise(IndexError)
+  raise(IndexError)
 
 def testFloatingPointError():
-    raise(FloatingPointError)
+  raise(FloatingPointError)
 
 def testException():
-    raise(Exception)
+  raise(Exception)
 
 def testUnsupportedException():
-    # example for an unsupported Python exception
-    raise(NotImplementedError)
+  # example for an unsupported Python exception
+  raise(NotImplementedError)
 
 def testCustomException():
-    class TestException(IndexError):
-        pass
-    raise(TestException)
+  class TestException(IndexError):
+    pass
+  raise(TestException)

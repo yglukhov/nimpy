@@ -8,7 +8,7 @@ Native language integration with Python has never been easier!
 import nimpy
 
 proc greet(name: string): string {.exportpy.} =
-    return "Hello, " & name & "!"
+  return "Hello, " & name & "!"
 ```
 
 ```
