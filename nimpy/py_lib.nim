@@ -295,9 +295,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
   loadVar PyExc_KeyError
 
 when defined(windows):
-  import winlean
-  proc getModuleHandle(path: cstring): LibHandle {.
-    importc: "GetModuleHandle", header: "<windows.h>", stdcall.}
+  import winlean, os
 
   proc enumProcessModules(hProcess: HANDLE, lphModule: ptr Handle, cb: DWORD, cbNeeded: ptr DWORD): WINBOOL {.
     importc: "K32EnumProcessModules", dynlib: "kernel32", stdcall.}
@@ -305,7 +303,7 @@ when defined(windows):
   proc getModuleFileName(handle: Handle, buf: cstring, size: int32): int32 {.
     importc: "GetModuleFileNameA", dynlib: "kernel32", stdcall.}
 
-  proc findPythonDLL(): string {.inline.} =
+  proc findPythonDLL(): LibHandle {.inline.} =
     var mods: array[1024, Handle]
     var sz: DWORD
     let pr = getCurrentProcess()
@@ -319,12 +317,12 @@ when defined(windows):
             fn.setLen(ln)
           const suffixLen = "\\pythonXX.dll".len
           if fn.endsWith(".dll") and fn.rfind("\\python") == fn.len - suffixLen:
-            return fn
+            return cast[LibHandle](mods[i])
     raise newException(Exception, "Could not find pythonXX.dll")
 
 proc pythonLibHandleForThisProcess(): LibHandle {.inline.} =
   when defined(windows):
-    getModuleHandle(findPythonDLL())
+    findPythonDLL()
   else:
     loadLib()
 
@@ -344,29 +342,41 @@ iterator libPythonNames(): string {.closure.} =
         yield "libpython" & v & "m.so.1"
 
 proc pythonLibHandleFromExternalLib(): LibHandle {.inline.} =
-  when not defined(windows):
+  when defined(windows):
+    let pythonExe = findExe("python.exe")
+    if pythonExe.len != 0:
+      let d = parentDir(pythonExe)
+      for lib in libPythonNames():
+        result = loadLib(d / lib & ".dll", true)
+        if not result.isNil:
+          break
+
+      if result.isNil:
+        let s = toSeq(libPythonNames()).mapIt(d / it & ".dll").join(", ")
+        raise newException(Exception, "Could not load libpython. Tried " & s)
+    else:
+      raise newException(Exception, "Could not load libpython. python.exe not found.")
+  else:
     # Try this process first...
     result = loadLib()
     if not result.symAddr("PyTuple_New").isNil:
       return
     result = nil
 
-  for lib in libPythonNames():
-    result = loadLib(lib, true)
-    if not result.isNil:
-      break
+    for lib in libPythonNames():
+      result = loadLib(lib, true)
+      if not result.isNil:
+        break
 
-  if result.isNil:
-    let s = toSeq(libPythonNames()).join(", ")
-    raise newException(Exception, "Could not load python libpython. Tried " & s)
+    if result.isNil:
+      let s = toSeq(libPythonNames()).join(", ")
+      raise newException(Exception, "Could not load libpython. Tried " & s)
 
 proc loadPyLibFromThisProcess*(): PyLib {.inline.} =
   loadPyLibFromModule(pythonLibHandleForThisProcess())
 
-proc initPyLib() =
+proc initPyLib(m: LibHandle) =
   assert(pyLib.isNil)
-
-  let m = pythonLibHandleFromExternalLib()
 
   let Py_InitializeEx = cast[proc(i: cint){.cdecl.}](m.symAddr("Py_InitializeEx"))
   if Py_InitializeEx.isNil:
@@ -380,10 +390,21 @@ proc initPyLib() =
 
   pyLib = loadPyLibFromModule(m)
 
+proc pyInitLibPath*(pythonLibraryPath: string) =
+  # Override nimpy python search, and use the provided library instead.
+  # This will only have affect when the nim binary is exe, and not lib,
+  # and only when no other calls to nimpy have been made before.
+  if not pyLib.isNil: return
+  let m = loadLib(pythonLibraryPath, true)
+  if unlikely m.isNil:
+    raise newException(Exception, "Could not load libpython. Tried " & pythonLibraryPath)
+  initPyLib(m)
+
 proc initPyThreadFrame() =
   # https://stackoverflow.com/questions/42974139/valueerror-call-stack-is-not-deep-enough-when-calling-ipython-embed-method
   # needed for eval and stuff like pandas.query() otherwise crash (call stack is not deep enough)
-  if unlikely pyLib.isNil: initPyLib()
+  if unlikely pyLib.isNil:
+    initPyLib(pythonLibHandleFromExternalLib())
   pyThreadFrameInited = true
 
   let
