@@ -327,7 +327,9 @@ proc pythonLibHandleForThisProcess(): LibHandle {.inline.} =
     loadLib()
 
 iterator libPythonNames(): string {.closure.} =
-  for v in ["3", "3.7", "3.6", "3.5", "", "2", "2.7"]:
+  for v in ["3.8", "3.7", "3.6", "3.5", "3",
+            "",
+            "2.7", "2.6", "2"]:
     when defined(macosx):
       yield "libpython" & v & ".dylib"
       yield "libpython" & v & "m.dylib"
