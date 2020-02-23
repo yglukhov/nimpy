@@ -384,7 +384,8 @@ proc strToPyObject(s: string): PPyObject =
 proc pyObjToNimObj(o: PPyObject, vv: var object) =
   for k, v in fieldPairs(vv):
     let f = pyLib.PyDict_GetItemString(o, k)
-    pyObjToNim(f, v)
+    if not f.isNil:
+      pyObjToNim(f, v)
     # No DECREF here. PyDict_GetItemString returns a borrowed ref.
 
 proc finalizePyObject(o: PyObject) =
