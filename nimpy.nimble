@@ -9,14 +9,14 @@ requires "nim >= 0.17.0"
 
 import oswalkdir, os, strutils
 
-task test, "Run tests":
+proc runTests(nimFlags = "") =
   let pluginExtension = when defined(windows): "pyd" else: "so"
 
   for f in oswalkdir.walkDir("tests"):
     # Compile all nim modules, except those starting with "t"
     let sf = f.path.splitFile()
     if sf.ext == ".nim" and not sf.name.startsWith("t"):
-      exec "nim c --threads:on --app:lib --out:" & f.path.changeFileExt(pluginExtension) & " " & f.path
+      exec "nim c --threads:on --app:lib " & nimFlags & " --out:" & f.path.changeFileExt(pluginExtension) & " " & f.path
 
   mvFile("tests/custommodulename".changeFileExt(pluginExtension), "tests/_mycustommodulename".changeFileExt(pluginExtension))
 
@@ -31,4 +31,10 @@ task test, "Run tests":
     # Run all nim modules starting with "t"
     let sf = f.path.splitFile()
     if sf.ext == ".nim" and sf.name.startsWith("t"):
-      exec "nim c -r " & f.path
+      exec "nim c -r " & nimFlags & " " & f.path
+
+task test, "Run tests":
+  runTests()
+
+task test_arc, "Run tests with --gc:arc":
+  runTests("--gc:arc")

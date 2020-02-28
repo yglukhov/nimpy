@@ -211,12 +211,13 @@ when compileOption("threads"):
   var gcInited {.threadVar.}: bool
 
 proc updateStackBottom() {.inline.} =
-  var a {.volatile.}: int
-  nimGC_setStackBottom(cast[pointer](cast[uint](addr a)))
-  when compileOption("threads") and not compileOption("tlsEmulation"):
-    if not gcInited:
-      gcInited = true
-      setupForeignThreadGC()
+  when not defined(gcDestructors):
+    var a {.volatile.}: int
+    nimGC_setStackBottom(cast[pointer](cast[uint](addr a)))
+    when compileOption("threads") and not compileOption("tlsEmulation"):
+      if not gcInited:
+        gcInited = true
+        setupForeignThreadGC()
 
 proc pythonException(e: ref Exception): PPyObject =
   let err = pyLib.PyErr_NewException("nimpy" & "." & $(e.name), pyLib.NimPyException, nil)
@@ -230,7 +231,7 @@ proc iterNext(i: PPyObject): PPyObject {.cdecl.} =
   except Exception as e:
     pythonException(e)
 
-proc initModuleTypes[PyTypeObj](p: PPyObject, m: var PyModuleDesc) =
+proc initModuleTypes[PyTypeObj](p: PPyObject, m: PyModuleDesc) =
   for i in 0 ..< m.types.len:
     let typ = pyAlloc(sizeof(PyTypeObj))
     let ty = typ.to(PyTypeObj)
@@ -820,9 +821,11 @@ proc parseArg[T](argTuple, kwargsDict: PPyObject, argIdx: int, argName: cstring,
   # TODO: What do we do if arg is nil???
 
 template raisePyException(tp, msg: untyped): untyped =
-  GC_disable()
+  when not defined(gcDestructors):
+    GC_disable()
   pyLib.PyErr_SetString(tp, msg)
-  GC_enable()
+  when not defined(gcDestructors):
+    GC_enable()
   return false
 
 proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNames: openarray[cstring], funcName: string): bool =
