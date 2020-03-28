@@ -297,27 +297,23 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
 when defined(windows):
   import winlean, os
 
-  proc enumProcessModules(hProcess: HANDLE, lphModule: ptr Handle, cb: DWORD, cbNeeded: ptr DWORD): WINBOOL {.
+  proc enumProcessModules(hProcess: HANDLE, lphModule: ptr LibHandle, cb: DWORD, cbNeeded: ptr DWORD): WINBOOL {.
     importc: "K32EnumProcessModules", dynlib: "kernel32", stdcall.}
 
-  proc getModuleFileName(handle: Handle, buf: cstring, size: int32): int32 {.
-    importc: "GetModuleFileNameA", dynlib: "kernel32", stdcall.}
+  proc isPythonLibHandle(h: LibHandle): bool {.inline.} =
+    # If module exports PyModule_AddObject we assume it to
+    # be python.dll. Symbol choice is pretty arbitrary.
+    let s = h.symAddr("PyModule_AddObject")
+    not s.isNil
 
   proc findPythonDLL(): LibHandle {.inline.} =
-    var mods: array[1024, Handle]
+    var mods: array[1024, LibHandle]
     var sz: DWORD
     let pr = getCurrentProcess()
     if enumProcessModules(pr, addr mods[0], 1024, addr sz) != 0:
-      var fn = newString(1024)
       for i in 0 ..< sz:
-        fn.setLen(1024)
-        let ln = getModuleFileName(mods[i], cstring(addr fn[0]), 1024)
-        if ln != 0:
-          if ln < 1024:
-            fn.setLen(ln)
-          const suffixLen = "\\pythonXX.dll".len
-          if fn.endsWith(".dll") and fn.rfind("\\python") == fn.len - suffixLen:
-            return cast[LibHandle](mods[i])
+        if isPythonLibHandle(mods[i]):
+          return mods[i]
     raise newException(Exception, "Could not find pythonXX.dll")
 
 proc pythonLibHandleForThisProcess(): LibHandle {.inline.} =
