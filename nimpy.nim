@@ -690,11 +690,11 @@ proc baseType(o: PPyObject): PyBaseType =
 
 iterator rawItems(o: PPyObject): PPyObject =
   let it = pyLib.PyObject_GetIter(o)
+  defer: decRef it
   while true:
     let i = pyLib.PyIter_Next(it)
     if i.isNil: break
     yield i
-  decRef it
 
 iterator items*(o: PyObject): PyObject =
   for i in o.rawPyObj.rawItems:
@@ -876,8 +876,12 @@ proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNa
         if k == a:
           found = true
           break
-      if not found:
-        raisePyException(pyLib.PyExc_TypeError, funcName & "() got an unexpected keyword argument " & $k)
+      if likely found:
+        decRef k
+      else:
+        let kStr = $k
+        decRef k
+        raisePyException(pyLib.PyExc_TypeError, funcName & "() got an unexpected keyword argument " & kStr)
 
 template seqTypeForOpenarrayType[T](t: type openarray[T]): typedesc = seq[T]
 template valueTypeForArgType(t: typedesc): typedesc =
