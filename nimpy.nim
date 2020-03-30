@@ -1212,10 +1212,16 @@ proc callMethod*(o: PyObject, ResultType: typedesc, name: cstring, args: varargs
   pyObjToNim(res, result)
   decRef res
 
-proc getProperty*(o: PyObject, name: cstring): PyObject =
+proc getAttr*(o: PyObject, name: cstring): PyObject =
   let r = pyLib.PyObject_GetAttrString(o.rawPyObj, name)
   if not r.isNil:
     result = newPyObjectConsumingRef(r)
+
+proc getProperty*(o: PyObject, name: cstring): PyObject {.deprecated, inline.} = getAttr(o, name)
+
+proc setAttr*(o: PyObject, name: cstring, value: PyObject) =
+  let r = pyLib.PyObject_SetAttrString(o.rawPyObj, name, value.rawPyObj)
+  if unlikely r != 0: raisePythonError()
 
 macro dotCall(o: untyped, field: untyped, args: varargs[untyped]): untyped =
   expectKind(field, nnkIdent)
@@ -1242,7 +1248,7 @@ template `.()`*(o: PyObject, field: untyped, args: varargs[untyped]): PyObject =
   dotCall(o, field, args)
 
 template `.`*(o: PyObject, field: untyped): PyObject =
-  getProperty(o, astToStr(field))
+  getAttr(o, astToStr(field))
 
 proc elemAtIndex(o: PyObject, idx: PPyObject): PyObject =
   let r = pyLib.PyObject_GetItem(o.rawPyObj, idx)
