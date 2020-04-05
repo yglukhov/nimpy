@@ -1,4 +1,4 @@
-import dynlib, sequtils, strutils, complex, py_types
+import dynlib, sequtils, strutils, complex, py_types, strutils
 
 type
   PyLib* = ref object
@@ -125,6 +125,7 @@ type
 var pyObjectStartOffset*: uint
 var pyLib*: PyLib
 var pyThreadFrameInited {.threadvar.}: bool
+var exportedModuleNames* : seq[string] = @[]
 
 proc to*(p: PPyObject, t: typedesc): ptr t {.inline.} =
   result = cast[ptr t](cast[uint](p) + pyObjectStartOffset)
@@ -373,8 +374,59 @@ proc pythonLibHandleFromExternalLib(): LibHandle {.inline.} =
 proc loadPyLibFromThisProcess*(): PyLib {.inline.} =
   loadPyLibFromModule(pythonLibHandleForThisProcess())
 
+proc getPyMajorVersion(pyLibHandle: LibHandle) : int =
+  # Py_GetVersion is documented to be OK to call before
+  # Py_Initialize so we can use it for determining which
+  # init function to supply to PyImport_AppendInittab
+  # (although there seems to be at least one Python distro
+  #  that may have issues with this, so maybe a different
+  #  approach is warranted?
+  #  See https://modwsgi.readthedocs.io/en/develop/release-notes/version-4.5.7.html
+  #  and https://twitter.com/grahamdumpleton/status/773383080002269184 )
+  let pyVersionFuncPtr = cast[proc() : cstring {.cdecl.}](pyLibHandle.symAddr("Py_GetVersion"))
+  if pyVersionFuncPtr.isNil:
+    raise newException(Exception, "Could not determine Python version")
+
+  let pyVersion = pyVersionFuncPtr()
+  if pyVersion.len() > 0 and pyVersion[0].isDigit():
+    result = (pyVersion[0] & "").parseInt()
+  else:
+    let msg = "Could not determine Python version: " & $pyVersion
+    raise newException(Exception, msg)
+
+proc loadModulesFromThisProcess(pyLibHandle: LibHandle, moduleNames: seq[string]) =
+  assert(pyLib.isNil, "Can't load built-in module after Python initialization")
+
+  let
+    thisHandle = loadLib()
+    pyMajorVer = pyLibHandle.getPyMajorVersion()
+    PyImport_AppendInittab = cast[proc(name: cstring, initfuncPtr: PPyObject) : cint {.cdecl.}](pyLibHandle.symAddr("PyImport_AppendInittab"))
+  
+  if PyImport_AppendInittab.isNil:
+    symNotLoadedErr("PyImport_AppendInittab")
+
+  for moduleName in moduleNames:
+    let
+      modInitName = if pyMajorVer >= 3:
+                      "PyInit_" & moduleName
+                    else:
+                      "init" & moduleName
+      modInitFuncPtr = cast[PPyObject](thisHandle.symAddr(modInitName))
+    
+    if modInitFuncPtr.isNil:
+      let msg = "Init symbol not found for module: " & $moduleName
+      raise newException(Exception, msg)
+
+    let rc = PyImport_AppendInittab(moduleName, modInitFuncPtr)
+    if rc != 0:
+      raise newException(Exception, "Could not add module: " & $moduleName)
+
 proc initPyLib(m: LibHandle) =
   assert(pyLib.isNil)
+
+  # Setup modules before initialization when not compiled as .so/.dll
+  when not compileOption("app", "lib"):
+    loadModulesFromThisProcess(m, exportedModuleNames)
 
   let Py_InitializeEx = cast[proc(i: cint){.cdecl.}](m.symAddr("Py_InitializeEx"))
   if Py_InitializeEx.isNil:

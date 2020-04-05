@@ -313,6 +313,7 @@ proc initModule3(m: var PyModuleDesc): PPyObject =
 
 template declarePyModuleIfNeededAux(name, doc: static[cstring]) =
   when not declared(gPythonLocalModuleDesc):
+    exportedModuleNames.add(name) # in py_lib.nim
     var gPythonLocalModuleDesc {.inject.}: PyModuleDesc
     initPythonModuleDesc(gPythonLocalModuleDesc, name, doc)
     {.push stackTrace: off.}
