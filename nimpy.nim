@@ -323,8 +323,7 @@ template declarePyModuleIfNeededAux(name, doc: static[cstring]) =
       initModule3(gPythonLocalModuleDesc)
     {.pop.}
 
-    proc `&`[T](x:T):ptr T {.importc:"&", nodecl.}
-    registerExportedModule(name, `&`(py2Init), `&`(py3Init))
+    registerExportedModule(name, cast[pointer](py2Init), cast[pointer](py3Init))
 
 template declarePyModuleIfNeeded() =
   const moduleName = splitFile(instantiationInfo(0).filename).name
