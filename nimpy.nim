@@ -313,7 +313,6 @@ proc initModule3(m: var PyModuleDesc): PPyObject =
 
 template declarePyModuleIfNeededAux(name, doc: static[cstring]) =
   when not declared(gPythonLocalModuleDesc):
-    exportedModuleNames.add(name) # in py_lib.nim
     var gPythonLocalModuleDesc {.inject.}: PyModuleDesc
     initPythonModuleDesc(gPythonLocalModuleDesc, name, doc)
     {.push stackTrace: off.}
@@ -323,6 +322,9 @@ template declarePyModuleIfNeededAux(name, doc: static[cstring]) =
     proc py3init(): PPyObject {.exportc: "PyInit_" & name, dynlib.} =
       initModule3(gPythonLocalModuleDesc)
     {.pop.}
+
+    proc `&`[T](x:T):ptr T {.importc:"&", nodecl.}
+    registerExportedModule(name, `&`(py2Init), `&`(py3Init))
 
 template declarePyModuleIfNeeded() =
   const moduleName = splitFile(instantiationInfo(0).filename).name
