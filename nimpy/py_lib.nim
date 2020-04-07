@@ -125,7 +125,23 @@ type
 var pyObjectStartOffset*: uint
 var pyLib*: PyLib
 var pyThreadFrameInited {.threadvar.}: bool
-var exportedModuleNames* : seq[string] = @[]
+
+type
+  ExportedModule = object
+    name : string
+    initAddr2 : pointer
+    initAddr3 : pointer
+
+var exportedModules : seq[ExportedModule] = @[]
+
+proc registerExportedModule*(name: string, initAddr2, initAddr3 : pointer) =  # Registers a module name and its init function pointers
+  exportedModules.add(
+    ExportedModule(
+      name: name,
+      initAddr2: initAddr2,
+      initAddr3: initAddr3
+    )
+  )
 
 proc to*(p: PPyObject, t: typedesc): ptr t {.inline.} =
   result = cast[ptr t](cast[uint](p) + pyObjectStartOffset)
@@ -394,27 +410,27 @@ proc getPyMajorVersion(pyLibHandle: LibHandle) : int =
     let msg = "Could not determine Python version: " & $pyVersion
     raise newException(Exception, msg)
 
-proc loadModulesFromThisProcess(pyLibHandle: LibHandle, moduleNames: seq[string]) =
+proc loadModulesFromThisProcess(pyLibHandle: LibHandle) =
   assert(pyLib.isNil, "Can't load built-in module after Python initialization")
 
   let
-    thisHandle = loadLib()
     pyMajorVer = pyLibHandle.getPyMajorVersion()
     PyImport_AppendInittab = cast[proc(name: cstring, initfuncPtr: PPyObject) : cint {.cdecl.}](pyLibHandle.symAddr("PyImport_AppendInittab"))
   
   if PyImport_AppendInittab.isNil:
     symNotLoadedErr("PyImport_AppendInittab")
 
-  for moduleName in moduleNames:
+  for module in exportedModules:
     let
-      modInitName = if pyMajorVer >= 3:
-                      "PyInit_" & moduleName
+      moduleName = module.name
+      modInitAddr = if pyMajorVer >= 3:
+                      module.initAddr3
                     else:
-                      "init" & moduleName
-      modInitFuncPtr = cast[PPyObject](thisHandle.symAddr(modInitName))
+                      module.initAddr2
+      modInitFuncPtr = cast[PPyObject](modInitAddr)
     
     if modInitFuncPtr.isNil:
-      let msg = "Init symbol not found for module: " & $moduleName
+      let msg = "Init function pointer not found for module: " & $moduleName
       raise newException(Exception, msg)
 
     let rc = PyImport_AppendInittab(moduleName, modInitFuncPtr)
@@ -426,7 +442,7 @@ proc initPyLib(m: LibHandle) =
 
   # Setup modules before initialization when not compiled as .so/.dll
   when not compileOption("app", "lib"):
-    loadModulesFromThisProcess(m, exportedModuleNames)
+    loadModulesFromThisProcess(m)
 
   let Py_InitializeEx = cast[proc(i: cint){.cdecl.}](m.symAddr("Py_InitializeEx"))
   if Py_InitializeEx.isNil:
