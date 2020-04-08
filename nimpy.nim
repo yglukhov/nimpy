@@ -908,13 +908,18 @@ proc getFormalParams(prc: NimNode): NimNode =
       result = ty[0]
   result.expectKind(nnkFormalParams)
 
+proc stripSinkFromArgType(t: NimNode): NimNode =
+  result = t
+  if result.kind == nnkBracketExpr and result.len == 2 and result[0].kind == nnkSym and $result[0] == "sink":
+    result = result[1]
+
 iterator arguments(formalParams: NimNode): tuple[idx: int, name, typ, default: NimNode] =
   formalParams.expectKind(nnkFormalParams)
   var iParam = 0
   for i in 1 ..< formalParams.len:
     let pp = formalParams[i]
     for j in 0 .. pp.len - 3:
-      yield (iParam, pp[j], copyNimTree(pp[^2]), pp[^1])
+      yield (iParam, pp[j], copyNimTree(stripSinkFromArgType(pp[^2])), pp[^1])
       inc iParam
 
 proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: NimNode): tuple[parseArgs, call: NimNode] =
@@ -1304,3 +1309,6 @@ proc `==`*(a, b: PyObject): bool =
     pyLib.PyObject_RichCompareBool(a.rawPyObj, b.rawPyObj, Py_EQ) == 1
   else:
     false
+
+when defined(gcDestructors):
+  {.warning: "Nimpy doesn't work with --gc:arc!!!".}

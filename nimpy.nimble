@@ -37,4 +37,4 @@ task test, "Run tests":
   runTests()
 
 task test_arc, "Run tests with --gc:arc":
-  runTests("--gc:arc")
+  runTests("--gc:arc --passc:-g")
