@@ -1,5 +1,7 @@
 nimcache/
 tests/__pycache__/
 tests/tpyfromnim
+tests/tbuiltinpyfromnim
 *.pyc
+*.pyd
 *.so
