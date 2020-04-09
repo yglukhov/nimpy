@@ -466,7 +466,16 @@ proc pyInitLibPath*(pythonLibraryPath: string) =
     raise newException(Exception, "Could not load libpython. Tried " & pythonLibraryPath)
   initPyLib(m)
 
+when defined(nimpy_test):
+  # Hook for overriding which libpython to use for tests
+  const TEST_LIB_PYTHON {.strdefine.} = ""
+
 proc initPyThreadFrame() =
+  when defined(nimpy_test):
+    if unlikely pyLib.isNil and TEST_LIB_PYTHON != "":
+      echo "Testing libpython: ", TEST_LIB_PYTHON
+      pyInitLibPath(TEST_LIB_PYTHON)
+
   # https://stackoverflow.com/questions/42974139/valueerror-call-stack-is-not-deep-enough-when-calling-ipython-embed-method
   # needed for eval and stuff like pandas.query() otherwise crash (call stack is not deep enough)
   if unlikely pyLib.isNil:

@@ -27,6 +27,21 @@ proc calcPythonExecutables() : seq[string] =
   let pyExes = getEnv("NIMPY_PY_EXES", "python2,python3")
   result = pyExes.split(",")
 
+proc calcLibPythons() : seq[string] =
+  ## Calculates which libpython modules to use for testing
+  ## The default is to use whichever libpython is found
+  ## by `pythonLibHandleFromExternalLib()` in py_lib.nim
+  ##
+  ## You can override this by setting the environment
+  ## variable `NIMPY_LIBPYTHONS` to a comma separated list
+  ## of libpython modules to load. For example, you might 
+  ## invoke something like
+  ##
+  ## `NIMPY_LIBPYTHONS="/usr/lib/x86_64-linux-gnu/libpython2.7.so,/usr/lib/x86_64-linux-gnu/libpython3.8.so" nimble test`
+  ##
+  let libPythons = getEnv("NIMPY_LIBPYTHONS", "")
+  result = libPythons.split(",")
+
 proc runTests(nimFlags = "") =
   let pluginExtension = when defined(windows): "pyd" else: "so"
 
@@ -38,7 +53,10 @@ proc runTests(nimFlags = "") =
 
   mvFile("tests/custommodulename".changeFileExt(pluginExtension), "tests/_mycustommodulename".changeFileExt(pluginExtension))
 
-  let pythonExes = calcPythonExecutables()
+  let
+    pythonExes = calcPythonExecutables()
+    libPythons = calcLibPythons()
+
   for f in oswalkdir.walkDir("tests"):
     # Run all python modules starting with "t"
     let sf = f.path.splitFile()
@@ -51,7 +69,8 @@ proc runTests(nimFlags = "") =
     # Run all nim modules starting with "t"
     let sf = f.path.splitFile()
     if sf.ext == ".nim" and sf.name.startsWith("t"):
-      exec "nim c -r " & nimFlags & " " & f.path
+      for libPython in libPythons:
+        exec "nim c -d:nimpytest -d:TEST_LIB_PYTHON=" & libPython & " -r " & nimFlags & " " & f.path
 
 task test, "Run tests":
   runTests()
