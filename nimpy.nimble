@@ -51,7 +51,14 @@ proc runTests(nimFlags = "") =
     if sf.ext == ".nim" and not sf.name.startsWith("t"):
       exec "nim c --threads:on --app:lib " & nimFlags & " --out:" & f.path.changeFileExt(pluginExtension) & " " & f.path
 
-  mvFile("tests/custommodulename".changeFileExt(pluginExtension), "tests/_mycustommodulename".changeFileExt(pluginExtension))
+  let
+    sourceFile = "tests/custommodulename".changeFileExt(pluginExtension)
+    targetFile = "tests/_mycustommodulename".changeFileExt(pluginExtension)
+  try:
+    rmFile(targetFile)
+  except:
+    discard
+  mvFile(sourceFile, targetFile)
 
   let
     pythonExes = calcPythonExecutables()
