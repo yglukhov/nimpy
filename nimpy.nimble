@@ -19,13 +19,13 @@ proc calcPythonExecutables() : seq[string] =
   ## with Python 2 from the system PATH and multiple versions
   ## of Python 3, you might invoke something like
   ##
-  ## `NIMPY_PY_EXES="python2,/usr/local/bin/python3.7,/usr/local/bin/python3.8" nimble test`
+  ## `NIMPY_PY_EXES="python2:/usr/local/bin/python3.7:/usr/local/bin/python3.8" nimble test`
   ##
   ## These are launched via a shell so they can be scripts
   ## as well as actual Python executables
 
-  let pyExes = getEnv("NIMPY_PY_EXES", "python2,python3")
-  result = pyExes.split(",")
+  let pyExes = getEnv("NIMPY_PY_EXES", "python2:python3")
+  result = pyExes.split(":")
 
 proc calcLibPythons() : seq[string] =
   ## Calculates which libpython modules to use for testing
@@ -37,10 +37,10 @@ proc calcLibPythons() : seq[string] =
   ## of libpython modules to load. For example, you might 
   ## invoke something like
   ##
-  ## `NIMPY_LIBPYTHONS="/usr/lib/x86_64-linux-gnu/libpython2.7.so,/usr/lib/x86_64-linux-gnu/libpython3.8.so" nimble test`
+  ## `NIMPY_LIBPYTHONS="/usr/lib/x86_64-linux-gnu/libpython2.7.so:/usr/lib/x86_64-linux-gnu/libpython3.8.so" nimble test`
   ##
   let libPythons = getEnv("NIMPY_LIBPYTHONS", "")
-  result = libPythons.split(",")
+  result = libPythons.split(":")
 
 proc runTests(nimFlags = "") =
   let pluginExtension = when defined(windows): "pyd" else: "so"
@@ -77,7 +77,7 @@ proc runTests(nimFlags = "") =
     let sf = f.path.splitFile()
     if sf.ext == ".nim" and sf.name.startsWith("t"):
       for libPython in libPythons:
-        exec "nim c -d:TEST_LIB_PYTHON=" & libPython & " -r " & nimFlags & " " & f.path
+        exec "nim c -d:nimpyTestLibPython=" & libPython & " -r " & nimFlags & " " & f.path
 
 task test, "Run tests":
   runTests()
