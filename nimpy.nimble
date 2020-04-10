@@ -77,7 +77,7 @@ proc runTests(nimFlags = "") =
     let sf = f.path.splitFile()
     if sf.ext == ".nim" and sf.name.startsWith("t"):
       for libPython in libPythons:
-        exec "nim c -d:nimpytest -d:TEST_LIB_PYTHON=" & libPython & " -r " & nimFlags & " " & f.path
+        exec "nim c -d:TEST_LIB_PYTHON=" & libPython & " -r " & nimFlags & " " & f.path
 
 task test, "Run tests":
   runTests()

@@ -466,13 +466,12 @@ proc pyInitLibPath*(pythonLibraryPath: string) =
     raise newException(Exception, "Could not load libpython. Tried " & pythonLibraryPath)
   initPyLib(m)
 
-when defined(nimpy_test):
-  # Hook for overriding which libpython to use for tests
-  const TEST_LIB_PYTHON {.strdefine.} = ""
+# Hook for overriding which libpython to use for tests
+const TEST_LIB_PYTHON {.strdefine.} = ""
 
 proc initPyThreadFrame() =
-  when defined(nimpy_test):
-    if unlikely pyLib.isNil and TEST_LIB_PYTHON != "":
+  when TEST_LIB_PYTHON.len() != 0:
+    if unlikely pyLib.isNil:
       echo "Testing libpython: ", TEST_LIB_PYTHON
       pyInitLibPath(TEST_LIB_PYTHON)
 
