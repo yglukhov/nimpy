@@ -665,6 +665,7 @@ proc nimArrToPy[T](s: openarray[T]): PPyObject =
   for i in 0 ..< sz:
     let o = nimValueToPy(s[i])
     discard pyLib.PyList_SetItem(result, i, o)
+    # No decRef here. PyList_SetItem "steals" the reference to `o`
 
 proc baseType(o: PPyObject): PyBaseType =
   # returns the correct PyBaseType of the given PyObject extracted
@@ -821,6 +822,7 @@ proc nimJsonToPy(node: JsonNode): PPyObject =
     for i in 0 ..< node.len:
       let o = nimJsonToPy(node[i])
       discard pyLib.PyList_SetItem(result, i, o)
+      # No decRef here. PyList_SetItem "steals" the reference to `o`
   of JObject:
     result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
     for k, v in node:
