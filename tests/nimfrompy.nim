@@ -53,6 +53,13 @@ proc getIntTable(): Table[int, float] {.exportpy.} =
        1 : 15.0,
        10 : 5.0 }.toTable
 
+proc getJsonAsDict(): JsonNode {.exportpy.} =
+  result = %* { "SomeKey" : 1.0,
+                "Another" : 5,
+                "Foo" : [1, 2, 3.5, {"InArray" : 5}],
+                "Bar" : { "Nested" : "Value" }
+              }
+
 type
   MyObj = object
     a, b: int
