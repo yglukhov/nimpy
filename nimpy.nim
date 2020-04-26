@@ -554,6 +554,7 @@ proc nimTabToPy[T: Table](t: T): PPyObject
 proc nimObjToPy[T](o: T): PPyObject
 proc nimTupleToPy[T](o: T): PPyObject
 proc nimProcToPy[T](o: T): PPyObject
+proc nimJsonToPy(node: JsonNode): PPyObject
 
 proc newPyNone*(): PPyObject {.inline.} =
   incRef(pyLib.Py_None)
@@ -629,6 +630,8 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
     pyLib.Py_BuildValue("d", float64(v))
   elif T is seq|array:
     nimArrToPy(v)
+  elif T is JsonNode:
+    nimJsonToPy(v)
   elif T is ref:
     if v.isNil:
       newPyNone()
@@ -662,6 +665,7 @@ proc nimArrToPy[T](s: openarray[T]): PPyObject =
   for i in 0 ..< sz:
     let o = nimValueToPy(s[i])
     discard pyLib.PyList_SetItem(result, i, o)
+    # No decRef here. PyList_SetItem "steals" the reference to `o`
 
 proc baseType(o: PPyObject): PyBaseType =
   # returns the correct PyBaseType of the given PyObject extracted
@@ -745,7 +749,7 @@ proc pyObjToJson(o: PPyObject): JsonNode =
 
     pyObjToNim(o, x)
     result = %*{ "real" : x.re,
-           "imag" : x.im }
+                 "imag" : x.im }
   of pbList, pbTuple:
     result = newJArray()
     for x in o.rawItems:
@@ -800,6 +804,33 @@ proc nimObjToPy[T](o: T): PPyObject =
     decRef vv
     if ret != 0:
       cannotSerializeErr(k)
+
+proc nimJsonToPy(node: JsonNode): PPyObject =
+  case node.kind
+  of JNull:
+    result = newPyNone()
+  of JInt:
+    result = nimValueToPy(node.getInt)
+  of JFloat:
+    result = nimValueToPy(node.getFloat)
+  of JBool:
+    result = nimValueToPy(node.getBool)
+  of JString:
+    result = nimValueToPy(node.getStr)
+  of JArray:
+    result = pyLib.PyList_New(node.len)
+    for i in 0 ..< node.len:
+      let o = nimJsonToPy(node[i])
+      discard pyLib.PyList_SetItem(result, i, o)
+      # No decRef here. PyList_SetItem "steals" the reference to `o`
+  of JObject:
+    result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
+    for k, v in node:
+      let vv = nimJsonToPy(v)
+      let ret = pyLib.PyDict_SetItemString(result, k, vv)
+      decRef vv
+      if ret != 0:
+        cannotSerializeErr(k)
 
 proc nimTupleToPy[T](o: T): PPyObject =
   const sz = tupleSize[T]()

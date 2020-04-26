@@ -65,6 +65,12 @@ assert(s.getIntTable()[0] == 1.0)
 assert(s.getIntTable()[1] == 15.0)
 assert(s.getIntTable()[10] == 5.0)
 
+dictFromJson = s.getJsonAsDict()
+assert(dictFromJson["SomeKey"] == 1.0)
+assert(dictFromJson["Another"] == 5)
+assert(dictFromJson["Foo"] == [1, 2, 3.5, {"InArray" : 5}])
+assert(dictFromJson["Bar"] == { "Nested" : "Value" })
+
 assert(s.TestType() is not None)
 
 assert(s.getMyObj()["a"] == 5)
