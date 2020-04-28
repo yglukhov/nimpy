@@ -54,7 +54,7 @@ type
     m_clear*: pointer
     m_free*: pointer
 
-  Destructor* = proc(o: PPyObject) {.cdecl.}
+  Destructor* = proc(o: PPyObject) {.cdecl, gcsafe.}
   Printfunc* = proc(o: PPyObject, f: File, c: cint): cint {.cdecl}
   Getattrfunc* = proc(o: PPyObject, a: cstring): PPyObject {.cdecl.}
   Getattrofunc* = proc(o, a: PPyObject): PPyObject {.cdecl.}

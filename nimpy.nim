@@ -373,7 +373,7 @@ proc unknownTypeCompileError() {.inline.} =
 
 proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.}
 
-proc strToPyObject(s: string): PPyObject =
+proc strToPyObject(s: string): PPyObject {.gcsafe.} =
   var cs: cstring = s
   var ln = s.len.cint
   result = pyLib.Py_BuildValue("s#", cs, ln)
