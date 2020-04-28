@@ -1,47 +1,49 @@
 import dynlib, sequtils, strutils, complex, py_types, strutils
 
+{.pragma: pyfunc, cdecl, gcsafe.}
+
 type
-  PyLib* = ref object
+  PyLib* = ptr object
     module*: LibHandle
 
-    Py_BuildValue*: proc(f: cstring): PPyObject {.cdecl, varargs.}
-    PyTuple_New*: proc(sz: Py_ssize_t): PPyObject {.cdecl.}
-    PyTuple_Size*: proc(f: PPyObject): Py_ssize_t {.cdecl.}
-    PyTuple_GetItem*: proc(f: PPyObject, i: Py_ssize_t): PPyObject {.cdecl.}
-    PyTuple_SetItem*: proc(f: PPyObject, i: Py_ssize_t, v: PPyObject): cint {.cdecl.}
+    Py_BuildValue*: proc(f: cstring): PPyObject {.pyfunc, varargs.}
+    PyTuple_New*: proc(sz: Py_ssize_t): PPyObject {.pyfunc.}
+    PyTuple_Size*: proc(f: PPyObject): Py_ssize_t {.pyfunc.}
+    PyTuple_GetItem*: proc(f: PPyObject, i: Py_ssize_t): PPyObject {.pyfunc.}
+    PyTuple_SetItem*: proc(f: PPyObject, i: Py_ssize_t, v: PPyObject): cint {.pyfunc.}
 
     Py_None*: PPyObject
-    PyType_Ready*: proc(f: PyTypeObject): cint {.cdecl.}
-    PyType_GenericNew*: proc(f: PyTypeObject, a, b: PPyObject): PPyObject {.cdecl.}
-    PyModule_AddObject*: proc(m: PPyObject, n: cstring, o: PPyObject): cint {.cdecl.}
+    PyType_Ready*: proc(f: PyTypeObject): cint {.pyfunc.}
+    PyType_GenericNew*: proc(f: PyTypeObject, a, b: PPyObject): PPyObject {.pyfunc.}
+    PyModule_AddObject*: proc(m: PPyObject, n: cstring, o: PPyObject): cint {.pyfunc.}
 
-    # PyList_Check*: proc(l: PPyObject): cint {.cdecl.}
-    PyList_New*: proc(size: Py_ssize_t): PPyObject {.cdecl.}
-    PyList_Size*: proc(l: PPyObject): Py_ssize_t {.cdecl.}
-    PyList_GetItem*: proc(l: PPyObject, index: Py_ssize_t): PPyObject {.cdecl.}
-    PyList_SetItem*: proc(l: PPyObject, index: Py_ssize_t, i: PPyObject): cint {.cdecl.}
+    # PyList_Check*: proc(l: PPyObject): cint {.pyfunc.}
+    PyList_New*: proc(size: Py_ssize_t): PPyObject {.pyfunc.}
+    PyList_Size*: proc(l: PPyObject): Py_ssize_t {.pyfunc.}
+    PyList_GetItem*: proc(l: PPyObject, index: Py_ssize_t): PPyObject {.pyfunc.}
+    PyList_SetItem*: proc(l: PPyObject, index: Py_ssize_t, i: PPyObject): cint {.pyfunc.}
 
-    PyObject_Call*: proc(callable_object, args, kw: PPyObject): PPyObject {.cdecl.}
-    PyObject_IsTrue*: proc(o: PPyObject): cint {.cdecl.}
-    # PyObject_HasAttrString*: proc(o: PPyObject, name: cstring): cint {.cdecl.}
-    PyObject_GetAttrString*: proc(o: PPyObject, name: cstring): PPyObject {.cdecl.}
-    PyObject_SetAttrString*: proc(o: PPyObject, name: cstring, v: PPyObject): cint {.cdecl.}
-    PyObject_Dir*: proc(o: PPyObject): PPyObject {.cdecl.}
-    PyObject_Str*: proc(o: PPyObject): PPyObject {.cdecl.}
-    PyObject_GetIter*: proc(o: PPyObject): PPyObject {.cdecl.}
-    PyObject_GetItem*: proc(o, k: PPyObject): PPyObject {.cdecl.}
-    PyObject_SetItem*: proc(o, k, v: PPyObject): cint {.cdecl.}
-    PyObject_RichCompareBool*: proc(a, b: PPyObject, op: cint): cint {.cdecl.}
-    PyObject_GetBuffer*: proc(o: PPyObject, b: var RawPyBuffer, flags: cint): cint {.cdecl.}
-    PyBuffer_Release*: proc(b: var RawPyBuffer) {.cdecl.}
+    PyObject_Call*: proc(callable_object, args, kw: PPyObject): PPyObject {.pyfunc.}
+    PyObject_IsTrue*: proc(o: PPyObject): cint {.pyfunc.}
+    # PyObject_HasAttrString*: proc(o: PPyObject, name: cstring): cint {.pyfunc.}
+    PyObject_GetAttrString*: proc(o: PPyObject, name: cstring): PPyObject {.pyfunc.}
+    PyObject_SetAttrString*: proc(o: PPyObject, name: cstring, v: PPyObject): cint {.pyfunc.}
+    PyObject_Dir*: proc(o: PPyObject): PPyObject {.pyfunc.}
+    PyObject_Str*: proc(o: PPyObject): PPyObject {.pyfunc.}
+    PyObject_GetIter*: proc(o: PPyObject): PPyObject {.pyfunc.}
+    PyObject_GetItem*: proc(o, k: PPyObject): PPyObject {.pyfunc.}
+    PyObject_SetItem*: proc(o, k, v: PPyObject): cint {.pyfunc.}
+    PyObject_RichCompareBool*: proc(a, b: PPyObject, op: cint): cint {.pyfunc.}
+    PyObject_GetBuffer*: proc(o: PPyObject, b: var RawPyBuffer, flags: cint): cint {.pyfunc.}
+    PyBuffer_Release*: proc(b: var RawPyBuffer) {.pyfunc.}
 
-    PyErr_NewException*: proc(name: cstring, base: PPyObject, dict: PPyObject): PPyObject {.cdecl.}
+    PyErr_NewException*: proc(name: cstring, base: PPyObject, dict: PPyObject): PPyObject {.pyfunc.}
 
-    PyIter_Next*: proc(o: PPyObject): PPyObject {.cdecl.}
+    PyIter_Next*: proc(o: PPyObject): PPyObject {.pyfunc.}
 
-    PyLong_AsLongLong*: proc(l: PPyObject): int64 {.cdecl.}
-    PyFloat_AsDouble*: proc(l: PPyObject): cdouble {.cdecl.}
-    PyBool_FromLong*: proc(v: clong): PPyObject {.cdecl.}
+    PyLong_AsLongLong*: proc(l: PPyObject): int64 {.pyfunc.}
+    PyFloat_AsDouble*: proc(l: PPyObject): cdouble {.pyfunc.}
+    PyBool_FromLong*: proc(v: clong): PPyObject {.pyfunc.}
 
     PyFloat_Type*: PyTypeObject
     PyComplex_Type*: PyTypeObject
@@ -51,58 +53,58 @@ type
     PyBytes_Type*: PyTypeObject
     PyUnicode_Type*: PyTypeObject
 
-    PyType_IsSubtype*: proc(t1, t2: PyTypeObject): cint {.cdecl.}
+    PyType_IsSubtype*: proc(t1, t2: PyTypeObject): cint {.pyfunc.}
 
     when declared(Complex64):
-      PyComplex_AsCComplex*: proc(op: PPyObject): Complex64 {.cdecl.}
+      PyComplex_AsCComplex*: proc(op: PPyObject): Complex64 {.pyfunc.}
     else:
-      PyComplex_AsCComplex*: proc(op: PPyObject): Complex {.cdecl.}
+      PyComplex_AsCComplex*: proc(op: PPyObject): Complex {.pyfunc.}
 
-    PyComplex_RealAsDouble*: proc(op: PPyObject): cdouble {.cdecl.}
-    PyComplex_ImagAsDouble*: proc(op: PPyObject): cdouble {.cdecl.}
+    PyComplex_RealAsDouble*: proc(op: PPyObject): cdouble {.pyfunc.}
+    PyComplex_ImagAsDouble*: proc(op: PPyObject): cdouble {.pyfunc.}
 
-    PyUnicode_AsUTF8String*: proc(o: PPyObject): PPyObject {.cdecl.}
-    PyBytes_AsStringAndSize*: proc(o: PPyObject, s: ptr ptr char, len: ptr Py_ssize_t): cint {.cdecl.}
-    PyUnicode_FromString*: proc(s: cstring): PPyObject {.cdecl.}
-    PyUnicode_CompareWithASCIIString*: proc(o: PPyObject, s: cstring): cint {.cdecl.}
-    PyString_AsString*: proc(o: PPyObject): cstring {.cdecl.}
+    PyUnicode_AsUTF8String*: proc(o: PPyObject): PPyObject {.pyfunc.}
+    PyBytes_AsStringAndSize*: proc(o: PPyObject, s: ptr ptr char, len: ptr Py_ssize_t): cint {.pyfunc.}
+    PyUnicode_FromString*: proc(s: cstring): PPyObject {.pyfunc.}
+    PyUnicode_CompareWithASCIIString*: proc(o: PPyObject, s: cstring): cint {.pyfunc.}
+    PyString_AsString*: proc(o: PPyObject): cstring {.pyfunc.}
 
     PyDict_Type*: PyTypeObject
-    PyDict_New*: proc(): PPyObject {.cdecl.}
-    PyDict_Size*: proc(d: PPyObject): Py_ssize_t {.cdecl.}
-    PyDict_GetItemString*: proc(o: PPyObject, k: cstring): PPyObject {.cdecl.}
-    PyDict_SetItemString*: proc(o: PPyObject, k: cstring, v: PPyObject): cint {.cdecl.}
-    PyDict_GetItem*: proc(o: PPyObject, k: PPyObject): PPyObject {.cdecl.}
-    PyDict_SetItem*: proc(o: PPyObject, k, v: PPyObject): cint {.cdecl.}
-    PyDict_Keys*: proc(o: PPyObject): PPyObject {.cdecl.}
-    PyDict_Values*: proc(o: PPyObject): PPyObject {.cdecl.}
-    PyDict_Contains*: proc(o: PPyObject, k: PPyObject): cint {.cdecl.}
+    PyDict_New*: proc(): PPyObject {.pyfunc.}
+    PyDict_Size*: proc(d: PPyObject): Py_ssize_t {.pyfunc.}
+    PyDict_GetItemString*: proc(o: PPyObject, k: cstring): PPyObject {.pyfunc.}
+    PyDict_SetItemString*: proc(o: PPyObject, k: cstring, v: PPyObject): cint {.pyfunc.}
+    PyDict_GetItem*: proc(o: PPyObject, k: PPyObject): PPyObject {.pyfunc.}
+    PyDict_SetItem*: proc(o: PPyObject, k, v: PPyObject): cint {.pyfunc.}
+    PyDict_Keys*: proc(o: PPyObject): PPyObject {.pyfunc.}
+    PyDict_Values*: proc(o: PPyObject): PPyObject {.pyfunc.}
+    PyDict_Contains*: proc(o: PPyObject, k: PPyObject): cint {.pyfunc.}
 
-    PyDealloc*: proc(o: PPyObject) {.nimcall.}
+    PyDealloc*: proc(o: PPyObject) {.nimcall, gcsafe.}
 
-    PyErr_Clear*: proc() {.cdecl.}
-    PyErr_SetString*: proc(o: PPyObject, s: cstring) {.cdecl.}
-    PyErr_Occurred*: proc(): PPyObject {.cdecl.}
+    PyErr_Clear*: proc() {.pyfunc.}
+    PyErr_SetString*: proc(o: PPyObject, s: cstring) {.pyfunc.}
+    PyErr_Occurred*: proc(): PPyObject {.pyfunc.}
     PyExc_TypeError*: PPyObject
 
-    PyCapsule_New*: proc(p: pointer, name: cstring, destr: proc(o: PPyObject) {.cdecl.}): PPyObject {.cdecl.}
-    PyCapsule_GetPointer*: proc(c: PPyObject, name: cstring): pointer {.cdecl.}
+    PyCapsule_New*: proc(p: pointer, name: cstring, destr: proc(o: PPyObject) {.pyfunc.}): PPyObject {.pyfunc.}
+    PyCapsule_GetPointer*: proc(c: PPyObject, name: cstring): pointer {.pyfunc.}
 
-    PyImport_ImportModule*: proc(name: cstring): PPyObject {.cdecl.}
-    PyEval_GetBuiltins*: proc(): PPyObject {.cdecl.}
-    PyEval_GetGlobals*: proc(): PPyObject {.cdecl.}
-    PyEval_GetLocals*: proc(): PPyObject {.cdecl.}
+    PyImport_ImportModule*: proc(name: cstring): PPyObject {.pyfunc.}
+    PyEval_GetBuiltins*: proc(): PPyObject {.pyfunc.}
+    PyEval_GetGlobals*: proc(): PPyObject {.pyfunc.}
+    PyEval_GetLocals*: proc(): PPyObject {.pyfunc.}
 
-    PyCFunction_NewEx*: proc(md: ptr PyMethodDef, self, module: PPyObject): PPyObject {.cdecl.}
+    PyCFunction_NewEx*: proc(md: ptr PyMethodDef, self, module: PPyObject): PPyObject {.pyfunc.}
 
     pythonVersion*: int
 
     when not defined(release):
-      PyErr_Print: proc() {.cdecl.}
-    PyErr_Fetch*: proc(ptype, pvalue, ptraceback: ptr PPyObject) {.cdecl.}
-    PyErr_NormalizeException*: proc(ptype, pvalue, ptraceback: ptr PPyObject) {.cdecl.}
+      PyErr_Print: proc() {.pyfunc.}
+    PyErr_Fetch*: proc(ptype, pvalue, ptraceback: ptr PPyObject) {.pyfunc.}
+    PyErr_NormalizeException*: proc(ptype, pvalue, ptraceback: ptr PPyObject) {.pyfunc.}
 
-    PyErr_GivenExceptionMatches*: proc(given, exc: PPyObject): cint {.cdecl.}
+    PyErr_GivenExceptionMatches*: proc(given, exc: PPyObject): cint {.pyfunc.}
 
     PyExc_BaseException*: PPyObject # should always match any exception?
     PyExc_Exception*: PPyObject
@@ -146,7 +148,7 @@ proc registerExportedModule*(name: string, initAddr2, initAddr3 : pointer) =  # 
 proc to*(p: PPyObject, t: typedesc): ptr t {.inline.} =
   result = cast[ptr t](cast[uint](p) + pyObjectStartOffset)
 
-proc deallocPythonObj[TypeObjectType](p: PPyObject) =
+proc deallocPythonObj[TypeObjectType](p: PPyObject) {.gcsafe.} =
   let ob = p.to(PyObjectObj)
   let t = cast[TypeObjectType](ob.ob_type)
   t.tp_dealloc(cast[PPyObject](p))
@@ -156,7 +158,7 @@ proc symNotLoadedErr(s: cstring) =
 
 proc loadPyLibFromModule(m: LibHandle): PyLib =
   assert(not m.isNil)
-  result.new()
+  result = cast[PyLib](allocShared0(sizeof(result[])))
   let pl = result
   pl.module = m
   if not (m.symAddr("PyModule_Create2").isNil or
@@ -399,7 +401,7 @@ proc getPyMajorVersion(pyLibHandle: LibHandle) : int =
   #  approach is warranted?
   #  See https://modwsgi.readthedocs.io/en/develop/release-notes/version-4.5.7.html
   #  and https://twitter.com/grahamdumpleton/status/773383080002269184 )
-  let pyVersionFuncPtr = cast[proc() : cstring {.cdecl.}](pyLibHandle.symAddr("Py_GetVersion"))
+  let pyVersionFuncPtr = cast[proc() : cstring {.pyfunc.}](pyLibHandle.symAddr("Py_GetVersion"))
   if pyVersionFuncPtr.isNil:
     raise newException(Exception, "Could not determine Python version")
 
@@ -415,7 +417,7 @@ proc loadModulesFromThisProcess(pyLibHandle: LibHandle) =
 
   let
     pyMajorVer = pyLibHandle.getPyMajorVersion()
-    PyImport_AppendInittab = cast[proc(name: cstring, initfuncPtr: PPyObject) : cint {.cdecl.}](pyLibHandle.symAddr("PyImport_AppendInittab"))
+    PyImport_AppendInittab = cast[proc(name: cstring, initfuncPtr: PPyObject) : cint {.pyfunc.}](pyLibHandle.symAddr("PyImport_AppendInittab"))
   
   if PyImport_AppendInittab.isNil:
     symNotLoadedErr("PyImport_AppendInittab")
@@ -444,13 +446,13 @@ proc initPyLib(m: LibHandle) =
   when not compileOption("app", "lib"):
     loadModulesFromThisProcess(m)
 
-  let Py_InitializeEx = cast[proc(i: cint){.cdecl.}](m.symAddr("Py_InitializeEx"))
+  let Py_InitializeEx = cast[proc(i: cint){.pyfunc.}](m.symAddr("Py_InitializeEx"))
   if Py_InitializeEx.isNil:
     symNotLoadedErr("Py_InitializeEx")
 
   Py_InitializeEx(0)
 
-  let PySys_SetArgvEx = cast[proc(argc: cint, argv: pointer, updatepath: cint){.cdecl.}](m.symAddr("PySys_SetArgvEx"))
+  let PySys_SetArgvEx = cast[proc(argc: cint, argv: pointer, updatepath: cint){.pyfunc.}](m.symAddr("PySys_SetArgvEx"))
   if not PySys_SetArgvEx.isNil:
     PySys_SetArgvEx(0, nil, 0)
 
@@ -482,7 +484,7 @@ proc initPyThreadFrame() =
   pyThreadFrameInited = true
 
   let
-    pyThreadStateGet = cast[proc(): pointer {.cdecl.}](pyLib.module.symAddr("PyThreadState_Get"))
+    pyThreadStateGet = cast[proc(): pointer {.pyfunc.}](pyLib.module.symAddr("PyThreadState_Get"))
     pyThread = pyThreadStateGet()
 
   case pyLib.pythonVersion
@@ -494,10 +496,10 @@ proc initPyThreadFrame() =
     doAssert(false, "unreachable")
 
   let
-    pyImportAddModule = cast[proc(str: cstring): pointer {.cdecl.}](pyLib.module.symAddr("PyImport_AddModule"))
-    pyModuleGetDict = cast[proc(p: pointer): pointer {.cdecl.}](pyLib.module.symAddr("PyModule_GetDict"))
-    pyCodeNewEmpty = cast[proc(str1, str2: cstring; i: cint): pointer {.cdecl.}](pyLib.module.symAddr("PyCode_NewEmpty"))
-    pyFrameNew = cast[proc(p1, p2, p3, p4: pointer): pointer {.cdecl.}](pyLib.module.symAddr("PyFrame_New"))
+    pyImportAddModule = cast[proc(str: cstring): pointer {.pyfunc.}](pyLib.module.symAddr("PyImport_AddModule"))
+    pyModuleGetDict = cast[proc(p: pointer): pointer {.pyfunc.}](pyLib.module.symAddr("PyModule_GetDict"))
+    pyCodeNewEmpty = cast[proc(str1, str2: cstring; i: cint): pointer {.pyfunc.}](pyLib.module.symAddr("PyCode_NewEmpty"))
+    pyFrameNew = cast[proc(p1, p2, p3, p4: pointer): pointer {.pyfunc.}](pyLib.module.symAddr("PyFrame_New"))
 
   if not pyImportAddModule.isNil and not pyModuleGetDict.isNil and not pyCodeNewEmpty.isNil and not pyFrameNew.isNil:
     let
