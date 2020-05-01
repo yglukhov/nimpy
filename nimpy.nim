@@ -474,8 +474,8 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
     unknownTypeCompileError(v)
 
 proc getListOrTupleAccessors(o: PPyObject):
-    tuple[getSize: proc(l: PPyObject): Py_ssize_t {.cdecl.},
-      getItem: proc(l: PPyObject, index: Py_ssize_t): PPyObject {.cdecl.}] =
+    tuple[getSize: proc(l: PPyObject): Py_ssize_t {.cdecl, gcsafe.},
+      getItem: proc(l: PPyObject, index: Py_ssize_t): PPyObject {.cdecl, gcsafe.}] =
   if checkObjSubclass(o, pyLib.PyList_Type):
     result.getSize = pyLib.PyList_Size
     result.getItem = pyLib.PyList_GetItem
@@ -483,7 +483,7 @@ proc getListOrTupleAccessors(o: PPyObject):
     result.getSize = pyLib.PyTuple_Size
     result.getItem = pyLib.PyTuple_GetItem
 
-proc pyObjFillArray[T](o: PPyObject, getItem: proc(l: PPyObject, index: Py_ssize_t): PPyObject {.cdecl.}, v: var openarray[T]) =
+proc pyObjFillArray[T](o: PPyObject, getItem: proc(l: PPyObject, index: Py_ssize_t): PPyObject {.cdecl, gcsafe.}, v: var openarray[T]) =
   for i in 0 ..< v.len:
     pyObjToNim(getItem(o, i), v[i])
     # No DECREF. getItem returns borrowed ref.
