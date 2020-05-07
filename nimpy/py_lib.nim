@@ -412,7 +412,7 @@ proc getPyMajorVersion(pyLibHandle: LibHandle) : int =
     let msg = "Could not determine Python version: " & $pyVersion
     raise newException(Exception, msg)
 
-proc loadModulesFromThisProcess(pyLibHandle: LibHandle) =
+proc loadModulesFromThisProcess(pyLibHandle: LibHandle) {.gcsafe.} =
   assert(pyLib.isNil, "Can't load built-in module after Python initialization")
 
   let
@@ -422,22 +422,23 @@ proc loadModulesFromThisProcess(pyLibHandle: LibHandle) =
   if PyImport_AppendInittab.isNil:
     symNotLoadedErr("PyImport_AppendInittab")
 
-  for module in exportedModules:
-    let
-      moduleName = module.name
-      modInitAddr = if pyMajorVer >= 3:
-                      module.initAddr3
-                    else:
-                      module.initAddr2
-      modInitFuncPtr = cast[PPyObject](modInitAddr)
-    
-    if modInitFuncPtr.isNil:
-      let msg = "Init function pointer not found for module: " & $moduleName
-      raise newException(Exception, msg)
+  {.gcsafe.}:
+    for module in exportedModules:
+      let
+        moduleName = module.name
+        modInitAddr = if pyMajorVer >= 3:
+                        module.initAddr3
+                      else:
+                        module.initAddr2
+        modInitFuncPtr = cast[PPyObject](modInitAddr)
 
-    let rc = PyImport_AppendInittab(moduleName, modInitFuncPtr)
-    if rc != 0:
-      raise newException(Exception, "Could not add module: " & $moduleName)
+      if modInitFuncPtr.isNil:
+        let msg = "Init function pointer not found for module: " & $moduleName
+        raise newException(Exception, msg)
+
+      let rc = PyImport_AppendInittab(moduleName, modInitFuncPtr)
+      if rc != 0:
+        raise newException(Exception, "Could not add module: " & $moduleName)
 
 proc initPyLib(m: LibHandle) =
   assert(pyLib.isNil)
