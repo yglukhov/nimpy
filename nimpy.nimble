@@ -81,6 +81,7 @@ proc runTests(nimFlags = "") =
 
 task test, "Run tests":
   runTests()
+  runTests("--gc:arc --passc:-g") # Arc
 
 task test_arc, "Run tests with --gc:arc":
   runTests("--gc:arc --passc:-g")
