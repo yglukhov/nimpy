@@ -214,7 +214,7 @@ proc updateStackBottom() {.inline.} =
   when not defined(gcDestructors):
     var a {.volatile.}: int
     nimGC_setStackBottom(cast[pointer](cast[uint](addr a)))
-    when compileOption("threads") and not compileOption("tlsEmulation"):
+    when compileOption("threads") and not compileOption("tlsEmulation") and not defined(useNimRtl):
       if not gcInited:
         gcInited = true
         setupForeignThreadGC()
