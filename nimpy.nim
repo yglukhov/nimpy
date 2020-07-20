@@ -731,12 +731,21 @@ proc pyObjToJson(o: PPyObject): JsonNode =
   let bType = o.baseType
   case bType
   of pbUnknown:
+    if cast[pointer](o) == cast[pointer](pyLib.Py_None):
+      result = newJNull()
+    else:
     # unsupported means we just use string conversion
-    result = % $o
+      result = % $o
   of pbLong:
-    var x: int
-    pyObjToNim(o, x)
-    result = %x
+    let typ = cast[PyTypeObject]((cast[ptr PyObjectObj](o)).ob_type)
+    if typ == pylib.PyBool_Type:
+      var x: bool
+      pyObjToNim(o, x)
+      result = %x
+    else:
+      var x: int
+      pyObjToNim(o, x)
+      result = %x
   of pbFloat:
     var x: float
     pyObjToNim(o, x)

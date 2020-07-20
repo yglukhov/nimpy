@@ -45,6 +45,7 @@ type
     PyFloat_AsDouble*: proc(l: PPyObject): cdouble {.pyfunc.}
     PyBool_FromLong*: proc(v: clong): PPyObject {.pyfunc.}
 
+    PyBool_Type*: PyTypeObject
     PyFloat_Type*: PyTypeObject
     PyComplex_Type*: PyTypeObject
     PyCapsule_Type*: PyTypeObject
@@ -219,6 +220,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
   load PyFloat_AsDouble
   load PyBool_FromLong
 
+  load PyBool_Type
   load PyFloat_Type
   load PyComplex_Type
   load PyCapsule_Type
