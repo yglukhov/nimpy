@@ -726,19 +726,35 @@ proc `$`(p: PPyObject): string =
 
 proc `$`*(o: PyObject): string {.inline.} = $o.rawPyObj
 
+template checkPyBool(o: PPyObject): bool =
+  cast[PyTypeObject]((cast[ptr PyObjectObj](o)).ob_type) ==
+    pyLib.PyBool_type
+
+proc checkPyBool*(o: PyObject): bool =
+  ## check if the given PyObject is a boolean
+  ## (i.e. one of True or False in Python)
+  o.rawPyObj.checkPyBool
+
+template isPyNone(o: PPyObject): bool =
+  cast[pointer](o) == cast[pointer](pyLib.Py_None)
+
+proc isPyNone*(o: PyObject): bool =
+  ## check if the given PyObject is the singleton PyNone object
+  ## (i.e. None in Python)
+  o.rawPyObj.isPyNone
+
 proc pyObjToJson(o: PPyObject): JsonNode =
   ## convert the given PPyObject to a JsonNode
   let bType = o.baseType
   case bType
   of pbUnknown:
-    if cast[pointer](o) == cast[pointer](pyLib.Py_None):
+    if o.isPyNone:
       result = newJNull()
     else:
     # unsupported means we just use string conversion
       result = % $o
   of pbLong:
-    let typ = cast[PyTypeObject]((cast[ptr PyObjectObj](o)).ob_type)
-    if typ == pylib.PyBool_Type:
+    if o.checkPyBool:
       var x: bool
       pyObjToNim(o, x)
       result = %x

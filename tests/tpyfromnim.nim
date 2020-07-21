@@ -123,6 +123,21 @@ proc test*() {.gcsafe.} =
 
     doAssert(excMsg == expectedMsg % "NoneType")
 
+  block: # recognize True/False/None
+    let pfn = pyImport("pyfromnim")
+    let t = pfn.test_bool_true()
+    let f = pfn.test_bool_false()
+    let n = pfn.test_none()
+    let z = pfn.test_zero()
+    doAssert t.checkPyBool
+    doAssert f.checkPyBool
+    doAssert not n.checkPyBool
+    doASsert not z.checkPyBool
+    doAssert not t.isPyNone
+    doAssert not f.isPyNone
+    doAssert n.isPyNone
+    doAssert not z.isPyNone
+
   block: # JSON conversion test
     let pfn = pyImport("pyfromnim")
     let dict = pfn.test_dict_json()

@@ -42,5 +42,17 @@ def call_callback(fn):
 def concat_strings(a, b):
   return a + b
 
+def test_bool_true():
+  return True
+
+def test_bool_false():
+  return False
+
+def test_none():
+  return None
+
+def test_zero():
+  return 0
+
 import sys
 assert(len(sys.argv) > 0)
