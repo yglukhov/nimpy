@@ -610,6 +610,8 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
       nimValueToPy(uint8(v))
     else:
       {.error: "Unkown int size".}
+  elif T is enum:
+    nimValueToPy(ord(v))
   elif T is int8:
     pyLib.Py_BuildValue("b", v)
   elif T is uint8|char:
