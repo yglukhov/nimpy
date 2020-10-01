@@ -1261,7 +1261,10 @@ proc callMethod*(o: PyObject, ResultType: typedesc, name: cstring, args: varargs
 
 proc getAttr*(o: PyObject, name: cstring): PyObject =
   let r = pyLib.PyObject_GetAttrString(o.rawPyObj, name)
-  if not r.isNil:
+  if unlikely r.isNil:
+    raisePythonError()
+    # this would cause corruptions with try/except: raise newException(Exception, "object has no attribute: " & $name)
+  else:
     result = newPyObjectConsumingRef(r)
 
 proc getProperty*(o: PyObject, name: cstring): PyObject {.deprecated, inline.} = getAttr(o, name)
