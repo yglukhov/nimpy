@@ -555,6 +555,7 @@ proc nimObjToPy[T](o: T): PPyObject
 proc nimTupleToPy[T](o: T): PPyObject
 proc nimProcToPy[T](o: T): PPyObject
 proc nimJsonToPy(node: JsonNode): PPyObject
+proc nimEnumToPy[T](o: T): PPyObject
 
 proc newPyNone*(): PPyObject {.inline.} =
   incRef(pyLib.Py_None)
@@ -611,7 +612,7 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
     else:
       {.error: "Unkown int size".}
   elif T is enum:
-    nimValueToPy(ord(v))
+    nimEnumToPy(v)
   elif T is int8:
     pyLib.Py_BuildValue("b", v)
   elif T is uint8|char:
@@ -842,6 +843,22 @@ proc nimJsonToPy(node: JsonNode): PPyObject =
       decRef vv
       if ret != 0:
         cannotSerializeErr(k)
+
+# Enum handling
+proc nimpyEnumConvert*[T](o: T): int=
+  ## Enum handling
+  ## Default is ordinal integer
+  ## User is can freely overload any proc named `nimEnumConvert` that returns a string or an int
+  ## It will effectively overload how the conversion of the enum is done
+  ord(o)
+
+proc nimpyEnumValue[T: int|string](o: T): PPyObject =
+  ## This can be removed if we don't wish to restrict the possible converted type
+  nimValueToPy(o)
+
+proc nimEnumToPy[T](o: T): PPyObject =
+  mixin nimpyEnumConvert
+  nimpyEnumValue(nimpyEnumConvert(o))
 
 proc nimTupleToPy[T](o: T): PPyObject =
   const sz = tupleSize[T]()

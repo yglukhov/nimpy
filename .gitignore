@@ -2,6 +2,7 @@ nimcache/
 tests/__pycache__/
 tests/tpyfromnim
 tests/tbuiltinpyfromnim
+tests/tenum_overload
 *.pyc
 *.pyd
 *.so
