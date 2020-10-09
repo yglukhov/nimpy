@@ -1,4 +1,4 @@
-version     = "0.1.0"
+version     = "0.1.1"
 author      = "Yuriy Glukhov"
 description = "Nim python integration lib"
 license     = "MIT"
@@ -34,7 +34,7 @@ proc calcLibPythons() : seq[string] =
   ##
   ## You can override this by setting the environment
   ## variable `NIMPY_LIBPYTHONS` to a comma separated list
-  ## of libpython modules to load. For example, you might 
+  ## of libpython modules to load. For example, you might
   ## invoke something like
   ##
   ## `NIMPY_LIBPYTHONS="/usr/lib/x86_64-linux-gnu/libpython2.7.so:/usr/lib/x86_64-linux-gnu/libpython3.8.so" nimble test`

@@ -42,5 +42,16 @@ def call_callback(fn):
 def concat_strings(a, b):
   return a + b
 
+def test_enum1(nimobject):
+    return nimobject["e1"]
+
+def test_enum2(nimobject):
+    return nimobject["e2"]
+
+def test_enum3(nimobject):
+    return nimobject["e3"]
+
+
+
 import sys
 assert(len(sys.argv) > 0)

@@ -204,6 +204,44 @@ proc test*() {.gcsafe.} =
     let res = pfn.concat_strings(cstring("Hello"), " world").to(string)
     doAssert(res == "Hello world")
 
+type
+  Enum1* = enum
+    A1, B1, C1, D1
+
+  Enum2* = enum
+    A2 = "A2_String_Enum_Value"
+    B2 = "B2_String_Enum_Value"
+    C2 = "C2_String_Enum_Value"
+
+  Enum3* = enum
+    A3 = "A3_String_Enum_Value"
+    B3 = "B3_String_Enum_Value"
+    C3 = "C3_String_Enum_Value"
+
+type
+  MyObj* = object
+    e1*: Enum1
+    e2*: Enum2
+    e3*: Enum3
+
+proc nimpyEnumConvert*(e: Enum2|Enum3): string =
+  $e
+
+proc test_enum*()=
+  block:
+    let pfn = pyImport("pyfromnim")
+
+    var obj1 = MyObj(e1: A1, e2: A2, e3: A3)
+    doAssert(nimpy.callMethod(pfn, "test_enum1", obj1).to(int) == ord(obj1.e1))
+    doAssert(nimpy.callMethod(pfn, "test_enum2", obj1).to(string) == $(obj1.e2))
+    doAssert(nimpy.callMethod(pfn, "test_enum3", obj1).to(string) == $(obj1.e3))
+
+    var obj2 = MyObj(e1: B1, e2: B2, e3: B3)
+    doAssert(nimpy.callMethod(pfn, "test_enum1", obj2).to(int) == ord(obj2.e1))
+    doAssert(nimpy.callMethod(pfn, "test_enum2", obj2).to(string) == $(obj2.e2))
+    doAssert(nimpy.callMethod(pfn, "test_enum3", obj2).to(string) == $(obj2.e3))
+
 when isMainModule:
   test()
+  test_enum()
   echo "Test complete!"
