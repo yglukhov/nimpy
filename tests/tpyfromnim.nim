@@ -229,19 +229,17 @@ proc nimpyEnumConvert*(e: Enum2|Enum3): string =
 
 proc test_enum*()=
   block:
-    doAssert(pyImport("os").getcwd().to(string) == getCurrentDir())
-    discard pyImport("sys").path.append("tests")
-    let pymod = pyImport("py_enum_overload")
+    let pfn = pyImport("pyfromnim")
 
     var obj1 = MyObj(e1: A1, e2: A2, e3: A3)
-    doAssert(nimpy.callMethod(pymod, "test_enum1", obj1).to(int) == ord(obj1.e1))
-    doAssert(nimpy.callMethod(pymod, "test_enum2", obj1).to(string) == $(obj1.e2))
-    doAssert(nimpy.callMethod(pymod, "test_enum3", obj1).to(string) == $(obj1.e3))
+    doAssert(nimpy.callMethod(pfn, "test_enum1", obj1).to(int) == ord(obj1.e1))
+    doAssert(nimpy.callMethod(pfn, "test_enum2", obj1).to(string) == $(obj1.e2))
+    doAssert(nimpy.callMethod(pfn, "test_enum3", obj1).to(string) == $(obj1.e3))
 
     var obj2 = MyObj(e1: B1, e2: B2, e3: B3)
-    doAssert(nimpy.callMethod(pymod, "test_enum1", obj2).to(int) == ord(obj2.e1))
-    doAssert(nimpy.callMethod(pymod, "test_enum2", obj2).to(string) == $(obj2.e2))
-    doAssert(nimpy.callMethod(pymod, "test_enum3", obj2).to(string) == $(obj2.e3))
+    doAssert(nimpy.callMethod(pfn, "test_enum1", obj2).to(int) == ord(obj2.e1))
+    doAssert(nimpy.callMethod(pfn, "test_enum2", obj2).to(string) == $(obj2.e2))
+    doAssert(nimpy.callMethod(pfn, "test_enum3", obj2).to(string) == $(obj2.e3))
 
 when isMainModule:
   test()
