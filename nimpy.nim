@@ -843,8 +843,6 @@ proc nimJsonToPy(node: JsonNode): PPyObject =
       decRef vv
       if ret != 0:
         cannotSerializeErr(k)
-  else:
-    doAssert false, "not yet implemented, pending https://github.com/nim-lang/Nim/pull/15545"
 
 # Enum handling
 proc nimpyEnumConvert*[T](o: T): int=
