@@ -82,7 +82,8 @@ however it is not much more efficient. To get the maximum performance nimpy
 exposes [Buffer protocol](https://docs.python.org/3/c-api/buffer.html), see
 [raw_buffers.nim](https://github.com/yglukhov/nimpy/blob/master/nimpy/raw_buffers.nim).
 [tpyfromnim.nim](https://github.com/yglukhov/nimpy/blob/master/tests/tpyfromnim.nim)
-contains a very basic test for this (grep `numpy`). Issue #114 demonstrates possible
+contains a very basic test for this (grep `numpy`).
+[This issue](https://github.com/yglukhov/nimpy/issues/114) demonstrates possible
 higher level concepts that could be built on top. Higher level API might
 be considered in the future, PRs are welcome.
 </details>
