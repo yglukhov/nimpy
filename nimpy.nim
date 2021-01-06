@@ -1292,6 +1292,11 @@ proc setAttr*(o: PyObject, name: cstring, value: PyObject) =
   let r = pyLib.PyObject_SetAttrString(o.rawPyObj, name, value.rawPyObj)
   if unlikely r != 0: raisePythonError()
 
+proc setAttrAux(o: PyObject, name: cstring, v: PPyObject) =
+  let r = pyLib.PyObject_SetAttrString(o.rawPyObj, name, v)
+  decRef v
+  if unlikely r != 0: raisePythonError()
+
 macro dotCall(o: untyped, field: untyped, args: varargs[untyped]): untyped =
   expectKind(field, nnkIdent)
 
@@ -1318,6 +1323,12 @@ template `.()`*(o: PyObject, field: untyped, args: varargs[untyped]): PyObject =
 
 template `.`*(o: PyObject, field: untyped): PyObject =
   getAttr(o, astToStr(field))
+
+template `.=`*(o: PyObject, field: untyped, value: untyped) =
+  when value is PyObject:
+    setAttr(o, astToStr(field), value)
+  else:
+    setAttrAux(o, astToStr(field), toPyObjectArgument(value))
 
 proc elemAtIndex(o: PyObject, idx: PPyObject): PyObject =
   let r = pyLib.PyObject_GetItem(o.rawPyObj, idx)

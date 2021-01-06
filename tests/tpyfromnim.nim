@@ -123,6 +123,11 @@ proc test*() {.gcsafe.} =
 
     doAssert(excMsg == expectedMsg % "NoneType")
 
+  block: # attr setters and getters
+    let o = pyImport("pyfromnim").MyClass()
+    o.my_field_in_nim = 5
+    doAssert(o.my_field_in_nim.to(int) == 5)
+
   block: # JSON conversion test
     let pfn = pyImport("pyfromnim")
     let dict = pfn.test_dict_json()
