@@ -49,7 +49,7 @@ proc runTests(nimFlags = "") =
     # Compile all nim modules, except those starting with "t"
     let sf = f.path.splitFile()
     if sf.ext == ".nim" and not sf.name.startsWith("t"):
-      exec "nim c --threads:on --app:lib " & nimFlags & " --out:" & f.path.changeFileExt(pluginExtension) & " " & f.path
+      exec "nim c --passC:-g --threads:on --app:lib " & nimFlags & " --out:" & f.path.changeFileExt(pluginExtension) & " " & f.path
 
   let
     sourceFile = "tests/custommodulename".changeFileExt(pluginExtension)
@@ -69,7 +69,7 @@ proc runTests(nimFlags = "") =
     let sf = f.path.splitFile()
     if sf.ext == ".py" and sf.name.startsWith("t"):
       for pythonExe in pythonExes:
-        echo "Testing Python executable: ", pythonExe
+        echo "running: ", pythonExe, " ", f.path
         exec pythonExe & " " & f.path
 
   for f in oswalkdir.walkDir("tests"):
@@ -81,7 +81,7 @@ proc runTests(nimFlags = "") =
 
 task test, "Run tests":
   runTests()
-  runTests("--gc:arc --passc:-g") # Arc
+  runTests("--gc:orc")
 
-task test_arc, "Run tests with --gc:arc":
-  runTests("--gc:arc --passc:-g")
+task test_orc, "Run tests with --gc:orc":
+  runTests("--gc:orc")
