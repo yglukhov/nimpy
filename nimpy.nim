@@ -164,13 +164,17 @@ proc privateRawPyObj*(p: PyObject): PPyObject {.inline.} =
   # Don't use this
   p.rawPyObj
 
-proc addMethod(m: var PyModuleDesc, name, doc: cstring, f: PyCFunctionWithKeywords) =
+var curModuleDef: ptr PyModuleDesc
+
+proc registerMethod(name, doc: cstring, f: PyCFunctionWithKeywords) =
+  assert(not curModuleDef.isNil)
   let def = PyMethodDef(ml_name: name, ml_meth: f, ml_flags: Py_MLFLAGS_VARARGS or Py_MLFLAGS_KEYWORDS,
               ml_doc: doc)
-  m.methods.add(def)
+  curModuleDef[].methods.add(def)
 
-proc addIterator(m: var PyModuleDesc, name, doc: cstring, newFunc: Newfunc) =
-  m.iterators.add(PyIteratorDesc(name: name, doc: doc, newFunc: newFunc))
+proc registerIterator(name, doc: cstring, newFunc: Newfunc) =
+  assert(not curModuleDef.isNil)
+  curModuleDef[].iterators.add(PyIteratorDesc(name: name, doc: doc, newFunc: newFunc))
 
 proc newNimObjToPyObj(typ: PyTypeObject, o: PyNimObject): PPyObject =
   GC_ref(o)
@@ -311,35 +315,49 @@ proc initModule3(m: var PyModuleDesc): PPyObject =
     result = PyModule_Create2(pymod, PYTHON_ABI_VERSION)
     initModuleTypes[PyTypeObject3Obj](result, m)
 
-template declarePyModuleIfNeededAux(name, doc: static[cstring]) =
-  when not declared(gPythonLocalModuleDesc):
-    var gPythonLocalModuleDesc {.inject.}: PyModuleDesc
-    initPythonModuleDesc(gPythonLocalModuleDesc, name, doc)
-    {.push stackTrace: off.}
-    proc py2init() {.exportc: "init" & name, dynlib.} =
-      initModule2(gPythonLocalModuleDesc)
+var registeredModuleNames {.compileTime.}: seq[string]
 
-    proc py3init(): PPyObject {.exportc: "PyInit_" & name, dynlib.} =
-      initModule3(gPythonLocalModuleDesc)
-    {.pop.}
+proc containsOrIncl[T](s: var seq[T], v: T): bool =
+  result = v in s
+  if not result:
+    s.add(v)
 
-    registerExportedModule(name, cast[pointer](py2Init), cast[pointer](py3Init))
+template declareModuleIfNeeded(name, doc: static[cstring]) =
+  when not containsOrIncl(registeredModuleNames, name):
+    block:
+      var moduleDesc {.global.}: PyModuleDesc
+      initPythonModuleDesc(moduleDesc, name, doc)
+      {.push stackTrace: off.}
+      proc py2init() {.exportc: "init" & name, dynlib.} =
+        initModule2(moduleDesc)
+
+      proc py3init(): PPyObject {.exportc: "PyInit_" & name, dynlib.} =
+        initModule3(moduleDesc)
+
+      proc getModule(): ptr PyModuleDesc {.exportc: "_nimpyModuleDesc_" & name.} =
+        addr moduleDesc
+      {.pop.}
+
+      registerExportedModule(name, cast[pointer](py2Init), cast[pointer](py3Init))
+
+template setCurrentPyModule(name, doc: static[cstring]) =
+  declareModuleIfNeeded(name, doc)
+  block:
+    proc getModule(): ptr PyModuleDesc {.importc: "_nimpyModuleDesc_" & name.}
+    curModuleDef = getModule()
+  when not declared(gPythonLocalModuleDescDeclared):
+    const gPythonLocalModuleDescDeclared {.used, inject.} = true
 
 template declarePyModuleIfNeeded() =
-  const moduleName = splitFile(instantiationInfo(0).filename).name
-  declarePyModuleIfNeededAux(moduleName, "")
+  when not declared(gPythonLocalModuleDescDeclared):
+    const moduleName = splitFile(instantiationInfo(0).filename).name
+    setCurrentPyModule(moduleName, "")
 
 template pyExportModuleName*(n: static[cstring]) {.deprecated: "Use pyExportModule instead".} =
-  when declared(gPythonLocalModuleDesc):
-    {.error: "pyExportModuleName can be used only once per module and should come before all exportpy definitions".}
-  else:
-    declarePyModuleIfNeededAux(n, "")
+  setCurrentPyModule(n, "")
 
 template pyExportModule*(name: static[cstring] = "", doc: static[cstring] = "") =
-  when declared(gPythonLocalModuleDesc):
-    {.error: "pyExportModule can be used only once per module and should come before all exportpy definitions".}
-  else:
-    declarePyModuleIfNeededAux(name, doc)
+  setCurrentPyModule(name, doc)
 
 ################################################################################
 ################################################################################
@@ -1159,13 +1177,13 @@ proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode
   if prc.kind == nnkIteratorDef:
     procIdent = newIdentNode($procIdent & "Py_newIter")
     result.add(makeIteratorConstructor(procIdent, prc))
-    result.add(newCall(bindSym"addIterator", newIdentNode("gPythonLocalModuleDesc"), newLit(procName), comment, procIdent))
+    result.add(newCall(bindSym"registerIterator", newLit(procName), comment, procIdent))
   else:
     if wrap:
       procIdent = newIdentNode($procIdent & "Py_wrapper")
       result.add(makeProcWrapper(procIdent, prc))
 
-    result.add(newCall(bindSym"addMethod", newIdentNode("gPythonLocalModuleDesc"), newLit(procName), comment, procIdent))
+    result.add(newCall(bindSym"registerMethod", newLit(procName), comment, procIdent))
   # echo "procname: ", procName
   # echo repr result
 
@@ -1199,20 +1217,20 @@ macro exportpy*(nameOrProc: untyped, maybeProc: untyped = nil): untyped =
   expectKind(procDef, {nnkProcDef, nnkFuncDef, nnkIteratorDef})
   result = newCall(bindSym"exportpyAuxAux", procDef, newLit(procName))
 
-template addType(m: var PyModuleDesc, T: typed) =
+template registerType(T: typed) =
   block:
     const name = astToStr(T)
-    m.types.setLen(m.types.len + 1)
-    m.types[^1].name = static(cstring(name))
-    m.types[^1].doc = "TestType docs..."
-    m.types[^1].newFunc = newPyNimObject[T]
+    curModuleDef.types.setLen(curModuleDef.types.len + 1)
+    curModuleDef.types[^1].name = static(cstring(name))
+    curModuleDef.types[^1].doc = "TestType docs..."
+    curModuleDef.types[^1].newFunc = newPyNimObject[T]
     var t: T
-    m.types[^1].origSize = sizeof(t[])
-    m.types[^1].fullName = $m.name & "." & name
+    curModuleDef.types[^1].origSize = sizeof(t[])
+    curModuleDef.types[^1].fullName = $curModuleDef.name & "." & name
 
 template pyexportTypeExperimental*(T: typed) =
   declarePyModuleIfNeeded()
-  addType(gPythonLocalModuleDesc, T)
+  registerType(T)
 
 
 

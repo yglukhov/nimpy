@@ -2,6 +2,8 @@ import ../nimpy
 import algorithm, complex, tables, json
 from tpyfromnim import nil
 
+import modules/other_module
+
 
 type
   JackError* = object of Exception
