@@ -124,6 +124,7 @@ for i in s.testIterator("Hello"):
 
 assert(numbers == [0, 1, 2, 3, 4])
 
+assert(s.other_other_proc() == 5)
 
 s.testPyFromNim()
 
