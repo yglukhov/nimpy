@@ -1400,6 +1400,3 @@ proc `==`*(a, b: PyObject): bool =
     pyLib.PyObject_RichCompareBool(a.rawPyObj, b.rawPyObj, Py_EQ) == 1
   else:
     false
-
-when defined(gcDestructors):
-  {.warning: "Nimpy doesn't work with --gc:arc!!!".}
