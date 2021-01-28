@@ -13,7 +13,7 @@ proc greet(name: string): string {.exportpy.} =
 
 ```bash
 # Compile on Windows:
-nim c --threads:on --app:lib --out:mymodule.pyd mymodule
+nim c --threads:on --app:lib --tlsEmulation:off --out:mymodule.pyd mymodule
 # Compile on everything else:
 nim c --threads:on --app:lib --out:mymodule.so mymodule
 ```
