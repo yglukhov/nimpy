@@ -507,6 +507,17 @@ proc pyObjFillArray[T](o: PPyObject, getItem: proc(l: PPyObject, index: Py_ssize
     # No DECREF. getItem returns borrowed ref.
 
 proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T]) =
+  when T is byte:
+    if checkObjSubclass(o, pyLib.PyBytes_Type):
+      var sz: Py_ssize_t
+      var pStr: ptr char
+      if pyLib.PyBytes_AsStringAndSize(o, addr pStr, addr sz) == -1:
+        raiseConversionError($type(v))
+      v.setLen(sz)
+      if sz != 0:
+        copyMem(addr v[0], pStr, sz)
+      return
+
   let (getSize, getItem) = getListOrTupleAccessors(o)
   if unlikely getSize.isNil:
     raiseConversionError($type(v))
@@ -540,6 +551,16 @@ proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U]) =
   decRef vs
 
 proc pyObjToNimArray[T, I](o: PPyObject, v: var array[I, T]) =
+  when T is byte:
+    if checkObjSubclass(o, pyLib.PyBytes_Type):
+      var sz: Py_ssize_t
+      var pStr: ptr char
+      if pyLib.PyBytes_AsStringAndSize(o, addr pStr, addr sz) == -1 or sz != v.len:
+        raiseConversionError($type(v))
+      when v.len != 0:
+        copyMem(addr v[0], pStr, sz)
+      return
+
   let (getSize, getItem) = getListOrTupleAccessors(o)
   if not getSize.isNil:
     let sz = int(getSize(o))
@@ -681,12 +702,15 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
     unknownTypeCompileError(v)
 
 proc nimArrToPy[T](s: openarray[T]): PPyObject =
-  let sz = s.len
-  result = pyLib.PyList_New(sz)
-  for i in 0 ..< sz:
-    let o = nimValueToPy(s[i])
-    discard pyLib.PyList_SetItem(result, i, o)
-    # No decRef here. PyList_SetItem "steals" the reference to `o`
+  when T is byte:
+    result = pyLib.PyBytesFromStringAndSize(cast[ptr char](s), s.len)
+  else:
+    let sz = s.len
+    result = pyLib.PyList_New(sz)
+    for i in 0 ..< sz:
+      let o = nimValueToPy(s[i])
+      discard pyLib.PyList_SetItem(result, i, o)
+      # No decRef here. PyList_SetItem "steals" the reference to `o`
 
 proc baseType(o: PPyObject): PyBaseType =
   # returns the correct PyBaseType of the given PyObject extracted
