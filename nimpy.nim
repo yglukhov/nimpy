@@ -429,16 +429,25 @@ proc clearAndRaiseConversionError(toType: string) =
   raiseConversionError(toType)
 
 proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
-  template conversionTypeCheck(what: untyped): untyped {.used.} =
+  template conversionTypeCheck(what: PyTypeObject) {.used.} =
     if not checkObjSubclass(o, what):
       raiseConversionError($T)
-  template conversionErrorCheck(): untyped {.used.} =
+  proc conversionErrorCheck() {.inline, used.} =
     if unlikely(not pyLib.PyErr_Occurred().isNil):
       clearAndRaiseConversionError($T)
 
-  when T is int|int32|int64|int16|uint32|uint64|uint16|uint8|int8|char:
+  when (T is uint8|uint16|uint32|int|int8|int16|int32|int64|char|byte) or (T is uint and sizeof(uint) < sizeof(uint64)):
     let ll = pyLib.PyLong_AsLongLong(o)
     if ll == -1: conversionErrorCheck()
+    v = T(ll)
+  elif T is uint|uint64:
+    let lo = pyLib.PyNumber_Long(o)
+    if unlikely lo.isNil:
+      conversionErrorCheck()
+      assert(false, "Unreachable")
+    let ll = pyLib.PyLong_AsUnsignedLongLong(lo)
+    decRef lo
+    if ll == uint64.high: conversionErrorCheck()
     v = T(ll)
   elif T is float|float32|float64:
     v = T(pyLib.PyFloat_AsDouble(o))
@@ -1117,7 +1126,7 @@ proc makeProcWrapper(name, prc: NimNode): NimNode =
     proc `name`(self, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.cdecl.} =
       updateStackBottom()
       # Prevent inlining (See #67)
-      proc noinline(`argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.nimcall.} =
+      proc noinline(`argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.nimcall, stackTrace: off.} =
         `parseArgs`
         try:
           nimValueToPy(`call`)
@@ -1142,7 +1151,7 @@ proc makeIteratorConstructor(name, prc: NimNode): NimNode =
     proc `name`(self: PyTypeObject, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.cdecl.} =
       updateStackBottom()
       # Prevent inlining (See #67)
-      proc noinline(self: PyTypeObject, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.nimcall.} =
+      proc noinline(self: PyTypeObject, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.nimcall, stackTrace: off.} =
         `parseArgs`
         newPyIterator self, iterator(): PPyObject =
           for i in `call`:
