@@ -32,6 +32,9 @@ proc reverseArray(a: seq[int]): seq[int] {.exportpy.} = a.reversed()
 proc reverseVec3(a: array[3, float]): array[3, float] {.exportpy.} = [a[2], a[1], a[0]]
 proc flipBool(b: bool): bool {.exportpy.} = not b
 
+proc reverseByteArray(a: seq[byte]): seq[byte] {.exportpy.} = a.reversed()
+proc reverseByteVec3(a: array[3, byte]): array[3, byte] {.exportpy.} = [a[2], a[1], a[0]]
+
 when declared(Complex64):
   proc complexSqrt(x: Complex64): Complex64 {.exportpy.} = sqrt(x)
   proc complexSeqSqrt(a: seq[Complex64]): seq[Complex64] {.exportpy.} =

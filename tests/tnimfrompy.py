@@ -50,6 +50,10 @@ assert(s.reverseArray([1, 2, 3]) == [3, 2, 1])
 assert(s.reverseArray((1, 2, 3)) == [3, 2, 1]) # Python tuples should be convertible to nim seqs
 assert(s.reverseVec3([1, 2, 3]) == [3, 2, 1])
 assert(s.reverseVec3((1, 2, 3)) == [3, 2, 1]) # Python tuples should be convertible to nim seqs
+assert(s.reverseByteArray([1, 2, 3]) == b"\x03\x02\x01")
+assert(s.reverseByteArray(b"\x03\x00\x01\x02") == b"\x02\x01\x00\x03")
+assert(s.reverseByteVec3(b"\x03\x00\x01") == b"\x01\x00\x03")
+assert(s.reverseByteVec3([3, 0, 1]) == b"\x01\x00\x03")
 assert(s.flipBool(False) is True)
 assert(s.flipBool(True) is False)
 

@@ -65,6 +65,7 @@ type
     PyComplex_ImagAsDouble*: proc(op: PPyObject): cdouble {.pyfunc.}
 
     PyUnicode_AsUTF8String*: proc(o: PPyObject): PPyObject {.pyfunc.}
+    PyBytes_FromStringAndSize*: proc(s: ptr char, len: Py_ssize_t): PPyObject {.pyfunc.}
     PyBytes_AsStringAndSize*: proc(o: PPyObject, s: ptr ptr char, len: ptr Py_ssize_t): cint {.pyfunc.}
     PyUnicode_FromString*: proc(s: cstring): PPyObject {.pyfunc.}
     PyUnicode_CompareWithASCIIString*: proc(o: PPyObject, s: cstring): cint {.pyfunc.}
@@ -257,8 +258,10 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
   pl.pythonVersion = 3
 
   maybeLoad PyBytes_AsStringAndSize
+  maybeLoad PyBytes_FromStringAndSize
   if pl.PyBytes_AsStringAndSize.isNil:
     load PyBytes_AsStringAndSize, "PyString_AsStringAndSize"
+    load PyBytes_FromStringAndSize, "PyString_FromStringAndSize"
     pl.pythonVersion = 2
 
   load PyDict_Type
