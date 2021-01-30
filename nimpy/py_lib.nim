@@ -41,7 +41,9 @@ type
 
     PyIter_Next*: proc(o: PPyObject): PPyObject {.pyfunc.}
 
+    PyNumber_Long*: proc(l: PPyObject): PPyObject {.pyfunc.}
     PyLong_AsLongLong*: proc(l: PPyObject): int64 {.pyfunc.}
+    PyLong_AsUnsignedLongLong*: proc(l: PPyObject): uint64 {.pyfunc.}
     PyFloat_AsDouble*: proc(l: PPyObject): cdouble {.pyfunc.}
     PyBool_FromLong*: proc(v: clong): PPyObject {.pyfunc.}
 
@@ -102,7 +104,7 @@ type
     pythonVersion*: int
 
     when not defined(release):
-      PyErr_Print: proc() {.pyfunc.}
+      PyErr_Print*: proc() {.pyfunc.}
     PyErr_Fetch*: proc(ptype, pvalue, ptraceback: ptr PPyObject) {.pyfunc.}
     PyErr_NormalizeException*: proc(ptype, pvalue, ptraceback: ptr PPyObject) {.pyfunc.}
 
@@ -217,7 +219,9 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
 
   load PyIter_Next
 
+  load PyNumber_Long
   load PyLong_AsLongLong
+  load PyLong_AsUnsignedLongLong
   load PyFloat_AsDouble
   load PyBool_FromLong
 

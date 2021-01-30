@@ -28,6 +28,8 @@ proc sumAssorted(a, b: int32, c: uint8, d: int64, e: float32, f: float64, g: flo
 proc sumIntsInArray(a: openarray[int]): int {.exportpy.} =
   for i in a: result += i
 
+proc subtractUints(a, b: uint64): uint64 {.exportpy.} = a - b
+
 proc reverseArray(a: seq[int]): seq[int] {.exportpy.} = a.reversed()
 proc reverseVec3(a: array[3, float]): array[3, float] {.exportpy.} = [a[2], a[1], a[0]]
 proc flipBool(b: bool): bool {.exportpy.} = not b
