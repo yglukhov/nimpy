@@ -71,6 +71,7 @@ type
   Allocfunc* = proc(typ: PyTypeObject, sz: Py_ssize_t): PPyObject {.cdecl.}
   Freefunc* = proc(p: pointer) {.cdecl.}
   Cmpfunc* = proc(a, b: PPyObject): cint {.cdecl.}
+  Vectorcallfunc* = proc(c: PPyObject, args: ptr PPyObject, nargs: csize_t, kwnames: PPyObject): PPyObject {.cdecl.}
 
   # 3
   # typedef PPyObject *(*getattrfunc)(PPyObject *, char *);
@@ -190,6 +191,7 @@ type
     # Type attribute cache version tag. Added in version 2.6 */
     tp_version_tag*: cuint
     tp_finalize*: Destructor
+    tp_vectorcall*: Vectorcallfunc
 
   PyTypeObject2* = ptr PyTypeObject2Obj
   PyTypeObject2Obj* = object of PyObjectVarHeadObj

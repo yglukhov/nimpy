@@ -235,6 +235,23 @@ proc iterNext(i: PPyObject): PPyObject {.cdecl.} =
   except Exception as e:
     pythonException(e)
 
+proc strToPyObject(s: string): PPyObject {.gcsafe.} =
+  var cs: cstring = s
+  var ln = s.len.cint
+  result = pyLib.Py_BuildValue("s#", cs, ln)
+  if result.isNil:
+    # Utf-8 decoding failed. Fallback to bytes.
+    pyLib.PyErr_Clear()
+    result = pyLib.Py_BuildValue("y#", cs, ln)
+
+  assert(not result.isNil, "nimpy internal error converting string")
+
+proc iterDescrGet(a, b, c: PPyObject): PPyObject {.cdecl.} =
+  strToPyObject("nim iterator")
+
+proc typDescrGet(a, b, c: PPyObject): PPyObject {.cdecl.} =
+  strToPyObject("nim type")
+
 proc initModuleTypes[PyTypeObj](p: PPyObject, m: PyModuleDesc) =
   for i in 0 ..< m.types.len:
     let typ = pyAlloc(sizeof(PyTypeObj))
@@ -249,6 +266,7 @@ proc initModuleTypes[PyTypeObj](p: PPyObject, m: PyModuleDesc) =
     ty.tp_new = m.types[i].newFunc
     ty.tp_free = freeNimObj
     ty.tp_dealloc = destructNimObj
+    ty.tp_descr_get = typDescrGet
 
     discard pyLib.PyType_Ready(cast[PyTypeObject](typ))
     incRef(typ)
@@ -272,6 +290,7 @@ proc initModuleTypes[PyTypeObj](p: PPyObject, m: PyModuleDesc) =
     ty.tp_dealloc = destructNimIterator
     ty.tp_iternext = cast[Iternextfunc](iterNext)
     ty.tp_iter = selfIter
+    ty.tp_descr_get = iterDescrGet
 
     discard pyLib.PyType_Ready(cast[PyTypeObject](typ))
     incRef(typ)
@@ -391,16 +410,6 @@ proc unknownTypeCompileError() {.inline.} =
 
 proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.}
 
-proc strToPyObject(s: string): PPyObject {.gcsafe.} =
-  var cs: cstring = s
-  var ln = s.len.cint
-  result = pyLib.Py_BuildValue("s#", cs, ln)
-  if result.isNil:
-    # Utf-8 decoding failed. Fallback to bytes.
-    pyLib.PyErr_Clear()
-    result = pyLib.Py_BuildValue("y#", cs, ln)
-
-  assert(not result.isNil, "nimpy internal error converting string")
 
 proc pyObjToNimObj(o: PPyObject, vv: var object) =
   for k, v in fieldPairs(vv):
