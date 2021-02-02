@@ -22,7 +22,7 @@ proc checkObjSubclass*(o: PPyObject, ty: PyTypeObject): bool {.inline.} =
 
 proc conversionToStringError() =
   pyLib.PyErr_Clear()
-  raise newException(Exception, "Can't convert python obj to string")
+  raise newException(ValueError, "Can't convert python obj to string")
 
 proc pyStringToNim*(o: PPyObject, output: var string): bool =
     var s: ptr char
@@ -133,7 +133,7 @@ proc raisePythonError*() =
     let typs = pyLib.PyObject_Str(typ)
     var typns, valns: string
     if unlikely(not (pyStringToNim(vals, valns) and pyStringToNim(typs, typns))):
-      raise newException(Exception, "Can not stringify exception")
+      raise newException(AssertionError, "Can not stringify exception")
     decRef vals
     decRef typs
 

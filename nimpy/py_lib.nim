@@ -158,7 +158,7 @@ proc deallocPythonObj[TypeObjectType](p: PPyObject) {.gcsafe.} =
   t.tp_dealloc(cast[PPyObject](p))
 
 proc symNotLoadedErr(s: cstring) =
-  raise newException(Exception, "Symbol not loaded: " & $s)
+  raise newException(ValueError, "Symbol not loaded: " & $s)
 
 proc loadPyLibFromModule(m: LibHandle): PyLib =
   assert(not m.isNil)
@@ -342,7 +342,7 @@ when defined(windows):
       for i in 0 ..< sz:
         if isPythonLibHandle(mods[i]):
           return mods[i]
-    raise newException(Exception, "Could not find pythonXX.dll")
+    raise newException(ValueError, "Could not find pythonXX.dll")
 
 proc pythonLibHandleForThisProcess(): LibHandle {.inline.} =
   when defined(windows):
@@ -379,9 +379,9 @@ proc pythonLibHandleFromExternalLib(): LibHandle {.inline.} =
 
       if result.isNil:
         let s = toSeq(libPythonNames()).mapIt(d / it & ".dll").join(", ")
-        raise newException(Exception, "Could not load libpython. Tried " & s)
+        raise newException(ValueError, "Could not load libpython. Tried " & s)
     else:
-      raise newException(Exception, "Could not load libpython. python.exe not found.")
+      raise newException(ValueError, "Could not load libpython. python.exe not found.")
   else:
     # Try this process first...
     result = loadLib()
@@ -396,7 +396,7 @@ proc pythonLibHandleFromExternalLib(): LibHandle {.inline.} =
 
     if result.isNil:
       let s = toSeq(libPythonNames()).join(", ")
-      raise newException(Exception, "Could not load libpython. Tried " & s)
+      raise newException(ValueError, "Could not load libpython. Tried " & s)
 
 proc loadPyLibFromThisProcess*(): PyLib {.inline.} =
   loadPyLibFromModule(pythonLibHandleForThisProcess())
@@ -412,14 +412,14 @@ proc getPyMajorVersion(pyLibHandle: LibHandle) : int =
   #  and https://twitter.com/grahamdumpleton/status/773383080002269184 )
   let pyVersionFuncPtr = cast[proc() : cstring {.pyfunc.}](pyLibHandle.symAddr("Py_GetVersion"))
   if pyVersionFuncPtr.isNil:
-    raise newException(Exception, "Could not determine Python version")
+    raise newException(ValueError, "Could not determine Python version")
 
   let pyVersion = pyVersionFuncPtr()
   if pyVersion.len() > 0 and pyVersion[0].isDigit():
     result = (pyVersion[0] & "").parseInt()
   else:
     let msg = "Could not determine Python version: " & $pyVersion
-    raise newException(Exception, msg)
+    raise newException(ValueError, msg)
 
 proc loadModulesFromThisProcess(pyLibHandle: LibHandle) {.gcsafe.} =
   assert(pyLib.isNil, "Can't load built-in module after Python initialization")
@@ -443,11 +443,11 @@ proc loadModulesFromThisProcess(pyLibHandle: LibHandle) {.gcsafe.} =
 
       if modInitFuncPtr.isNil:
         let msg = "Init function pointer not found for module: " & $moduleName
-        raise newException(Exception, msg)
+        raise newException(ValueError, msg)
 
       let rc = PyImport_AppendInittab(moduleName, modInitFuncPtr)
       if rc != 0:
-        raise newException(Exception, "Could not add module: " & $moduleName)
+        raise newException(ValueError, "Could not add module: " & $moduleName)
 
 proc initPyLib(m: LibHandle) =
   assert(pyLib.isNil)
@@ -475,7 +475,7 @@ proc pyInitLibPath*(pythonLibraryPath: string) =
   if not pyLib.isNil: return
   let m = loadLib(pythonLibraryPath, true)
   if unlikely m.isNil:
-    raise newException(Exception, "Could not load libpython. Tried " & pythonLibraryPath)
+    raise newException(ValueError, "Could not load libpython. Tried " & pythonLibraryPath)
   initPyLib(m)
 
 # Hook for overriding which libpython to use for tests
