@@ -134,6 +134,9 @@ proc testNilLambda(p: proc(a: string)): bool {.exportpy.} =
 import strutils
 proc strutils(a: int): int {.exportpy.} = a * 2 # Issue #95
 
+proc issue196(a: int, b: int, c: int = 3, d: int = 123): bool {.exportpy.} =
+  a == 1 and b == 2 and c == 3 and d == 4
+
 iterator testIterator(s: string): int {.exportpy.} =
   for i in 0 ..< s.len:
     yield i
