@@ -1,4 +1,7 @@
 
+when (NimMajor, NimMinor) < (1, 2):
+  type csize_t = csize
+
 type
   PPyObject* = distinct pointer
   Py_ssize_t* = int
