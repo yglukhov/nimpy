@@ -1,0 +1,28 @@
+name: CI
+
+on: [push]
+jobs:
+  linux:
+    strategy:
+      matrix:
+        nim-channel: [stable, devel]
+    runs-on: ubuntu-latest
+    container: debian:buster
+    steps:    
+    - uses: actions/checkout@v2
+    - name: Prepare
+      run: |
+        apt-get update
+        apt-get install -y curl gcc python3 libpython3.7 python-numpy python3-numpy
+        export CHOOSENIM_NO_ANALYTICS=1
+        curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y
+        export PATH=$HOME/.nimble/bin:$PATH
+        choosenim ${{ matrix.nim-channel }}
+
+    - name: Test
+      run: |
+        export PATH=$HOME/.nimble/bin:$PATH
+        nim --version
+        nimble test
+
+  # TODO: add windows and macos
