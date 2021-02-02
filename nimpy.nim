@@ -770,7 +770,6 @@ iterator items*(o: PyObject): PyObject =
     yield newPyObjectConsumingRef(i)
 
 proc pyDictHasKey(o: PPyObject, k: cstring): bool =
-  # TODO: should we check if o is a dict?
   let pk = pyLib.PyUnicode_FromString(k)
   result = pyLib.PyDict_Contains(o, pk) == 1
   decRef pk
@@ -950,7 +949,6 @@ template raisePyException(tp, msg: untyped): untyped =
   return false
 
 proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNames: openarray[cstring], funcName: string): bool =
-  # WARNING! Do not let GC happen in this proc!
   let
     nargs = if argTuple.isNil: 0 else: pyLib.PyTuple_Size(argTuple)
     nkwargs = if kwargsDict.isNil: 0 else: pyLib.PyDict_Size(kwargsDict)
@@ -967,18 +965,13 @@ proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNa
   if not result:
     raisePyException(pyLib.PyExc_TypeError, funcName & "() takes exactly " & $argsLen & " arguments (" & $sz & " given)")
 
-  for i in 0..<sz:
-    # maybe is arg
-    if i < nargs:
-      continue
-    # we get required kwarg
-    elif i < argsLenReq and nkwargs > 0:
+  for i in nargs ..< argsLen:
+    if i < argsLenReq and nkwargs != 0: # we get required kwarg
       if not pyDictHasKey(kwargsDict, argNames[i]):
         raisePyException(pyLib.PyExc_TypeError, funcName & "() missing 1 required positional argument: " & $argNames[i])
       else:
         dec nkwarg_left
-    # we get optional kwarg
-    elif nkwargs > 0:
+    elif nkwargs != 0: # we get optional kwarg
       if pyDictHasKey(kwargsDict, argNames[i]):
         dec nkwarg_left
 

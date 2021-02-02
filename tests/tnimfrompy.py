@@ -124,6 +124,7 @@ assert(s.testNilLambda(None) == True)
 
 assert(s.strutils(5) == 10) # Issue #95
 
+assert(s.issue196(1, b=2, d=4))
 
 numbers = []
 for i in s.testIterator("Hello"):
