@@ -1,4 +1,4 @@
-# nimpy [![Build Status](https://github.com/yglukhov/nimpy/workflows/test/badge.svg)](https://github.com/yglukhov/nimpy/actions?query=branch%3Amaster)
+# nimpy [![Build Status](https://github.com/yglukhov/nimpy/workflows/CI/badge.svg?branch=master)](https://github.com/yglukhov/nimpy/actions?query=branch%3Amaster)
 
 Native language integration with Python has never been easier!
 
