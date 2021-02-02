@@ -39,7 +39,7 @@ proc getBuffer*(o: PyObject, buf: var RawPyBuffer, flags: cint) =
     if unlikely gb(o.privateRawPyObj, buf, flags) != 0:
       raisePythonError()
   else:
-    raise newException(Exception, "nimpy: Buffer API is not available")
+    raise newException(ValueError, "nimpy: Buffer API is not available")
 
 proc release*(buf: var RawPyBuffer) =
   let rb = pyLib.PyBuffer_Release

@@ -205,7 +205,7 @@ proc destructNimObj(o: PPyObject) {.cdecl.} =
   GC_unref(n)
 
 proc freeNimObj(p: pointer) {.cdecl.} =
-  raise newException(Exception, "Internal pynim error. Free called on Nim object.")
+  raise newException(AssertionError, "Internal pynim error. Free called on Nim object.")
 
 proc destructNimIterator(o: PPyObject) {.cdecl.} =
   let n = to(o, PyIteratorObj)
@@ -401,7 +401,7 @@ proc pyObjToNimStr(o: PPyObject, v: var string) =
     # Name the type that is unable to be converted.
     let typ = cast[PyTypeObject]((cast[ptr PyObjectObj](o)).ob_type)
     let errString = "Can't convert python obj of type '$1' to string"
-    raise newException(Exception, errString % [$typ.tp_name])
+    raise newException(ValueError, errString % [$typ.tp_name])
 
 proc unknownTypeCompileError() {.inline.} =
   # This function never compiles, it is needed to see somewhat informative
@@ -431,7 +431,7 @@ proc newPyObject(o: PPyObject): PyObject =
   newPyObjectConsumingRef(o)
 
 proc raiseConversionError(toType: string) =
-  raise newException(Exception, "Cannot convert python object to " & toType)
+  raise newException(ValueError, "Cannot convert python object to " & toType)
 
 proc clearAndRaiseConversionError(toType: string) =
   pyLib.PyErr_Clear()
@@ -842,7 +842,7 @@ proc pyObjToJson(o: PPyObject): JsonNode =
   of pbObject: # not used, for objects currently end up as `pbUnknown`
     result = % $o
   of pbCapsule: # not used
-    raise newException(Exception, "Cannot store object of base type " &
+    raise newException(ValueError, "Cannot store object of base type " &
       "`pbCapsule` in JSON.")
 
 proc PyObject_CallObject(o: PPyObject): PPyObject =
@@ -851,7 +851,7 @@ proc PyObject_CallObject(o: PPyObject): PPyObject =
   decRef args
 
 proc cannotSerializeErr(k: string) =
-  raise newException(Exception, "Could not serialize object key: " & k)
+  raise newException(ValueError, "Could not serialize object key: " & k)
 
 proc nimTabToPy[T: Table](t: T): PPyObject =
   result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
@@ -1309,7 +1309,7 @@ proc callObjectAux(callable: PPyObject, args: openarray[PPyObject], kwargs: open
 proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject], kwargs: openarray[PyNamedArg] = []): PPyObject =
   let callable = pyLib.PyObject_GetAttrString(o.rawPyObj, name)
   if callable.isNil:
-    raise newException(Exception, "No callable attribute: " & $name)
+    raise newException(ValueError, "No callable attribute: " & $name)
   result = callObjectAux(callable, args, kwargs)
   decRef callable
   if unlikely result.isNil: raisePythonError()
@@ -1335,7 +1335,7 @@ proc getAttr*(o: PyObject, name: cstring): PyObject =
   let r = pyLib.PyObject_GetAttrString(o.rawPyObj, name)
   if unlikely r.isNil:
     raisePythonError()
-    # this would cause corruptions with try/except: raise newException(Exception, "object has no attribute: " & $name)
+    # this would cause corruptions with try/except: raise newException(ValueError, "object has no attribute: " & $name)
   else:
     result = newPyObjectConsumingRef(r)
 
