@@ -2,6 +2,8 @@ import ../nimpy
 import os
 import modules/other_module
 
+{.experimental: "dotOperators".}
+
 proc greet_from_exe(name: string): string {.exportpy.} =
   ## This is the docstring
   return "Hello, " & name & "!"

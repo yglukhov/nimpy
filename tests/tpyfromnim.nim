@@ -1,5 +1,7 @@
 import ../nimpy, ../nimpy/raw_buffers, strutils, os, typetraits, tables, json
 
+{.experimental: "dotOperators".}
+
 proc test*() {.gcsafe.} =
   let py = pyBuiltinsModule()
   let s = py.sum(py.range(0, 5)).to(int)

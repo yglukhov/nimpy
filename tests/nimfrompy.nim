@@ -95,6 +95,8 @@ proc validateNilObj(o: MyRefObj): bool {.exportpy.} = o.isNil
 proc voidProc() {.exportpy.} =
   discard
 
+{.experimental: "dotOperators".}
+
 proc someFunc1(o: PyObject): PyObject {.exportpy.} = o.sum(o.range(1, 5))
 proc someFunc2(o: PyObject): int {.exportpy.} =
   o.callMethod(int, "sum", o.callMethod("range", 1, 5))
