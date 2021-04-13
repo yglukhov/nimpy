@@ -1039,8 +1039,6 @@ proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: Nim
     pyValueVarSection = newNimNode(nnkVarSection)
     parseArgsStmts = newNimNode(nnkStmtList)
 
-  parseArgsStmts.add(pyValueVarSection)
-
   let
     origCall = newCall(prc)
 
@@ -1079,7 +1077,12 @@ proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: Nim
   result.parseArgs = quote do:
     if not verifyArgs(`argsTuple`, `kwargsDict`, `argsLen`, `argsLenReq`, `argNames`, `nameLit`):
       return PPyObject(nil)
-    `parseArgsStmts`
+    `pyValueVarSection`
+    try:
+      `parseArgsStmts`
+    except CatchableError as e:
+      pyLib.PyErr_SetString(pyLib.PyExc_TypeError, e.msg)
+      return PPyObject(nil)
 
   result.call = origCall
 
