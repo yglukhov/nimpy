@@ -33,6 +33,11 @@ try:
 except TypeError as e:
   expected = "TypeError('greet() got multiple values for argument greeting',)"
   assert(expected[:-2] in repr(e))
+try:
+  s.greet(123)
+except TypeError as e:
+  expected = "TypeError(\"Can't convert python obj of type 'int' to string\",)"
+  assert(expected[:-2] in repr(e))
 
 assert(s.greetEveryoneExceptJack("world") == "Hello, world!")
 try:
