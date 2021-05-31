@@ -83,7 +83,21 @@ assert(dictFromJson["Another"] == 5)
 assert(dictFromJson["Foo"] == [1, 2, 3.5, {"InArray" : 5}])
 assert(dictFromJson["Bar"] == { "Nested" : "Value" })
 
-assert(s.TestType() is not None)
+# Test exported type
+tt = s.TestType()
+tt.setMyField("1234")
+assert(tt.getMyField() == "1234")
+att = s.AnotherTestType()
+att.setMyField(5)
+assert(att.getMyField() == 5)
+att.setMyFieldFromTt(tt)
+assert(att.getMyField() == 1234)
+
+try:
+  att.setMyFieldFromTt(123)
+except TypeError as e:
+  expected = "TypeError('Cannot convert python object to TestType',)"
+  assert(expected[:-2] in repr(e))
 
 assert(s.getMyObj()["a"] == 5)
 assert(s.getMyObj()["c"] == "hello")

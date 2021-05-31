@@ -141,6 +141,24 @@ iterator testIterator(s: string): int {.exportpy.} =
   for i in 0 ..< s.len:
     yield i
 
-type TestType = ref object of PyNimObjectBaseToInheritFromForAnExportedType
+# Exporting classes
+type TestType = ref object of PyNimObjectExperimental
+  myField: string
 
-pyexportTypeExperimental(TestType)
+proc setMyField(self: TestType, value: string) {.exportpy.} =
+  self.myField = value
+
+proc getMyField(self: TestType): string {.exportpy.} =
+  self.myField
+
+type AnotherTestType = ref object of PyNimObjectExperimental
+  myIntField: int
+
+proc setMyField(self: AnotherTestType, value: int) {.exportpy.} =
+  self.myIntField = value
+
+proc setMyFieldFromTt(self: AnotherTestType, value: TestType) {.exportpy.} =
+  self.myIntField = parseInt(value.myField)
+
+proc getMyField(self: AnotherTestType): int {.exportpy.} =
+  self.myIntField

@@ -109,8 +109,33 @@ Does nim default garbage collector (GC) work?
 
 </details>
 
+## Exporting Nim types as Python classes
+Warning! This is experimental.
+* An exported type should be a ref object and inherit `PyNimObjectExperimental` directly or indirectly.
+* The type will only be exported if at least one exported "method" is defined.
+* A proc will be exported as python type method *only* if it's first argument is of the corresponding type and is called `self`. If the first argument is not called `self`, the proc will exported as a global module function.
+```nim
+# mymodule.nim
+type TestType = ref object of PyNimObjectExperimental
+  myField: string
+
+proc setMyField(self: TestType, value: string) {.exportpy.} =
+  self.myField = value
+
+proc getMyField(self: TestType): string {.exportpy.} =
+  self.myField
+```
+
+``` py
+# test.py
+import mymodule
+tt = mymodule.TestType()
+tt.setMyField("Hello")
+assert(tt.getMyField() == "Hello")
+```
+
+
 ## Future directions
-* exporting Nim types/functions as Python classes/methods
 * High level buffer API
 
 ## Stargazers over time
