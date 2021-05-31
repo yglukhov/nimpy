@@ -11,7 +11,7 @@ type
     py_extra_dont_use: PyObject_HEAD_EXTRA
     py_object: PyObjectObj
 
-  PyNimObjectBaseToInheritFromForAnExportedType* = PyNimObject
+  PyNimObjectExperimental* = PyNimObject
 
 const
   #  PyBufferProcs contains bf_getcharbuffer
@@ -127,7 +127,6 @@ type
     newFunc: Newfunc
 
   PyTypeDesc = object
-    module: ptr PyModuleDesc
     name: cstring
     doc: cstring
     fullName: string
@@ -176,14 +175,34 @@ proc registerIterator(name, doc: cstring, newFunc: Newfunc) =
   assert(not curModuleDef.isNil)
   curModuleDef[].iterators.add(PyIteratorDesc(name: name, doc: doc, newFunc: newFunc))
 
+proc pyNimObjectToPyObject(o: PyNimObject): PPyObject {.inline.} =
+  cast[PPyObject](addr o.py_object)
+
 proc newNimObjToPyObj(typ: PyTypeObject, o: PyNimObject): PPyObject =
   GC_ref(o)
-  result = cast[PPyObject](addr o.py_object)
   o.py_object.ob_type = typ
   o.py_object.ob_refcnt = 1
+  pyNimObjectToPyObject(o)
 
 proc newPyNimObject[T](typ: PyTypeObject, args, kwds: PPyObject): PPyObject {.cdecl.} =
-  newNimObjToPyObj(typ, T.new())
+  newNimObjToPyObj(typ, T())
+
+var exportedTypeTable {.compileTime.} = initTable[string, int]()
+
+proc getTypeIdxInModule(T: typedesc): int {.compileTime.} =
+  exportedTypeTable.mgetOrPut($T, exportedTypeTable.len)
+
+proc addTypedefToModuleDef(md: ptr PyModuleDesc, T: typedesc, idx: int) =
+  assert(md.types.len == idx)
+  var v: T
+  md.types.add(PyTypeDesc(name: $T, newFunc: newPyNimObject[T], origSize: sizeof(v[])))
+
+template registerTypeMethod(T: typedesc, name, doc: cstring, f: PyCFunctionWithKeywords) =
+  assert(not curModuleDef.isNil)
+  const typeIdx = getTypeIdxInModule(T)
+  if typeIdx > curModuleDef.types.high: addTypedefToModuleDef(curModuleDef, T, typeIdx)
+  curModuleDef.types[typeIdx].methods.add(PyMethodDef(ml_name: name, ml_meth: f, ml_flags: Py_MLFLAGS_VARARGS or Py_MLFLAGS_KEYWORDS,
+              ml_doc: doc))
 
 proc initPythonModuleDesc(m: var PyModuleDesc, name, doc: cstring) =
   m.name = name
@@ -199,6 +218,8 @@ proc initCommon(m: var PyModuleDesc) =
   if pyLib.isNil:
     pyLib = loadPyLibFromThisProcess()
   m.methods.add(PyMethodDef()) # Add sentinel
+  for t in m.types.mitems:
+    t.methods.add(PyMethodDef()) # Add sentinel
 
 proc destructNimObj(o: PPyObject) {.cdecl.} =
   let n = toNim(o, PyNimObject)
@@ -267,6 +288,7 @@ proc initModuleTypes[PyTypeObj](p: PPyObject, m: PyModuleDesc) =
     ty.tp_free = freeNimObj
     ty.tp_dealloc = destructNimObj
     ty.tp_descr_get = typDescrGet
+    ty.tp_methods = unsafeAddr m.types[i].methods[0]
 
     discard pyLib.PyType_Ready(cast[PyTypeObject](typ))
     incRef(typ)
@@ -490,6 +512,15 @@ proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
     pyObjToNimArray(o, v)
   elif T is JsonNode:
     v = pyObjToJson(o)
+  elif T is PyNimObject:
+    if cast[pointer](o) == cast[pointer](pyLib.Py_None):
+      v = nil
+    else:
+      let typ = cast[PyTypeObject]((cast[ptr PyObjectObj](o)).ob_type)
+      if typ.tp_descr_get == typDescrGet: # Very basic check if the object is indeed a nim object
+        v = T(toNim(o, PyNimObject))
+      else:
+        raiseConversionError($T)
   elif T is ref:
     if cast[pointer](o) == cast[pointer](pyLib.Py_None):
       v = nil
@@ -692,6 +723,11 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
     nimArrToPy(v)
   elif T is JsonNode:
     nimJsonToPy(v)
+  elif T is PyNimObject:
+    if v.isNil:
+      newPyNone()
+    else:
+      pyNimObjectToPyObject(v)
   elif T is ref:
     if v.isNil:
       newPyNone()
@@ -1034,7 +1070,7 @@ iterator arguments(formalParams: NimNode): tuple[idx: int, name, typ, default: N
       yield (iParam, pp[j], copyNimTree(stripSinkFromArgType(pp[^2])), pp[^1])
       inc iParam
 
-proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: NimNode): tuple[parseArgs, call: NimNode] =
+proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: NimNode, selfArg: NimNode = nil): tuple[parseArgs, call: NimNode] =
   let
     pyValueVarSection = newNimNode(nnkVarSection)
     parseArgsStmts = newNimNode(nnkStmtList)
@@ -1047,10 +1083,12 @@ proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: Nim
     numArgsReq = 0
     argNames = newNimNode(nnkBracket)
 
+  let extraArg = if selfArg == nil: 0 else: 1
+
   for a in formalParams.arguments:
     let argIdent = newIdentNode("arg" & $a.idx & $a.name)
     let argName = $a.name
-    argNames.add(newCall(ident"cstring", newLit(argName)))
+
     if a.typ.kind == nnkEmpty:
       error("Typeless arguments are not supported by nimpy: " & $a.name, a.name)
     # XXX: The newCall("type", a.typ) should be just `a.typ` but compilation fails. Nim bug?
@@ -1064,14 +1102,19 @@ proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: Nim
     else:
       pyValueVarSection.add(newIdentDefs(argIdent, newCall(bindSym"valueTypeForArgType", newCall("type", a.typ))))
       inc numArgsReq
-    parseArgsStmts.add(newCall(bindSym"parseArg", argsTuple, kwargsDict,
-                   newLit(a.idx), newLit(argName), argIdent))
+
+    if numArgs == 0 and selfArg != nil:
+      parseArgsStmts.add(newCall(bindSym"pyObjToNim", selfArg, argIdent))
+    else:
+      parseArgsStmts.add(newCall(bindSym"parseArg", argsTuple, kwargsDict,
+                    newLit(a.idx - extraArg), newLit(argName), argIdent))
+      argNames.add(newCall(ident"cstring", newLit(argName)))
     origCall.add(argIdent)
     inc numArgs
 
   let
     argsLen = newLit(numArgs)
-    argsLenReq = newLit(numArgsReq)
+    argsLenReq = newLit(numArgsReq - extraArg)
     nameLit = newLit($prc)
 
   result.parseArgs = quote do:
@@ -1123,22 +1166,38 @@ proc nimProcToPy[T](o: T): PPyObject =
   result = pyLib.PyCFunction_NewEx(addr md, self, nil)
   decRef self
 
-proc makeProcWrapper(name, prc: NimNode): NimNode =
+proc makeProcWrapper(name, prc: NimNode, isMethod: bool): NimNode =
   let argsIdent = newIdentNode("args")
   let kwargsIdent = newIdentNode("kwargs")
-  let (parseArgs, call) = makeCallNimProcWithPythonArgs(prc.name, prc.getFormalParams, argsIdent, kwargsIdent)
-  result = quote do:
-    proc `name`(self, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.cdecl.} =
-      updateStackBottom()
-      # Prevent inlining (See #67)
-      proc noinline(`argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.nimcall, stackTrace: off.} =
-        `parseArgs`
-        try:
-          nimValueToPy(`call`)
-        except Exception as e:
-          pythonException(e)
-      var p {.volatile.}: proc(a, kwg: PPyObject): PPyObject {.nimcall.} = noinline
-      p(`argsIdent`, `kwargsIdent`)
+  if isMethod:
+    let selfIdent = newIdentNode("self")
+    let (parseArgs, call) = makeCallNimProcWithPythonArgs(prc.name, prc.getFormalParams, argsIdent, kwargsIdent, selfIdent)
+    result = quote do:
+      proc `name`(`selfIdent`, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.cdecl.} =
+        updateStackBottom()
+        # Prevent inlining (See #67)
+        proc noinline(`selfIdent`, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.nimcall, stackTrace: off.} =
+          `parseArgs`
+          try:
+            nimValueToPy(`call`)
+          except Exception as e:
+            pythonException(e)
+        var p {.volatile.}: proc(s, a, kwg: PPyObject): PPyObject {.nimcall.} = noinline
+        p(`selfIdent`, `argsIdent`, `kwargsIdent`)
+  else:
+    let (parseArgs, call) = makeCallNimProcWithPythonArgs(prc.name, prc.getFormalParams, argsIdent, kwargsIdent)
+    result = quote do:
+      proc `name`(self, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.cdecl.} =
+        updateStackBottom()
+        # Prevent inlining (See #67)
+        proc noinline(`argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.nimcall, stackTrace: off.} =
+          `parseArgs`
+          try:
+            nimValueToPy(`call`)
+          except Exception as e:
+            pythonException(e)
+        var p {.volatile.}: proc(a, kwg: PPyObject): PPyObject {.nimcall.} = noinline
+        p(`argsIdent`, `kwargsIdent`)
 
 proc newPyIterator(typ: PyTypeObject, it: iterator(): PPyObject): PPyObject =
   result = cast[PPyObject](typ.tp_alloc(typ, 0))
@@ -1212,16 +1271,23 @@ proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode
   if procName.len == 0:
     procName = $procIdent
 
+  let isMethod = prc.params.len > 1 and $prc.params[1][0] == "self"
+
   if prc.kind == nnkIteratorDef:
     procIdent = newIdentNode($procIdent & "Py_newIter")
     result.add(makeIteratorConstructor(procIdent, prc))
     result.add(newCall(bindSym"registerIterator", newLit(procName), comment, procIdent))
   else:
     if wrap:
-      procIdent = newIdentNode($procIdent & "Py_wrapper")
-      result.add(makeProcWrapper(procIdent, prc))
+      procIdent = genSym(nskProc, $procIdent & "Py_wrapper")
+      result.add(makeProcWrapper(procIdent, prc, isMethod))
 
-    result.add(newCall(bindSym"registerMethod", newLit(procName), comment, procIdent))
+    if isMethod:
+      var typ = prc.params[1][^2]
+      typ = newCall("type", typ) # Workaround nim bug???
+      result.add(newCall(bindSym"registerTypeMethod", typ, newLit(procName), comment, procIdent))
+    else:
+      result.add(newCall(bindSym"registerMethod", newLit(procName), comment, procIdent))
   # echo "procname: ", procName
   # echo repr result
 
@@ -1254,22 +1320,6 @@ macro exportpy*(nameOrProc: untyped, maybeProc: untyped = nil): untyped =
   # else:
   expectKind(procDef, {nnkProcDef, nnkFuncDef, nnkIteratorDef})
   result = newCall(bindSym"exportpyAuxAux", procDef, newLit(procName))
-
-template registerType(T: typed) =
-  block:
-    const name = astToStr(T)
-    curModuleDef.types.setLen(curModuleDef.types.len + 1)
-    curModuleDef.types[^1].name = static(cstring(name))
-    curModuleDef.types[^1].doc = "TestType docs..."
-    curModuleDef.types[^1].newFunc = newPyNimObject[T]
-    var t: T
-    curModuleDef.types[^1].origSize = sizeof(t[])
-    curModuleDef.types[^1].fullName = $curModuleDef.name & "." & name
-
-template pyexportTypeExperimental*(T: typed) =
-  declarePyModuleIfNeeded()
-  registerType(T)
-
 
 
 ################################################################################
