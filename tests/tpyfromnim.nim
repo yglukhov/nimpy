@@ -164,10 +164,12 @@ proc test*() {.gcsafe.} =
   block: # test mapping of exceptions
     let pfn = pyImport("traise")
     template check(f: untyped, exc: varargs[untyped]): untyped =
+      var ok = false
       try:
         discard f()
       except exc:
-        discard
+        ok = true
+      assert(ok)
 
     check(pfn.testOSError, OSError)
     # in python3 IOError == OSError

@@ -197,12 +197,10 @@ proc marshalPyNimObjectToPy[T: PyNimObject](o: T): PPyObject {.inline.} =
     GC_ref(o)
   pyNimObjectToPyObject(o)
 
-proc newNimObjToPyObj(typ: PyTypeObject, o: PyNimObject): PPyObject =
+proc newPyNimObject[T](typ: PyTypeObject, args, kwds: PPyObject): PPyObject {.cdecl.} =
+  let o = T()
   initPyNimObjectWithPyType(o, typ)
   pyNimObjectToPyObject(o)
-
-proc newPyNimObject[T](typ: PyTypeObject, args, kwds: PPyObject): PPyObject {.cdecl.} =
-  newNimObjToPyObj(typ, T())
 
 var exportedTypeTable {.compileTime.} = initTable[string, int]()
 
