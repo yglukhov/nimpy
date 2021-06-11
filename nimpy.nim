@@ -134,6 +134,7 @@ type
     methods: seq[PyMethodDef]
     members: seq[PyMemberDef]
     origSize: int
+    pPyType: ptr PyTypeObject
 
   PyIterRef = ref object
     iter: iterator(): PPyObject
@@ -175,13 +176,29 @@ proc registerIterator(name, doc: cstring, newFunc: Newfunc) =
   assert(not curModuleDef.isNil)
   curModuleDef[].iterators.add(PyIteratorDesc(name: name, doc: doc, newFunc: newFunc))
 
-proc pyNimObjectToPyObject(o: PyNimObject): PPyObject {.inline.} =
+proc ppType(T: typedesc): ptr PyTypeObject =
+  var p {.global.}: PyTypeObject
+  addr p
+
+proc initPyNimObjectWithPyType(o: PyNimObject, typ: PyTypeObject) =
+  o.py_object.ob_type = typ
+  assert(o.py_object.ob_type != nil)
+  o.py_object.ob_refcnt = 1
+  GC_ref(o)
+
+proc pyNimObjectToPyObject[T: PyNimObject](o: T): PPyObject {.inline.} =
   cast[PPyObject](addr o.py_object)
 
+proc marshalPyNimObjectToPy[T: PyNimObject](o: T): PPyObject {.inline.} =
+  if o.py_object.ob_type.isNil:
+    let pTyp = ppType(T)
+    assert(pTyp != nil)
+    initPyNimObjectWithPyType(o, pTyp[])
+    GC_ref(o)
+  pyNimObjectToPyObject(o)
+
 proc newNimObjToPyObj(typ: PyTypeObject, o: PyNimObject): PPyObject =
-  GC_ref(o)
-  o.py_object.ob_type = typ
-  o.py_object.ob_refcnt = 1
+  initPyNimObjectWithPyType(o, typ)
   pyNimObjectToPyObject(o)
 
 proc newPyNimObject[T](typ: PyTypeObject, args, kwds: PPyObject): PPyObject {.cdecl.} =
@@ -195,7 +212,7 @@ proc getTypeIdxInModule(T: typedesc): int {.compileTime.} =
 proc addTypedefToModuleDef(md: ptr PyModuleDesc, T: typedesc, idx: int) =
   assert(md.types.len == idx)
   var v: T
-  md.types.add(PyTypeDesc(name: $T, newFunc: newPyNimObject[T], origSize: sizeof(v[])))
+  md.types.add(PyTypeDesc(name: $T, newFunc: newPyNimObject[T], origSize: sizeof(v[]), pPyType: ppType(T)))
 
 template registerTypeMethod(T: typedesc, name, doc: cstring, f: PyCFunctionWithKeywords) =
   assert(not curModuleDef.isNil)
@@ -247,7 +264,7 @@ proc updateStackBottom() {.inline.} =
 proc pythonException(e: ref Exception): PPyObject =
   let err = pyLib.PyErr_NewException("nimpy" & "." & $(e.name), pyLib.NimPyException, nil)
   decRef err
-  pyLib.PyErr_SetString(err, "Unexpected error encountered: " & getCurrentExceptionMsg())
+  pyLib.PyErr_SetString(err, "Unexpected error encountered: " & e.msg)
 
 proc iterNext(i: PPyObject): PPyObject {.cdecl.} =
   updateStackBottom()
@@ -273,10 +290,12 @@ proc iterDescrGet(a, b, c: PPyObject): PPyObject {.cdecl.} =
 proc typDescrGet(a, b, c: PPyObject): PPyObject {.cdecl.} =
   strToPyObject("nim type")
 
-proc initModuleTypes[PyTypeObj](p: PPyObject, m: PyModuleDesc) =
+proc initModuleTypes[PyTypeObj](p: PPyObject, m: var PyModuleDesc) =
   for i in 0 ..< m.types.len:
     let typ = pyAlloc(sizeof(PyTypeObj))
     let ty = typ.to(PyTypeObj)
+    assert(m.types[i].pPyType != nil)
+    m.types[i].pPyType[] = ty
     ty.tp_name = m.types[i].fullName
 
     # Nim objects have an m_type* in front, we're stripping that away for python,
@@ -727,7 +746,7 @@ proc nimValueToPy[T](v: T): PPyObject {.inline.} =
     if v.isNil:
       newPyNone()
     else:
-      pyNimObjectToPyObject(v)
+      marshalPyNimObjectToPy(v)
   elif T is ref:
     if v.isNil:
       newPyNone()

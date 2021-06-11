@@ -92,6 +92,7 @@ att.setMyField(5)
 assert(att.getMyField() == 5)
 att.setMyFieldFromTt(tt)
 assert(att.getMyField() == 1234)
+assert(s.newTestType("hi").getMyField() == "hi")
 
 try:
   att.setMyFieldFromTt(123)

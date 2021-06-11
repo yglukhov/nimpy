@@ -145,6 +145,9 @@ iterator testIterator(s: string): int {.exportpy.} =
 type TestType = ref object of PyNimObjectExperimental
   myField: string
 
+proc newTestType(arg: string): TestType {.exportpy.} =
+  TestType(myField: arg)
+
 proc setMyField(self: TestType, value: string) {.exportpy.} =
   self.myField = value
 
