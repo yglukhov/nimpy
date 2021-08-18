@@ -1505,3 +1505,23 @@ proc `==`*(a, b: PyObject): bool =
     pyLib.PyObject_RichCompareBool(a.rawPyObj, b.rawPyObj, Py_EQ) == 1
   else:
     false
+
+macro asDict*(a: untyped): PPyObject =
+  expectKind(a, nnkTableConstr)
+  var dict = genSym(nskVar, "dict")
+  result = newStmtList()
+  result.add quote do:
+    var `dict` = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
+  for ai in a:
+    let key = ai[0]
+    let val = ai[1]
+    result.add quote do:
+      let val2 = nimValueToPy(`val`)
+      let ret = pyLib.PyDict_SetItemString(`dict`, `key`, val2)
+      decRef val2
+      if ret != 0:
+        cannotSerializeErr(`key`)
+  result.add dict
+
+proc toDict*[T: object|tuple](o: T): PPyObject =
+  result = nimObjToPy(o)
