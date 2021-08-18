@@ -973,12 +973,15 @@ proc nimEnumToPy[T](o: T): PPyObject =
   nimpyEnumValue(nimpyEnumConvert(o))
 
 proc nimTupleToPy[T](o: T): PPyObject =
-  const sz = tupleSize[T]()
-  result = pyLib.PyTuple_new(sz)
-  var i = 0
-  for f in fields(o):
-    discard pyLib.PyTuple_SetItem(result, i, nimValueToPy(f))
-    inc i
+  when isNamedTuple(T):
+    nimObjToPy(o)
+  else:
+    const sz = tupleSize[T]()
+    result = pyLib.PyTuple_new(sz)
+    var i = 0
+    for f in fields(o):
+      discard pyLib.PyTuple_SetItem(result, i, nimValueToPy(f))
+      inc i
 
 proc getPyArg(argTuple, argDict: PPyObject, argIdx: int, argName: cstring): PPyObject =
   # argTuple can never be nil
