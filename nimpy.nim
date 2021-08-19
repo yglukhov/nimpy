@@ -1506,22 +1506,26 @@ proc `==`*(a, b: PyObject): bool =
   else:
     false
 
-macro asDict*(a: untyped): PPyObject =
-  expectKind(a, nnkTableConstr)
-  var dict = genSym(nskVar, "dict")
-  result = newStmtList()
-  result.add quote do:
-    var `dict` = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
-  for ai in a:
-    let key = ai[0]
-    let val = ai[1]
-    result.add quote do:
-      let val2 = nimValueToPy(`val`)
-      let ret = pyLib.PyDict_SetItemString(`dict`, `key`, val2)
-      decRef val2
-      if ret != 0:
-        cannotSerializeErr(`key`)
-  result.add dict
-
-proc toDict*[T: object|tuple](o: T): PPyObject =
+proc toDictImpl*[T: object|tuple](o: T): PPyObject {.inline.} =
   result = nimObjToPy(o)
+
+macro toDict*(a: untyped): PPyObject =
+  if a.kind == nnkTableConstr:
+    var dict = genSym(nskVar, "dict")
+    result = newStmtList()
+    result.add quote do:
+      var `dict` = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
+    for ai in a:
+      let key = ai[0]
+      let val = ai[1]
+      result.add quote do:
+        let val2 = nimValueToPy(`val`)
+        let ret = pyLib.PyDict_SetItemString(`dict`, `key`, val2)
+        decRef val2
+        if ret != 0:
+          cannotSerializeErr(`key`)
+    result.add dict
+  else:
+    let toDictImpl2 = bindSym"toDictImpl"
+    result = quote do:
+      `toDictImpl2`(`a`)
