@@ -140,4 +140,4 @@ assert(tt.getMyField() == "Hello")
 
 ## Stargazers over time
 
-[![Stargazers over time](https://starcharts.herokuapp.com/yglukhov/nimpy.svg)](https://starcharts.herokuapp.com/yglukhov/nimpy)
+[![Stargazers over time](https://starchart.cc/yglukhov/nimpy.svg)](https://starchart.cc/yglukhov/nimpy)
