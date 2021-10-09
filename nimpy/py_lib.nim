@@ -94,6 +94,9 @@ type
     PyCapsule_New*: proc(p: pointer, name: cstring, destr: proc(o: PPyObject) {.pyfunc.}): PPyObject {.pyfunc.}
     PyCapsule_GetPointer*: proc(c: PPyObject, name: cstring): pointer {.pyfunc.}
 
+    PyRun_SimpleFile*: proc(fp: File, filename: cstring): cint {.pyfunc.}
+    PyRun_SimpleString*: proc(command: cstring): cint {.pyfunc.}
+
     PyImport_ImportModule*: proc(name: cstring): PPyObject {.pyfunc.}
     PyEval_GetBuiltins*: proc(): PPyObject {.pyfunc.}
     PyEval_GetGlobals*: proc(): PPyObject {.pyfunc.}
@@ -292,6 +295,9 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
 
   load PyCapsule_New
   load PyCapsule_GetPointer
+
+  load PyRun_SimpleFile
+  load PyRun_SimpleString
 
   load PyImport_ImportModule
   load PyEval_GetBuiltins

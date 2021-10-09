@@ -1471,6 +1471,16 @@ proc `[]`*[K](o: PyObject, idx: K): PyObject =
 proc `[]=`*[K, V](o: PyObject, idx: K, val: V) =
   o.setElemAtIndex(toPyObjectArgument(idx), toPyObjectArgument(val))
 
+proc pyRunSimpleFile*(fileName: string): int =
+  initPyLibIfNeeded()
+  var fp = open(fileName, fmRead)
+  defer: fp.close()
+  pyLib.PyRun_SimpleFile(fp, fileName)
+
+proc pyRunSimpleString*(command: string): int =
+  initPyLibIfNeeded()
+  pyLib.PyRun_SimpleString(command)
+
 proc pyImport*(moduleName: cstring): PyObject =
   initPyLibIfNeeded()
   let o = pyLib.PyImport_ImportModule(moduleName)
