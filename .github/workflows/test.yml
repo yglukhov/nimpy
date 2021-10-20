@@ -2,27 +2,47 @@ name: CI
 
 on: [push]
 jobs:
-  linux:
+  Test:
     strategy:
+      fail-fast: false
       matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
         nim-channel: [stable, devel]
-    runs-on: ubuntu-latest
-    container: debian:buster
+    runs-on: ${{ matrix.os }}
     steps:    
     - uses: actions/checkout@v2
+    - name: Setup nim
+      uses: jiro4989/setup-nim-action@v1
+      with:
+        nim-version: ${{ matrix.nim-channel }}
     - name: Prepare
+      shell: bash
       run: |
-        apt-get update
-        apt-get install -y curl gcc python3 libpython3.7 python-numpy python3-numpy
-        export CHOOSENIM_NO_ANALYTICS=1
-        curl https://nim-lang.org/choosenim/init.sh -sSf | sh -s -- -y
-        export PATH=$HOME/.nimble/bin:$PATH
-        choosenim ${{ matrix.nim-channel }}
+        if [ ${{matrix.os}} = ubuntu-latest ]
+        then
+          sudo apt-get update
+          sudo apt-get install -y python-numpy python3-numpy
+        elif [ ${{matrix.os}} = macos-latest ]
+        then
+          curl -L -O https://bootstrap.pypa.io/pip/2.7/get-pip.py
+          sudo python2 get-pip.py
+          python2 -m pip install numpy
+          python3 -m pip install numpy
+        elif [ ${{matrix.os}} = windows-latest ]
+        then
+          # curl -L -O https://bootstrap.pypa.io/pip/2.7/get-pip.py
+          # python2 get-pip.py # This fails :(
+          # python2 -m pip install numpy
+          python3 -m pip install numpy
+        fi
 
     - name: Test
+      shell: bash
       run: |
-        export PATH=$HOME/.nimble/bin:$PATH
+        # Could not install numpy for python2 on windows
+        if [ ${{matrix.os}} = windows-latest ]
+        then
+          export NIMPY_PY_EXES=python3
+        fi
         nim --version
         nimble test
-
-  # TODO: add windows and macos
