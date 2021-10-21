@@ -152,3 +152,11 @@ proc PyObject_CallObject*(o: PPyObject): PPyObject =
 
 proc cannotSerializeErr*(k: string) =
   raise newException(ValueError, "Could not serialize object key: " & k)
+
+iterator rawItems*(o: PPyObject): PPyObject =
+  let it = pyLib.PyObject_GetIter(o)
+  defer: decRef it
+  while true:
+    let i = pyLib.PyIter_Next(it)
+    if i.isNil: break
+    yield i

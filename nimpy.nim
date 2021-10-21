@@ -1,9 +1,9 @@
-import dynlib, macros, os, strutils, complex, typetraits, tables, json,
-  nimpy/[py_types, py_utils, nim_py_marshalling]
+import dynlib, macros, os, strutils, typetraits, tables, json,
+  nimpy/[py_types, py_utils, nim_py_marshalling, py_nim_marshalling]
 
 import nimpy/py_lib as lib
 
-export nim_py_marshalling
+export nim_py_marshalling, py_nim_marshalling
 
 when defined(gcDestructors):
   type PyObject* = object
@@ -18,106 +18,6 @@ type
     py_object: PyObjectObj
 
   PyNimObjectExperimental* = PyNimObject
-
-const
-  #  PyBufferProcs contains bf_getcharbuffer
-  Py_TPFLAGS_HAVE_GETCHARBUFFER  = (1 shl 0)
-
-  #  PySequenceMethods contains sq_contains
-  Py_TPFLAGS_HAVE_SEQUENCE_IN = (1 shl 1)
-
-# This is here for backwards compatibility.  Extensions that use the old GC
-# API will still compile but the objects will not be tracked by the GC.
-#  Py_TPFLAGS_GC 0 #  used to be (1 shl 2) =
-
-  #  PySequenceMethods and PyNumberMethods contain in-place operators
-  Py_TPFLAGS_HAVE_INPLACEOPS = (1 shl 3)
-
-  #  PyNumberMethods do their own coercion
-  Py_TPFLAGS_CHECKTYPES = (1 shl 4)
-
-  #  tp_richcompare is defined
-  Py_TPFLAGS_HAVE_RICHCOMPARE = (1 shl 5)
-
-  #  Objects which are weakly referencable if their tp_weaklistoffset is >0
-  Py_TPFLAGS_HAVE_WEAKREFS = (1 shl 6)
-
-  #  tp_iter is defined
-  Py_TPFLAGS_HAVE_ITER = (1 shl 7)
-
-  #  New members introduced by Python 2.2 exist
-  Py_TPFLAGS_HAVE_CLASS = (1 shl 8)
-
-  #  Set if the type object is dynamically allocated
-  Py_TPFLAGS_HEAPTYPE = (1 shl 9)
-
-  #  Set if the type allows subclassing
-  Py_TPFLAGS_BASETYPE = (1 shl 10)
-
-  #  Set if the type is 'ready' -- fully initialized
-  Py_TPFLAGS_READY = (1 shl 12)
-
-  #  Set while the type is being 'readied', to prevent recursive ready calls
-  Py_TPFLAGS_READYING = (1 shl 13)
-
-  #  Objects support garbage collection (see objimp.h)
-  Py_TPFLAGS_HAVE_GC = (1 shl 14)
-
-  #  These two bits are preserved for Stackless Python, next after this is 17
-
-  Py_TPFLAGS_HAVE_STACKLESS_EXTENSION =0
-
-  #  Objects support nb_index in PyNumberMethods
-  Py_TPFLAGS_HAVE_INDEX = (1 shl 17)
-
-  #  Objects support type attribute cache
-  Py_TPFLAGS_HAVE_VERSION_TAG   = (1 shl 18)
-  Py_TPFLAGS_VALID_VERSION_TAG  = (1 shl 19)
-
-  #  Type is abstract and cannot be instantiated
-  Py_TPFLAGS_IS_ABSTRACT = (1 shl 20)
-
-  #  Has the new buffer protocol
-  Py_TPFLAGS_HAVE_NEWBUFFER = (1 shl 21)
-
-  #  These flags are used to determine if a type is a subclass.
-  Py_TPFLAGS_INT_SUBCLASS       = (1 shl 23)
-  Py_TPFLAGS_LONG_SUBCLASS      = (1 shl 24)
-  Py_TPFLAGS_LIST_SUBCLASS      = (1 shl 25)
-  Py_TPFLAGS_TUPLE_SUBCLASS     = (1 shl 26)
-  Py_TPFLAGS_STRING_SUBCLASS    = (1 shl 27)
-  Py_TPFLAGS_UNICODE_SUBCLASS   = (1 shl 28)
-  Py_TPFLAGS_DICT_SUBCLASS      = (1 shl 29)
-  Py_TPFLAGS_BASE_EXC_SUBCLASS  = (1 shl 30)
-  Py_TPFLAGS_TYPE_SUBCLASS      = (1 shl 31)
-
-  Py_TPFLAGS_DEFAULT_EXTERNAL = Py_TPFLAGS_HAVE_GETCHARBUFFER or
-                                Py_TPFLAGS_HAVE_SEQUENCE_IN or
-                                Py_TPFLAGS_HAVE_INPLACEOPS or
-                                Py_TPFLAGS_HAVE_RICHCOMPARE or
-                                Py_TPFLAGS_HAVE_WEAKREFS or
-                                Py_TPFLAGS_HAVE_ITER or
-                                Py_TPFLAGS_HAVE_CLASS or
-                                Py_TPFLAGS_HAVE_STACKLESS_EXTENSION or
-                                Py_TPFLAGS_HAVE_INDEX
-
-  Py_TPFLAGS_DEFAULT_CORE = Py_TPFLAGS_DEFAULT_EXTERNAL or Py_TPFLAGS_HAVE_VERSION_TAG
-
-  # These flags are used for PyMethodDef.ml_flags
-  Py_MLFLAGS_VARARGS  = (1 shl 0)
-  Py_MLFLAGS_KEYWORDS = (1 shl 1)
-  Py_MLFLAGS_NOARGS   = (1 shl 2)
-  Py_MLFLAGS_O    = (1 shl 3)
-  Py_MLFLAGS_CLASS  = (1 shl 4)
-  Py_MLFLAGS_STATIC   = (1 shl 5)
-
-  # Rich comparison opcodes
-  Py_LT = 0
-  Py_LE = 1
-  Py_EQ = 2
-  Py_NE = 3
-  Py_GT = 4
-  Py_GE = 5
 
 type
   PyModuleDesc = object
@@ -151,19 +51,6 @@ type
     name: cstring
     obj: PPyObject
 
-  PyBaseType = enum
-    pbUnknown
-    pbLong
-    pbFloat
-    pbComplex
-    pbCapsule # not used
-    pbTuple
-    pbList
-    pbBytes
-    pbUnicode
-    pbDict
-    pbString
-    pbObject
 
 when defined(gcDestructors):
   proc isNil*(p: PyObject): bool {.inline.} = p.rawPyObj.isNil
@@ -474,34 +361,10 @@ proc toString*(b: RawPyBuffer): string =
     if ln != 0:
       copyMem(addr result[0], b.buf, ln)
 
-proc pyObjToJson(o: PPyobject): JsonNode
-proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T])
-proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U])
-proc pyObjToNimArray[T, I](o: PPyObject, v: var array[I, T])
-proc pyObjToProc[T](o: PPyObject, v: var T)
-proc pyObjToNimTuple(o: PPyObject, v: var tuple)
-
-proc pyObjToNimStr(o: PPyObject, v: var string) =
-  if unlikely(not pyStringToNim(o, v)):
-    # Name the type that is unable to be converted.
-    let typ = cast[PyTypeObject]((cast[ptr PyObjectObj](o)).ob_type)
-    let errString = "Can't convert python obj of type '$1' to string"
-    raise newException(ValueError, errString % [$typ.tp_name])
-
 proc unknownTypeCompileError() {.inline.} =
   # This function never compiles, it is needed to see somewhat informative
   # compile time error
   discard
-
-proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.}
-
-
-proc pyObjToNimObj(o: PPyObject, vv: var object) =
-  for k, v in fieldPairs(vv):
-    let f = pyLib.PyDict_GetItemString(o, k)
-    if not f.isNil:
-      pyObjToNim(f, v)
-    # No DECREF here. PyDict_GetItemString returns a borrowed ref.
 
 when not defined(gcDestructors):
   proc finalizePyObject(o: PyObject) =
@@ -517,186 +380,25 @@ proc newPyObject(o: PPyObject): PyObject =
   incRef o
   newPyObjectConsumingRef(o)
 
-proc raiseConversionError(toType: string) =
-  raise newException(ValueError, "Cannot convert python object to " & toType)
+proc pyValueToNim*(v: PPyObject, o: var PyObject) {.inline.} =
+  o = newPyObject(v)
 
-proc clearAndRaiseConversionError(toType: string) =
-  pyLib.PyErr_Clear()
-  raiseConversionError(toType)
-
-proc pyObjToNim[T](o: PPyObject, v: var T) {.inline.} =
-  template conversionTypeCheck(what: PyTypeObject) {.used.} =
-    if not checkObjSubclass(o, what):
-      raiseConversionError($T)
-  proc conversionErrorCheck() {.inline, used.} =
-    if unlikely(not pyLib.PyErr_Occurred().isNil):
-      clearAndRaiseConversionError($T)
-
-  when (T is uint8|uint16|uint32|int|int8|int16|int32|int64|char|byte) or (T is uint and sizeof(uint) < sizeof(uint64)):
-    let ll = pyLib.PyLong_AsLongLong(o)
-    if ll == -1: conversionErrorCheck()
-    v = T(ll)
-  elif T is uint|uint64:
-    let lo = pyLib.PyNumber_Long(o)
-    if unlikely lo.isNil:
-      conversionErrorCheck()
-      assert(false, "Unreachable")
-    let ll = pyLib.PyLong_AsUnsignedLongLong(lo)
-    decRef lo
-    if ll == uint64.high: conversionErrorCheck()
-    v = T(ll)
-  elif T is float|float32|float64:
-    v = T(pyLib.PyFloat_AsDouble(o))
-    if v < 0: conversionErrorCheck()
-  elif T is bool:
-    v = bool(pyLib.PyObject_IsTrue(o))
-  elif T is PPyObject:
-    v = o
-  elif T is PyObject:
-    v = newPyObject(o)
-  elif T is Complex:
-    conversionTypeCheck(pyLib.PyComplex_Type)
-    if unlikely pyLib.PyComplex_AsCComplex.isNil:
-      v.re = pyLib.PyComplex_RealAsDouble(o)
-      v.im = pyLib.PyComplex_ImagAsDouble(o)
-    else:
-      let vv = pyLib.PyComplex_AsCComplex(o)
-      when declared(Complex64):
-        when T is Complex64:
-          v = vv
-        else:
-          v.re = vv.re
-          v.im = vv.im
-      else:
-        v = vv
-  elif T is string:
-    pyObjToNimStr(o, v)
-  elif T is seq:
-    pyObjToNimSeq(o, v)
-  elif T is array:
-    pyObjToNimArray(o, v)
-  elif T is JsonNode:
-    v = pyObjToJson(o)
-  elif T is PyNimObject:
-    if cast[pointer](o) == cast[pointer](pyLib.Py_None):
-      v = nil
-    else:
-      let typ = cast[PyTypeObject]((cast[ptr PyObjectObj](o)).ob_type)
-      if typ.tp_descr_get == typDescrGet: # Very basic check if the object is indeed a nim object
-        v = T(toNim(o, PyNimObject))
-      else:
-        raiseConversionError($T)
-  elif T is ref:
-    if cast[pointer](o) == cast[pointer](pyLib.Py_None):
-      v = nil
-    else:
-      conversionTypeCheck(pyLib.PyCapsule_Type)
-      v = cast[T](pyLib.PyCapsule_GetPointer(o, nil))
-  elif T is Table:
-    # above `object` since `Table` is an object
-    conversionTypeCheck(pyLib.PyDict_Type)
-    pyObjToNimTab(o, v)
-  elif T is object:
-    pyObjToNimObj(o, v)
-  elif T is tuple:
-    pyObjToNimTuple(o, v)
-  elif T is proc {.closure.}:
-    pyObjToProc(o, v)
+proc pyValueToNim*[T: PyNimObject](v: PPyObject, o: var T) =
+  if cast[pointer](v) == cast[pointer](pyLib.Py_None):
+    o = nil
   else:
-    unknownTypeCompileError(v)
+    let typ = cast[PyTypeObject]((cast[ptr PyObjectObj](v)).ob_type)
+    if typ.tp_descr_get == typDescrGet: # Very basic check if the object is indeed a nim object
+      o = T(toNim(v, PyNimObject))
+    else:
+      pyValueToNimRaiseConversionError($T)
 
-proc getListOrTupleAccessors(o: PPyObject):
-    tuple[getSize: proc(l: PPyObject): Py_ssize_t {.cdecl, gcsafe.},
-      getItem: proc(l: PPyObject, index: Py_ssize_t): PPyObject {.cdecl, gcsafe.}] =
-  if checkObjSubclass(o, pyLib.PyList_Type):
-    result.getSize = pyLib.PyList_Size
-    result.getItem = pyLib.PyList_GetItem
-  elif checkObjSubclass(o, pyLib.PyTuple_Type):
-    result.getSize = pyLib.PyTuple_Size
-    result.getItem = pyLib.PyTuple_GetItem
-
-proc pyObjFillArray[T](o: PPyObject, getItem: proc(l: PPyObject, index: Py_ssize_t): PPyObject {.cdecl, gcsafe.}, v: var openarray[T]) =
-  for i in 0 ..< v.len:
-    pyObjToNim(getItem(o, i), v[i])
-    # No DECREF. getItem returns borrowed ref.
-
-proc pyObjToNimSeq[T](o: PPyObject, v: var seq[T]) =
-  when T is byte:
-    if checkObjSubclass(o, pyLib.PyBytes_Type):
-      var sz: Py_ssize_t
-      var pStr: ptr char
-      if pyLib.PyBytes_AsStringAndSize(o, addr pStr, addr sz) == -1:
-        raiseConversionError($type(v))
-      v.setLen(sz)
-      if sz != 0:
-        copyMem(addr v[0], pStr, sz)
-      return
-
-  let (getSize, getItem) = getListOrTupleAccessors(o)
-  if unlikely getSize.isNil:
-    raiseConversionError($type(v))
-
-  let sz = int(getSize(o))
-  assert(sz >= 0)
-  v = newSeq[T](sz)
-  pyObjFillArray(o, getItem, v)
-
-proc pyObjToNimTab[T; U](o: PPyObject, tab: var Table[T, U]) =
-  ## call this either:
-  ## - if you want to check whether T and U are valid types for
-  ##   the python dict (i.e. to check whether all python types
-  ##   are convertible to T and U)
-  ## - you know the python dict conforms to T and U and you wish
-  ##   to get a correct Nim table from that
-  tab = initTable[T, U]()
-  let
-    sz = int(pyLib.PyDict_Size(o))
-    ks = pyLib.PyDict_Keys(o)
-    vs = pyLib.PyDict_Values(o)
-  for i in 0 ..< sz:
-    var
-      k: T
-      v: U
-    pyObjToNim(pyLib.PyList_GetItem(ks, i), k)
-    pyObjToNim(pyLib.PyList_GetItem(vs, i), v)
-    # PyList_GetItem # No DECREF. Returns borrowed ref.
-    tab[k] = v
-  decRef ks
-  decRef vs
-
-proc pyObjToNimArray[T, I](o: PPyObject, v: var array[I, T]) =
-  when T is byte:
-    if checkObjSubclass(o, pyLib.PyBytes_Type):
-      var sz: Py_ssize_t
-      var pStr: ptr char
-      if pyLib.PyBytes_AsStringAndSize(o, addr pStr, addr sz) == -1 or sz != v.len:
-        raiseConversionError($type(v))
-      when v.len != 0:
-        copyMem(addr v[0], pStr, sz)
-      return
-
-  let (getSize, getItem) = getListOrTupleAccessors(o)
-  if not getSize.isNil:
-    let sz = int(getSize(o))
-    if sz == v.len:
-      pyObjFillArray(o, getItem, v)
-      return
-
-  raiseConversionError($type(v))
-
-proc pyObjToNimTuple(o: PPyObject, v: var tuple) =
-  let (getSize, getItem) = getListOrTupleAccessors(o)
-  const sz = tupleSize[type(v)]()
-  if not getSize.isNil and getSize(o) == sz:
-    var i = 0
-    for f in fields(v):
-      let pf = getItem(o, i)
-      pyObjToNim(pf, f)
-      # No DECREF here. PyTuple_GetItem returns a borrowed ref.
-      inc i
+proc pyValueToNim*[T: ref](v: PPyObject, o: var T) =
+  if cast[pointer](v) == cast[pointer](pyLib.Py_None):
+    o = nil
   else:
-    raiseConversionError($type(v))
-
+    pyValueToNimConversionTypeCheck(pyLib.PyCapsule_Type)
+    o = cast[T](pyLib.PyCapsule_GetPointer(v, nil))
 
 proc refCapsuleDestructor(c: PPyObject) {.cdecl.} =
   let o = pyLib.PyCapsule_GetPointer(c, nil)
@@ -711,41 +413,6 @@ proc nimValueToPy*(v: ref): PPyObject =
     newPyNone()
   else:
     newPyCapsule(v)
-
-proc baseType(o: PPyObject): PyBaseType =
-  # returns the correct PyBaseType of the given PyObject extracted
-  # by manually checking all types
-  # If no call to `returnIfSubclass` returns from this proc, the
-  # default value of `pbUnknown` will be returned
-  template returnIfSubclass(pyt, nimt: untyped): untyped =
-    if checkObjSubclass(o, pyt):
-      return nimt
-
-  # check int types first for backward compatibility with Python2
-  returnIfSubclass(Py_TPFLAGS_INT_SUBCLASS or Py_TPFLAGS_LONG_SUBCLASS, pbLong)
-
-  let checkTypes = { pyLib.PyFloat_Type : pbFloat,
-             pyLib.PyComplex_Type : pbComplex,
-             pyLib.PyBytes_Type : pbString,
-             pyLib.PyUnicode_Type : pbString,
-             pyLib.PyList_Type : pbList,
-             pyLib.PyTuple_Type : pbTuple,
-             pyLib.PyDict_Type : pbDict }
-
-  for tup in checkTypes:
-    let
-      k = tup[0]
-      v = tup[1]
-    returnIfSubclass(k, v)
-  # if we have not returned until here, `pbUnknown` is returned
-
-iterator rawItems(o: PPyObject): PPyObject =
-  let it = pyLib.PyObject_GetIter(o)
-  defer: decRef it
-  while true:
-    let i = pyLib.PyIter_Next(it)
-    if i.isNil: break
-    yield i
 
 iterator items*(o: PyObject): PyObject =
   for i in o.rawPyObj.rawItems:
@@ -762,70 +429,7 @@ proc `==`(o: PPyObject, k: cstring): bool =
   else:
     result = pyLib.PyUnicode_CompareWithASCIIString(o, k) == 0
 
-proc `$`(p: PPyObject): string =
-  assert(not p.isNil)
-  let s = pyLib.PyObject_Str(p)
-  pyObjToNimStr(s, result)
-  decRef s
-
-proc `$`*(o: PyObject): string {.inline.} = $o.rawPyObj
-
-proc pyObjToJson(o: PPyObject): JsonNode =
-  ## convert the given PPyObject to a JsonNode
-  let bType = o.baseType
-  case bType
-  of pbUnknown:
-    if cast[pointer](o) == cast[pointer](pyLib.Py_None):
-      result = newJNull()
-    else:
-    # unsupported means we just use string conversion
-      result = % $o
-  of pbLong:
-    let typ = cast[PyTypeObject]((cast[ptr PyObjectObj](o)).ob_type)
-    if typ == pylib.PyBool_Type:
-      var x: bool
-      pyObjToNim(o, x)
-      result = %x
-    else:
-      var x: int
-      pyObjToNim(o, x)
-      result = %x
-  of pbFloat:
-    var x: float
-    pyObjToNim(o, x)
-    result = %x
-  of pbComplex:
-    when declared(Complex64):
-      var x: Complex64
-    else:
-      var x: Complex
-
-    pyObjToNim(o, x)
-    result = %*{ "real" : x.re,
-                 "imag" : x.im }
-  of pbList, pbTuple:
-    result = newJArray()
-    for x in o.rawItems:
-      result.add(pyObjToJson(x))
-      decRef x
-
-  of pbBytes, pbUnicode, pbString:
-    result = % $o
-  of pbDict:
-    # dictionaries are represented as `JObjects`, where the Python dict's keys
-    # are stored as strings
-    result = newJObject()
-    for key in o.rawItems:
-      let val = pyLib.PyDict_GetItem(o, key)
-      result[$key] = pyObjToJson(val)
-      decRef key
-      # No DECREF for val here. PyDict_GetItem returns a borrowed ref.
-
-  of pbObject: # not used, for objects currently end up as `pbUnknown`
-    result = % $o
-  of pbCapsule: # not used
-    raise newException(ValueError, "Cannot store object of base type " &
-      "`pbCapsule` in JSON.")
+proc `$`*(o: PyObject): string {.inline.} = pyValueStringify(o.rawPyObj)
 
 proc getPyArg(argTuple, argDict: PPyObject, argIdx: int, argName: cstring): PPyObject =
   # argTuple can never be nil
@@ -837,7 +441,7 @@ proc getPyArg(argTuple, argDict: PPyObject, argIdx: int, argName: cstring): PPyO
 proc parseArg[T](argTuple, kwargsDict: PPyObject, argIdx: int, argName: cstring, result: var T) =
   let arg = getPyArg(argTuple, kwargsDict, argIdx, argName)
   if not arg.isNil:
-    pyObjToNim(arg, result)
+    pyValueToNim(arg, result)
   # TODO: What do we do if arg is nil???
 
 template raisePyException(tp, msg: untyped): untyped =
@@ -889,7 +493,8 @@ proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNa
       if likely found:
         decRef k
       else:
-        let kStr = $k
+        var kStr: string
+        pyValueToNim(k, kStr)
         decRef k
         raisePyException(pyLib.PyExc_TypeError, funcName & "() got an unexpected keyword argument " & kStr)
 
@@ -964,7 +569,7 @@ proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: Nim
       inc numArgsReq
 
     if numArgs == 0 and selfArg != nil:
-      parseArgsStmts.add(newCall(bindSym"pyObjToNim", selfArg, argIdent))
+      parseArgsStmts.add(newCall(bindSym"pyValueToNim", selfArg, argIdent))
     else:
       parseArgsStmts.add(newCall(bindSym"parseArg", argsTuple, kwargsDict,
                     newLit(a.idx - extraArg), newLit(argName), argIdent))
@@ -1094,7 +699,7 @@ proc callObjectRaw(o: PyObject, args: varargs[PPyObject, toPyObjectArgument]): P
 
 template objToNimAux(res: untyped) =
   when declared(result):
-    pyObjToNim(res, result)
+    pyValueToNim(res, result)
 
 macro pyObjToProcAux(o: PyObject, T: type): untyped =
   result = newProc(procType = nnkLambda)
@@ -1111,7 +716,7 @@ macro pyObjToProcAux(o: PyObject, T: type): untyped =
     objToNimAux(res)
     decRef res
 
-proc pyObjToProc[T](o: PPyObject, v: var T) =
+proc pyValueToNim*[T: proc {.closure.}](o: PPyObject, v: var T) =
   if cast[pointer](o) == cast[pointer](pyLib.Py_None):
     v = nil
   else:
@@ -1200,7 +805,7 @@ proc to*(v: PyObject, T: typedesc): T {.inline.} =
   when T is void:
     discard
   else:
-    pyObjToNim(v.rawPyObj, result)
+    pyValueToNim(v.rawPyObj, result)
 
 proc callObjectAux(callable: PPyObject, args: openarray[PPyObject], kwargs: openarray[PyNamedArg] = []): PPyObject =
   let argTuple = pyLib.PyTuple_New(args.len)
@@ -1243,7 +848,7 @@ proc callMethod*(o: PyObject, name: cstring, args: varargs[PPyObject, toPyObject
 
 proc callMethod*(o: PyObject, ResultType: typedesc, name: cstring, args: varargs[PPyObject, toPyObjectArgument]): ResultType {.inline.} =
   let res = callMethodAux(o, name, args)
-  pyObjToNim(res, result)
+  pyValueToNim(res, result)
   decRef res
 
 proc getAttr*(o: PyObject, name: cstring): PyObject =
@@ -1334,7 +939,7 @@ proc pyLocals*(): PyObject =
 
 proc dir*(v: PyObject): seq[string] =
   let lst = pyLib.PyObject_Dir(v.rawPyObj)
-  pyObjToNim(lst, result)
+  pyValueToNim(lst, result)
   decRef lst
 
 proc pyBuiltinsModule*(): PyObject =
@@ -1377,4 +982,4 @@ template toPyDict*(a: untyped): PyObject =
 # Deprecated API
 proc getProperty*(o: PyObject, name: cstring): PyObject {.deprecated: "Use getAttr instead", inline.} = getAttr(o, name)
 template toDict*(a: untyped): PPyObject {.deprecated: "Use toPyDict instead".} = toPyDictRaw(a)
-proc toJson*(v: PyObject): JsonNode {.deprecated: "Use myObj.to(JsonNode) instead".} = pyObjToJson(v.rawPyObj)
+proc toJson*(v: PyObject): JsonNode {.deprecated: "Use myObj.to(JsonNode) instead".} = v.to(JsonNode)
