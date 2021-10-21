@@ -5,7 +5,7 @@ license     = "MIT"
 
 # Dependencies
 
-requires "nim >= 0.17.0"
+requires "nim >= 1.0"
 
 import oswalkdir, os, strutils
 
