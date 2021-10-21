@@ -118,7 +118,7 @@ type
     name: cstring
     doc: cstring
     methods: seq[PyMethodDef]
-    types: seq[PyTypeDesc]
+    types: seq[ptr PyTypeDesc]
     iterators: seq[PyIteratorDesc]
 
   PyIteratorDesc = object
@@ -129,12 +129,11 @@ type
   PyTypeDesc = object
     name: cstring
     doc: cstring
-    fullName: string
     newFunc: Newfunc
     methods: seq[PyMethodDef]
     members: seq[PyMemberDef]
     origSize: int
-    pPyType: ptr PyTypeObject
+    pyType: PyTypeObject
 
   PyIterRef = ref object
     iter: iterator(): PPyObject
@@ -176,25 +175,88 @@ proc registerIterator(name, doc: cstring, newFunc: Newfunc) =
   assert(not curModuleDef.isNil)
   curModuleDef[].iterators.add(PyIteratorDesc(name: name, doc: doc, newFunc: newFunc))
 
-proc ppType(T: typedesc): ptr PyTypeObject =
-  var p {.global.}: PyTypeObject
-  addr p
+proc newPyNimObject[T](typ: PyTypeObject, args, kwds: PPyObject): PPyObject {.cdecl.}
+
+proc pTypeDesc(T: typedesc): ptr PyTypeDesc =
+  var t {.global.}: PyTypeDesc
+  if t.newFunc.isNil: # Not inited
+    t.name = static(cstring($T))
+    t.newFunc = newPyNimObject[T]
+    t.origSize = sizeof(T)
+  addr t
 
 proc initPyNimObjectWithPyType(o: PyNimObject, typ: PyTypeObject) =
+  assert(typ != nil)
   o.py_object.ob_type = typ
-  assert(o.py_object.ob_type != nil)
-  o.py_object.ob_refcnt = 1
   GC_ref(o)
 
 proc pyNimObjectToPyObject[T: PyNimObject](o: T): PPyObject {.inline.} =
+  inc o.py_object.ob_refcnt
   cast[PPyObject](addr o.py_object)
+
+proc pyAlloc(sz: int): PPyObject {.inline.} =
+  cast[PPyObject](alloc0(sz.uint + pyObjectStartOffset))
+
+proc toNim(p: PPyObject, t: typedesc): t {.inline.} =
+  cast[t](cast[uint](p) - uint(sizeof(PyObject_HEAD_EXTRA) + sizeof(pointer)))
+
+proc freeNimObj(p: pointer) {.cdecl.} =
+  raise newException(AssertionError, "Internal pynim error. Free called on Nim object.")
+
+proc destructNimObj(o: PPyObject) {.cdecl.} =
+  let n = toNim(o, PyNimObject)
+  GC_unref(n)
+
+proc strToPyObject(s: string): PPyObject {.gcsafe.} =
+  var cs: cstring = s
+  var ln = s.len.cint
+  result = pyLib.Py_BuildValue("s#", cs, ln)
+  if result.isNil:
+    # Utf-8 decoding failed. Fallback to bytes.
+    pyLib.PyErr_Clear()
+    result = pyLib.Py_BuildValue("y#", cs, ln)
+
+  assert(not result.isNil, "nimpy internal error converting string")
+
+proc iterDescrGet(a, b, c: PPyObject): PPyObject {.cdecl.} =
+  strToPyObject("nim iterator")
+
+proc typDescrGet(a, b, c: PPyObject): PPyObject {.cdecl.} =
+  strToPyObject("nim type")
+
+proc initPyNimObjectType[PyTypeObj](td: var PyTypeDesc) =
+  assert(not pyLib.isNil)
+  assert(td.pyType.isNil)
+
+  let typ = pyAlloc(sizeof(PyTypeObj))
+  let ty = typ.to(PyTypeObj)
+  td.pyType = ty
+  ty.tp_name = td.name
+
+  # Nim objects have an m_type* in front, we're stripping that away for python,
+  # so we're telling python that the size is less by one pointer
+  ty.tp_basicsize = td.origSize.cint - sizeof(pointer).cint
+  ty.tp_flags = Py_TPFLAGS_DEFAULT_EXTERNAL
+  ty.tp_doc = td.doc
+  ty.tp_new = td.newFunc
+  ty.tp_free = freeNimObj
+  ty.tp_dealloc = destructNimObj
+  ty.tp_descr_get = typDescrGet
+
+  if td.methods.len != 0:
+    td.methods.add(PyMethodDef()) # Add sentinel
+    ty.tp_methods = unsafeAddr td.methods[0]
+
+  discard pyLib.PyType_Ready(cast[PyTypeObject](typ))
+  incRef(typ)
 
 proc marshalPyNimObjectToPy[T: PyNimObject](o: T): PPyObject {.inline.} =
   if o.py_object.ob_type.isNil:
-    let pTyp = ppType(T)
-    assert(pTyp != nil)
-    initPyNimObjectWithPyType(o, pTyp[])
-    GC_ref(o)
+    let td = pTypeDesc(T)
+    if td.pyType.isNil:
+      initPyNimObjectType[PyTypeObject3Obj](td[])
+      assert(not td.pyType.isNil)
+    initPyNimObjectWithPyType(o, td.pyType)
   pyNimObjectToPyObject(o)
 
 proc newPyNimObject[T](typ: PyTypeObject, args, kwds: PPyObject): PPyObject {.cdecl.} =
@@ -209,10 +271,11 @@ proc getTypeIdxInModule(T: typedesc): int {.compileTime.} =
 
 proc addTypedefToModuleDef(md: ptr PyModuleDesc, T: typedesc, idx: int) =
   assert(md.types.len == idx)
-  var v: T
-  md.types.add(PyTypeDesc(name: $T, newFunc: newPyNimObject[T], origSize: sizeof(v[]), pPyType: ppType(T)))
+  md.types.add(pTypeDesc(T))
 
 template registerTypeMethod(T: typedesc, name, doc: cstring, f: PyCFunctionWithKeywords) =
+  when T isnot PyNimObjectExperimental:
+    {.error: "Type " & $T & " is not a subclass of PyNimObjectExperimental, while trying to export type method " & $name & " because its first argument is named `self`"}
   assert(not curModuleDef.isNil)
   const typeIdx = getTypeIdxInModule(T)
   if typeIdx > curModuleDef.types.high: addTypedefToModuleDef(curModuleDef, T, typeIdx)
@@ -223,25 +286,10 @@ proc initPythonModuleDesc(m: var PyModuleDesc, name, doc: cstring) =
   m.name = name
   m.doc = doc
 
-proc pyAlloc(sz: int): PPyObject {.inline.} =
-  result = cast[PPyObject](alloc0(sz.uint + pyObjectStartOffset))
-
-proc toNim(p: PPyObject, t: typedesc): t {.inline.} =
-  result = cast[t](cast[uint](p) - uint(sizeof(PyObject_HEAD_EXTRA) + sizeof(pointer)))
-
 proc initCommon(m: var PyModuleDesc) =
   if pyLib.isNil:
     pyLib = loadPyLibFromThisProcess()
   m.methods.add(PyMethodDef()) # Add sentinel
-  for t in m.types.mitems:
-    t.methods.add(PyMethodDef()) # Add sentinel
-
-proc destructNimObj(o: PPyObject) {.cdecl.} =
-  let n = toNim(o, PyNimObject)
-  GC_unref(n)
-
-proc freeNimObj(p: pointer) {.cdecl.} =
-  raise newException(AssertionError, "Internal pynim error. Free called on Nim object.")
 
 proc destructNimIterator(o: PPyObject) {.cdecl.} =
   let n = to(o, PyIteratorObj)
@@ -271,44 +319,10 @@ proc iterNext(i: PPyObject): PPyObject {.cdecl.} =
   except Exception as e:
     pythonException(e)
 
-proc strToPyObject(s: string): PPyObject {.gcsafe.} =
-  var cs: cstring = s
-  var ln = s.len.cint
-  result = pyLib.Py_BuildValue("s#", cs, ln)
-  if result.isNil:
-    # Utf-8 decoding failed. Fallback to bytes.
-    pyLib.PyErr_Clear()
-    result = pyLib.Py_BuildValue("y#", cs, ln)
-
-  assert(not result.isNil, "nimpy internal error converting string")
-
-proc iterDescrGet(a, b, c: PPyObject): PPyObject {.cdecl.} =
-  strToPyObject("nim iterator")
-
-proc typDescrGet(a, b, c: PPyObject): PPyObject {.cdecl.} =
-  strToPyObject("nim type")
-
 proc initModuleTypes[PyTypeObj](p: PPyObject, m: var PyModuleDesc) =
   for i in 0 ..< m.types.len:
-    let typ = pyAlloc(sizeof(PyTypeObj))
-    let ty = typ.to(PyTypeObj)
-    assert(m.types[i].pPyType != nil)
-    m.types[i].pPyType[] = ty
-    ty.tp_name = m.types[i].fullName
-
-    # Nim objects have an m_type* in front, we're stripping that away for python,
-    # so we're telling python that the size is less by one pointer
-    ty.tp_basicsize = m.types[i].origSize.cint - sizeof(pointer).cint
-    ty.tp_flags = Py_TPFLAGS_DEFAULT_EXTERNAL
-    ty.tp_doc = m.types[i].doc
-    ty.tp_new = m.types[i].newFunc
-    ty.tp_free = freeNimObj
-    ty.tp_dealloc = destructNimObj
-    ty.tp_descr_get = typDescrGet
-    ty.tp_methods = unsafeAddr m.types[i].methods[0]
-
-    discard pyLib.PyType_Ready(cast[PyTypeObject](typ))
-    incRef(typ)
+    initPyNimObjectType[PyTypeObj](m.types[i][])
+    let typ = cast[PPyObject](cast[uint](m.types[i].pyType) - pyObjectStartOffset)
     discard pyLib.PyModule_AddObject(p, m.types[i].name, typ)
 
   let selfIter = if m.iterators.len != 0:
@@ -1141,7 +1155,7 @@ proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: Nim
     try:
       `parseArgsStmts`
     except CatchableError as e:
-      pyLib.PyErr_SetString(pyLib.PyExc_TypeError, e.msg)
+      pyLib.PyErr_SetString(pyLib.PyExc_TypeError, cstring(e.msg))
       return PPyObject(nil)
 
   result.call = origCall
