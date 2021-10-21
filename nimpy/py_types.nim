@@ -321,5 +321,104 @@ type
     peKeyError = "KeyError"
     peIndexError = "IndexError"
 
+const
+  #  PyBufferProcs contains bf_getcharbuffer
+  Py_TPFLAGS_HAVE_GETCHARBUFFER* = (1 shl 0)
+
+  #  PySequenceMethods contains sq_contains
+  Py_TPFLAGS_HAVE_SEQUENCE_IN* = (1 shl 1)
+
+# This is here for backwards compatibility.  Extensions that use the old GC
+# API will still compile but the objects will not be tracked by the GC.
+#  Py_TPFLAGS_GC 0 #  used to be (1 shl 2) =
+
+  #  PySequenceMethods and PyNumberMethods contain in-place operators
+  Py_TPFLAGS_HAVE_INPLACEOPS* = (1 shl 3)
+
+  #  PyNumberMethods do their own coercion
+  Py_TPFLAGS_CHECKTYPES* = (1 shl 4)
+
+  #  tp_richcompare is defined
+  Py_TPFLAGS_HAVE_RICHCOMPARE* = (1 shl 5)
+
+  #  Objects which are weakly referencable if their tp_weaklistoffset is >0
+  Py_TPFLAGS_HAVE_WEAKREFS* = (1 shl 6)
+
+  #  tp_iter is defined
+  Py_TPFLAGS_HAVE_ITER* = (1 shl 7)
+
+  #  New members introduced by Python 2.2 exist
+  Py_TPFLAGS_HAVE_CLASS* = (1 shl 8)
+
+  #  Set if the type object is dynamically allocated
+  Py_TPFLAGS_HEAPTYPE* = (1 shl 9)
+
+  #  Set if the type allows subclassing
+  Py_TPFLAGS_BASETYPE* = (1 shl 10)
+
+  #  Set if the type is 'ready' -- fully initialized
+  Py_TPFLAGS_READY* = (1 shl 12)
+
+  #  Set while the type is being 'readied', to prevent recursive ready calls
+  Py_TPFLAGS_READYING* = (1 shl 13)
+
+  #  Objects support garbage collection (see objimp.h)
+  Py_TPFLAGS_HAVE_GC* = (1 shl 14)
+
+  #  These two bits are preserved for Stackless Python, next after this is 17
+
+  Py_TPFLAGS_HAVE_STACKLESS_EXTENSION* = 0
+
+  #  Objects support nb_index in PyNumberMethods
+  Py_TPFLAGS_HAVE_INDEX* = (1 shl 17)
+
+  #  Objects support type attribute cache
+  Py_TPFLAGS_HAVE_VERSION_TAG* = (1 shl 18)
+  Py_TPFLAGS_VALID_VERSION_TAG* = (1 shl 19)
+
+  #  Type is abstract and cannot be instantiated
+  Py_TPFLAGS_IS_ABSTRACT* = (1 shl 20)
+
+  #  Has the new buffer protocol
+  Py_TPFLAGS_HAVE_NEWBUFFER* = (1 shl 21)
+
+  #  These flags are used to determine if a type is a subclass.
+  Py_TPFLAGS_INT_SUBCLASS* = (1 shl 23)
+  Py_TPFLAGS_LONG_SUBCLASS* = (1 shl 24)
+  Py_TPFLAGS_LIST_SUBCLASS* = (1 shl 25)
+  Py_TPFLAGS_TUPLE_SUBCLASS* = (1 shl 26)
+  Py_TPFLAGS_STRING_SUBCLASS* = (1 shl 27)
+  Py_TPFLAGS_UNICODE_SUBCLASS* = (1 shl 28)
+  Py_TPFLAGS_DICT_SUBCLASS* = (1 shl 29)
+  Py_TPFLAGS_BASE_EXC_SUBCLASS* = (1 shl 30)
+  Py_TPFLAGS_TYPE_SUBCLASS* = (1 shl 31)
+
+  Py_TPFLAGS_DEFAULT_EXTERNAL* = Py_TPFLAGS_HAVE_GETCHARBUFFER or
+                                Py_TPFLAGS_HAVE_SEQUENCE_IN or
+                                Py_TPFLAGS_HAVE_INPLACEOPS or
+                                Py_TPFLAGS_HAVE_RICHCOMPARE or
+                                Py_TPFLAGS_HAVE_WEAKREFS or
+                                Py_TPFLAGS_HAVE_ITER or
+                                Py_TPFLAGS_HAVE_CLASS or
+                                Py_TPFLAGS_HAVE_STACKLESS_EXTENSION or
+                                Py_TPFLAGS_HAVE_INDEX
+
+  Py_TPFLAGS_DEFAULT_CORE* = Py_TPFLAGS_DEFAULT_EXTERNAL or Py_TPFLAGS_HAVE_VERSION_TAG
+
+  # These flags are used for PyMethodDef.ml_flags
+  Py_MLFLAGS_VARARGS* = (1 shl 0)
+  Py_MLFLAGS_KEYWORDS* = (1 shl 1)
+  Py_MLFLAGS_NOARGS* = (1 shl 2)
+  Py_MLFLAGS_O* = (1 shl 3)
+  Py_MLFLAGS_CLASS* = (1 shl 4)
+  Py_MLFLAGS_STATIC* = (1 shl 5)
+
+  # Rich comparison opcodes
+  Py_LT* = 0
+  Py_LE* = 1
+  Py_EQ* = 2
+  Py_NE* = 3
+  Py_GT* = 4
+  Py_GE* = 5
 
 proc isNil*(p: PPyObject): bool {.borrow.}
