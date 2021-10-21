@@ -54,28 +54,31 @@ process has launched your module.
 
 ## Troubleshooting, Q&A
 <details>
-<summary> <b>Question:</b>
+<summary> <b>Importing the compiled module from Python fails</b> </summary>
 
-Importing the compiled module from Python fails with `ImportError: dynamic module does not define module export function ...`
-</summary>
-
-  Make sure that the module you're importing from Python has exactly the same name as the `nim` file which the module is implemented in.
+  If you're getting `ImportError: dynamic module does not define module export function ...`
+  make sure that the module you're importing from Python has exactly the same name as the `nim` file which the module is implemented in.
 </details>
 
 <details>
-<summary> <b>Question:</b>
+<summary> <b>Nimpy fails to find (proper) libpython</b> </summary>
+  
+  The most reliable way to find libpython is `find_libpython` python package:
+  ```
+  pip3 install find_libpython
+  python3 -c 'import find_libpython; print(find_libpython.find_libpython())'
+  ```
+  Then you can specify path to libpython using `nimpy.py_lib.pyInitLibPath`. Tracking issue: #171.
+</details>
 
-Nim strings are converted to Python `bytes` instead of `string`
-</summary>
+<details>
+<summary> <b>Nim strings are converted to Python bytes instead of string</b> </summary>
 
   nimpy converts Nim strings to Python strings usually, but since Nim strings are encoding agnostic and may contain invalid utf8 sequences, nimpy will fallback to Python `bytes` in such cases.
 </details>
 
 <details>
-<summary> <b>Question:</b>
-
-Is there any numpy compatibility?
-</summary>
+<summary> <b>Is there any numpy compatibility?</b> </summary>
 
   nimpy allows manipulating numpy objects just how you would do it in Python,
 however it is not much more efficient. To get the maximum performance nimpy
@@ -89,12 +92,9 @@ be considered in the future, PRs are welcome.
 </details>
 
 <details>
-<summary> <b>Question:</b>
+<summary> <b>Does nim default garbage collector (GC) and ARC/ORC work?</b> </summary>
 
-Does nim default garbage collector (GC) work?
-</summary>
-
-  nimpy internally does everything needed to run the GC properly (keeps the stack bottom
+  Yes. nimpy internally does everything needed to run the GC properly (keeps the stack bottom
   actual, and appropriate nim references alive), and doesn't introduce any special rules
   on top. So the GC question boils down to proper GC usage in nim shared libraries,
   you'd better lookup elsewhere. The following guidelines are by no means comprehensive,
