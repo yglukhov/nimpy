@@ -3,10 +3,14 @@ import dynlib, macros, os, strutils, complex, typetraits, tables, json,
 
 import nimpy/py_lib as lib
 
-type
-  PyObject* = ref object
+when defined(gcDestructors):
+  type PyObject* = object
+    rawPyObj: PPyObject
+else:
+  type PyObject* = ref object
     rawPyObj: PPyObject
 
+type
   PyNimObject {.inheritable.} = ref object
     py_extra_dont_use: PyObject_HEAD_EXTRA
     py_object: PyObjectObj
@@ -158,6 +162,21 @@ type
     pbDict
     pbString
     pbObject
+
+when defined(gcDestructors):
+  proc isNil*(p: PyObject): bool {.inline.} = p.rawPyObj.isNil
+
+  proc `=destroy`*(p: var PyObject) =
+    if not p.rawPyObj.isNil:
+      decRef p.rawPyObj
+      p.rawPyObj = nil
+
+  proc `=copy`*(dst: var PyObject, src: PyObject) =
+    if pointer(dst.rawPyObj) != pointer(src.rawPyObj):
+      `=destroy`(dst)
+      dst.rawPyObj = src.rawPyObj
+      if not dst.rawPyObj.isNil:
+        incRef dst.rawPyObj
 
 proc privateRawPyObj*(p: PyObject): PPyObject {.inline.} =
   # Don't use this
@@ -471,12 +490,14 @@ proc pyObjToNimObj(o: PPyObject, vv: var object) =
       pyObjToNim(f, v)
     # No DECREF here. PyDict_GetItemString returns a borrowed ref.
 
-proc finalizePyObject(o: PyObject) =
-  decRef o.rawPyObj
+when not defined(gcDestructors):
+  proc finalizePyObject(o: PyObject) =
+    decRef o.rawPyObj
 
 proc newPyObjectConsumingRef(o: PPyObject): PyObject =
   assert(not o.isNil, "internal error")
-  result.new(finalizePyObject)
+  when not defined(gcDestructors):
+    result.new(finalizePyObject)
   result.rawPyObj = o
 
 proc newPyObject(o: PPyObject): PyObject =
