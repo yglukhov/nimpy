@@ -51,7 +51,15 @@ def test_enum2(nimobject):
 def test_enum3(nimobject):
     return nimobject["e3"]
 
+def test_nested_marshalling(nimobject):
+    assert(nimobject["a"][2] == 123)
+    assert(nimobject["b"][0][1] == 123)
+    assert(nimobject["b"][1] == "hello")
+    return True
 
+def test_nil_marshalling(nimobj):
+    assert(nimobj == None)
+    return True
 
 import sys
 assert(len(sys.argv) > 0)

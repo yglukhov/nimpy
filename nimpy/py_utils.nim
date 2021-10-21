@@ -140,3 +140,12 @@ proc raisePythonError*() =
   # generate the code for the checks to get the correct Python Exception and
   # then generate the case statement to map to the equivalent Nim exception
   generateRaiseCase(typ, typns, valns)
+
+proc tupleSize*[T](): int {.compileTime.} =
+  var o: T
+  for f in fields(o): inc result
+
+proc PyObject_CallObject*(o: PPyObject): PPyObject =
+  let args = pyLib.PyTuple_New(0)
+  result = pyLib.PyObject_Call(o, args, nil)
+  decRef args
