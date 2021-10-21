@@ -1,7 +1,9 @@
 import dynlib, macros, os, strutils, complex, typetraits, tables, json,
-  nimpy/[py_types, py_utils]
+  nimpy/[py_types, py_utils, nim_py_marshalling]
 
 import nimpy/py_lib as lib
+
+export nim_py_marshalling
 
 when defined(gcDestructors):
   type PyObject* = object
@@ -269,7 +271,10 @@ proc initPyNimObjectType[PyTypeObj](td: var PyTypeDesc) =
   discard pyLib.PyType_Ready(cast[PyTypeObject](typ))
   incRef(typ)
 
-proc marshalPyNimObjectToPy[T: PyNimObject](o: T): PPyObject {.inline.} =
+proc nimValueToPy*[T: PyNimObject](o: T): PPyObject {.inline.} =
+  if o.isNil:
+    return newPyNone()
+
   if o.py_object.ob_type.isNil:
     let td = pTypeDesc(T)
     if td.pyType.isNil:
@@ -277,6 +282,14 @@ proc marshalPyNimObjectToPy[T: PyNimObject](o: T): PPyObject {.inline.} =
       assert(not td.pyType.isNil)
     initPyNimObjectWithPyType(o, td.pyType)
   pyNimObjectToPyObject(o)
+
+proc nimValueToPy*(v: PyObject): PPyObject {.inline.} =
+  if v.isNil:
+    newPyNone()
+  else:
+    assert(not v.rawPyObj.isNil, "nimpy internal error rawPyObj.isNil")
+    incRef v.rawPyObj
+    v.rawPyObj
 
 proc newPyNimObject[T](typ: PyTypeObject, args, kwds: PPyObject): PPyObject {.cdecl.} =
   let o = T()
@@ -671,10 +684,6 @@ proc pyObjToNimArray[T, I](o: PPyObject, v: var array[I, T]) =
 
   raiseConversionError($type(v))
 
-proc tupleSize[T](): int {.compileTime.} =
-  var o: T
-  for f in fields(o): inc result
-
 proc pyObjToNimTuple(o: PPyObject, v: var tuple) =
   let (getSize, getItem) = getListOrTupleAccessors(o)
   const sz = tupleSize[type(v)]()
@@ -689,18 +698,6 @@ proc pyObjToNimTuple(o: PPyObject, v: var tuple) =
     raiseConversionError($type(v))
 
 
-proc nimArrToPy[T](s: openarray[T]): PPyObject
-proc nimTabToPy[T: Table](t: T): PPyObject
-proc nimObjToPy[T](o: T): PPyObject
-proc nimTupleToPy[T](o: T): PPyObject
-proc nimProcToPy[T](o: T): PPyObject
-proc nimJsonToPy(node: JsonNode): PPyObject
-proc nimEnumToPy[T](o: T): PPyObject
-
-proc newPyNone*(): PPyObject {.inline.} =
-  incRef(pyLib.Py_None)
-  pyLib.Py_None
-
 proc refCapsuleDestructor(c: PPyObject) {.cdecl.} =
   let o = pyLib.PyCapsule_GetPointer(c, nil)
   GC_unref(cast[ref int](o))
@@ -709,114 +706,11 @@ proc newPyCapsule[T](v: ref T): PPyObject =
   GC_ref(v)
   pyLib.PyCapsule_New(cast[pointer](v), nil, refCapsuleDestructor)
 
-proc nimValueToPy[T](v: T): PPyObject {.inline.} =
-  when T is void:
+proc nimValueToPy*(v: ref): PPyObject =
+  if v.isNil:
     newPyNone()
-  elif T is PPyObject:
-    v
-  elif T is PyObject:
-    if v.isNil:
-      newPyNone()
-    else:
-      assert(not v.rawPyObj.isNil, "nimpy internal error rawPyObj.isNil")
-      incRef v.rawPyObj
-      v.rawPyObj
-  elif T is string:
-    strToPyObject(v)
-  elif T is cstring:
-    pyLib.Py_BuildValue("s", v)
-  elif T is int32:
-    pyLib.Py_BuildValue("i", v)
-  elif T is int64:
-    pyLib.Py_BuildValue("L", v)
-  elif T is int:
-    when sizeof(int) == sizeof(int64):
-      nimValueToPy(int64(v))
-    elif sizeof(int) == sizeof(int32):
-      nimValueToPy(int32(v))
-    elif sizeof(int) == sizeof(int16):
-      nimValueToPy(int16(v))
-    elif sizeof(int) == sizeof(int8):
-      nimValueToPy(int8(v))
-    else:
-      {.error: "Unkown int size".}
-  elif T is uint:
-    when sizeof(uint) == sizeof(uint64):
-      nimValueToPy(uint64(v))
-    elif sizeof(uint) == sizeof(uint32):
-      nimValueToPy(uint32(v))
-    elif sizeof(uint) == sizeof(uint16):
-      nimValueToPy(uint16(v))
-    elif sizeof(uint) == sizeof(uint8):
-      nimValueToPy(uint8(v))
-    else:
-      {.error: "Unkown int size".}
-  elif T is enum:
-    nimEnumToPy(v)
-  elif T is int8:
-    pyLib.Py_BuildValue("b", v)
-  elif T is uint8|char:
-    pyLib.Py_BuildValue("B", uint8(v))
-  elif T is int32:
-    pyLib.Py_BuildValue("i", v)
-  elif T is uint32:
-    pyLib.Py_BuildValue("I", v)
-  elif T is int16:
-    pyLib.Py_BuildValue("h", v)
-  elif T is uint16:
-    pyLib.Py_BuildValue("H", v)
-  elif T is int64:
-    pyLib.Py_BuildValue("L", v)
-  elif T is uint64:
-    pyLib.Py_BuildValue("K", v)
-  elif T is float32 | float | float64:
-    pyLib.Py_BuildValue("d", float64(v))
-  elif T is seq|array:
-    nimArrToPy(v)
-  elif T is JsonNode:
-    nimJsonToPy(v)
-  elif T is PyNimObject:
-    if v.isNil:
-      newPyNone()
-    else:
-      marshalPyNimObjectToPy(v)
-  elif T is ref:
-    if v.isNil:
-      newPyNone()
-    else:
-      newPyCapsule(v)
-  elif T is bool:
-    pyLib.PyBool_FromLong(clong(v))
-  elif T is Complex:
-    when declared(Complex64):
-      when T is Complex64:
-        pyLib.Py_BuildValue("D", unsafeAddr v)
-      else:
-        let vv = complex64(v.re, v.im)
-        pyLib.Py_BuildValue("D", unsafeAddr vv)
-    else:
-      pyLib.Py_BuildValue("D", unsafeAddr v)
-  elif T is Table:
-    nimTabToPy(v)
-  elif T is object:
-    nimObjToPy(v)
-  elif T is tuple:
-    nimTupleToPy(v)
-  elif T is (proc):
-    nimProcToPy(v)
   else:
-    unknownTypeCompileError(v)
-
-proc nimArrToPy[T](s: openarray[T]): PPyObject =
-  when T is byte:
-    result = pyLib.PyBytesFromStringAndSize(cast[ptr char](s), s.len)
-  else:
-    let sz = s.len
-    result = pyLib.PyList_New(sz)
-    for i in 0 ..< sz:
-      let o = nimValueToPy(s[i])
-      discard pyLib.PyList_SetItem(result, i, o)
-      # No decRef here. PyList_SetItem "steals" the reference to `o`
+    newPyCapsule(v)
 
 proc baseType(o: PPyObject): PyBaseType =
   # returns the correct PyBaseType of the given PyObject extracted
@@ -933,87 +827,8 @@ proc pyObjToJson(o: PPyObject): JsonNode =
     raise newException(ValueError, "Cannot store object of base type " &
       "`pbCapsule` in JSON.")
 
-proc PyObject_CallObject(o: PPyObject): PPyObject =
-  let args = pyLib.PyTuple_New(0)
-  result = pyLib.PyObject_Call(o, args, nil)
-  decRef args
-
 proc cannotSerializeErr(k: string) =
   raise newException(ValueError, "Could not serialize object key: " & k)
-
-proc nimTabToPy[T: Table](t: T): PPyObject =
-  result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
-  for k, v in t:
-    let vv = nimValueToPy(v)
-    when type(k) is string:
-      let ret = pyLib.PyDict_SetItemString(result, cstring(k), vv)
-    else:
-      let kk = nimValueToPy(k)
-      let ret = pyLib.PyDict_SetItem(result, kk, vv)
-      decRef kk
-    decRef vv
-    if ret != 0:
-      cannotSerializeErr($k)
-
-proc nimObjToPy[T](o: T): PPyObject =
-  result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
-  for k, v in fieldPairs(o):
-    let vv = nimValueToPy(v)
-    let ret = pyLib.PyDict_SetItemString(result, k, vv)
-    decRef vv
-    if ret != 0:
-      cannotSerializeErr(k)
-
-proc nimJsonToPy(node: JsonNode): PPyObject =
-  case node.kind
-  of JNull:
-    result = newPyNone()
-  of JInt:
-    result = nimValueToPy(node.getInt)
-  of JFloat:
-    result = nimValueToPy(node.getFloat)
-  of JBool:
-    result = nimValueToPy(node.getBool)
-  of JString:
-    result = nimValueToPy(node.getStr)
-  of JArray:
-    result = pyLib.PyList_New(node.len)
-    for i in 0 ..< node.len:
-      let o = nimJsonToPy(node[i])
-      discard pyLib.PyList_SetItem(result, i, o)
-      # No decRef here. PyList_SetItem "steals" the reference to `o`
-  of JObject:
-    result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
-    for k, v in node:
-      let vv = nimJsonToPy(v)
-      let ret = pyLib.PyDict_SetItemString(result, cstring(k), vv)
-      decRef vv
-      if ret != 0:
-        cannotSerializeErr(k)
-
-# Enum handling
-proc nimpyEnumConvert*[T](o: T): int=
-  ## Enum handling
-  ## Default is ordinal integer
-  ## User is can freely overload any proc named `nimEnumConvert` that returns a string or an int
-  ## It will effectively overload how the conversion of the enum is done
-  ord(o)
-
-proc nimpyEnumValue[T: int|string](o: T): PPyObject =
-  ## This can be removed if we don't wish to restrict the possible converted type
-  nimValueToPy(o)
-
-proc nimEnumToPy[T](o: T): PPyObject =
-  mixin nimpyEnumConvert
-  nimpyEnumValue(nimpyEnumConvert(o))
-
-proc nimTupleToPy[T](o: T): PPyObject =
-  const sz = tupleSize[T]()
-  result = pyLib.PyTuple_new(sz)
-  var i = 0
-  for f in fields(o):
-    discard pyLib.PyTuple_SetItem(result, i, nimValueToPy(f))
-    inc i
 
 proc getPyArg(argTuple, argDict: PPyObject, argIdx: int, argName: cstring): PPyObject =
   # argTuple can never be nil
@@ -1181,12 +996,18 @@ proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: Nim
 
   result.call = origCall
 
+proc nimValueOrVoidToPy[T](v: T): PPyObject =
+  when T is void:
+    newPyNone()
+  else:
+    nimValueToPy(v)
+
 macro callNimProcWithPythonArgs(prc: typed, argsTuple: PPyObject, kwargsDict: PPyObject): PPyObject =
   let (parseArgs, call) = makeCallNimProcWithPythonArgs(prc, prc.getFormalParams, argsTuple, kwargsDict)
   result = quote do:
     `parseArgs`
     try:
-      nimValueToPy(`call`)
+      nimValueOrVoidToPy(`call`)
     except Exception as e:
       pythonException(e)
 
@@ -1198,7 +1019,7 @@ proc callNimProc(self, args, kwargs: PPyObject): PPyObject {.cdecl.} =
   let np = cast[NimPyProcBase](pyLib.PyCapsule_GetPointer(self, nil))
   np.c(args, kwargs, np)
 
-proc nimProcToPy[T](o: T): PPyObject =
+proc nimValueToPy*[T: proc](o: T): PPyObject =
   var md {.global.}: PyMethodDef
   if md.ml_name.isNil:
     md.ml_name = "anonymous"
@@ -1231,7 +1052,7 @@ proc makeProcWrapper(name, prc: NimNode, isMethod: bool): NimNode =
         proc noinline(`selfIdent`, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.nimcall, stackTrace: off.} =
           `parseArgs`
           try:
-            nimValueToPy(`call`)
+            nimValueOrVoidToPy(`call`)
           except Exception as e:
             pythonException(e)
         var p {.volatile.}: proc(s, a, kwg: PPyObject): PPyObject {.nimcall.} = noinline
@@ -1245,7 +1066,7 @@ proc makeProcWrapper(name, prc: NimNode, isMethod: bool): NimNode =
         proc noinline(`argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.nimcall, stackTrace: off.} =
           `parseArgs`
           try:
-            nimValueToPy(`call`)
+            nimValueOrVoidToPy(`call`)
           except Exception as e:
             pythonException(e)
         var p {.volatile.}: proc(a, kwg: PPyObject): PPyObject {.nimcall.} = noinline
@@ -1539,9 +1360,6 @@ proc `==`*(a, b: PyObject): bool =
   else:
     false
 
-proc toDictImpl*[T: object|tuple](o: T): PPyObject {.inline.} =
-  result = nimObjToPy(o)
-
 macro toDict*(a: untyped): PPyObject =
   if a.kind == nnkTableConstr:
     var dict = genSym(nskVar, "dict")
@@ -1559,6 +1377,6 @@ macro toDict*(a: untyped): PPyObject =
           cannotSerializeErr(`key`)
     result.add dict
   else:
-    let toDictImpl2 = bindSym"toDictImpl"
+    let toDictImpl = bindSym"nimValueToPyDict"
     result = quote do:
-      `toDictImpl2`(`a`)
+      `toDictImpl`(`a`)
