@@ -149,3 +149,6 @@ proc PyObject_CallObject*(o: PPyObject): PPyObject =
   let args = pyLib.PyTuple_New(0)
   result = pyLib.PyObject_Call(o, args, nil)
   decRef args
+
+proc cannotSerializeErr*(k: string) =
+  raise newException(ValueError, "Could not serialize object key: " & k)

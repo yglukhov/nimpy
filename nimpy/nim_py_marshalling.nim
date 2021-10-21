@@ -10,9 +10,6 @@ proc nimpyEnumConvert*[T](o: T): int=
   ## It will effectively overload how the conversion of the enum is done
   ord(o)
 
-proc cannotSerializeErr(k: string) =
-  raise newException(ValueError, "Could not serialize object key: " & k)
-
 proc newPyNone*(): PPyObject {.inline.} =
   incRef(pyLib.Py_None)
   pyLib.Py_None
@@ -21,7 +18,7 @@ proc nimValueToPy*(_: typeof(nil)): PPyObject {.inline.} = newPyNone()
 proc nimValueToPy*(v: PPyObject): PPyObject {.inline.} = v
 
 proc nimValueToPy*(v: cstring): PPyObject {.inline.} = pyLib.Py_BuildValue("s", v)
-proc nimValueToPy*(s: string): PPyObject {.inline.} =
+proc nimValueToPy*(s: string): PPyObject =
   var cs: cstring = s
   var ln = s.len.cint
   result = pyLib.Py_BuildValue("s#", cs, ln)
@@ -134,8 +131,6 @@ proc nimValueToPy*(t: Table): PPyObject =
     decRef vv
     if ret != 0:
       cannotSerializeErr($k)
-
-# proc nimValueToPy*[T: tuple](o: T): PPyObject
 
 proc nimValueToPyDict*(o: object | tuple): PPyObject =
   result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))

@@ -827,9 +827,6 @@ proc pyObjToJson(o: PPyObject): JsonNode =
     raise newException(ValueError, "Cannot store object of base type " &
       "`pbCapsule` in JSON.")
 
-proc cannotSerializeErr(k: string) =
-  raise newException(ValueError, "Could not serialize object key: " & k)
-
 proc getPyArg(argTuple, argDict: PPyObject, argIdx: int, argName: cstring): PPyObject =
   # argTuple can never be nil
   if argIdx < pyLib.PyTuple_Size(argTuple):
@@ -844,11 +841,7 @@ proc parseArg[T](argTuple, kwargsDict: PPyObject, argIdx: int, argName: cstring,
   # TODO: What do we do if arg is nil???
 
 template raisePyException(tp, msg: untyped): untyped =
-  when not defined(gcDestructors):
-    GC_disable()
-  pyLib.PyErr_SetString(tp, msg)
-  when not defined(gcDestructors):
-    GC_enable()
+  pyLib.PyErr_SetString(tp, cstring(msg))
   return false
 
 proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNames: openarray[cstring], funcName: string): bool =
@@ -866,12 +859,12 @@ proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNa
     sz == argsLen
 
   if not result:
-    raisePyException(pyLib.PyExc_TypeError, cstring(funcName & "() takes exactly " & $argsLen & " arguments (" & $sz & " given)"))
+    raisePyException(pyLib.PyExc_TypeError, funcName & "() takes exactly " & $argsLen & " arguments (" & $sz & " given)")
 
   for i in nargs ..< argsLen:
     if i < argsLenReq and nkwargs != 0: # we get required kwarg
       if not pyDictHasKey(kwargsDict, argNames[i]):
-        raisePyException(pyLib.PyExc_TypeError, cstring(funcName & "() missing 1 required positional argument: " & $argNames[i]))
+        raisePyException(pyLib.PyExc_TypeError, funcName & "() missing 1 required positional argument: " & $argNames[i])
       else:
         dec nkwarg_left
     elif nkwargs != 0: # we get optional kwarg
@@ -884,7 +877,7 @@ proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNa
     if nargs > 0:
       for i in 0..nargs:
         if pyDictHasKey(kwargsDict, argNames[i]):
-          raisePyException(pyLib.PyExc_TypeError, cstring(funcName & "() got multiple values for argument " & $argNames[i]))
+          raisePyException(pyLib.PyExc_TypeError, funcName & "() got multiple values for argument " & $argNames[i])
 
     # maybe we have an invalid kwarg
     for k in kwargsDict.rawItems:
@@ -898,7 +891,7 @@ proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNa
       else:
         let kStr = $k
         decRef k
-        raisePyException(pyLib.PyExc_TypeError, cstring(funcName & "() got an unexpected keyword argument " & kStr))
+        raisePyException(pyLib.PyExc_TypeError, funcName & "() got an unexpected keyword argument " & kStr)
 
 template seqTypeForOpenarrayType[T](t: type openarray[T]): typedesc = seq[T]
 template valueTypeForArgType(t: typedesc): typedesc =
@@ -1209,8 +1202,6 @@ proc to*(v: PyObject, T: typedesc): T {.inline.} =
   else:
     pyObjToNim(v.rawPyObj, result)
 
-proc toJson*(v: PyObject): JsonNode {.inline.} = pyObjToJson(v.rawPyObj)
-
 proc callObjectAux(callable: PPyObject, args: openarray[PPyObject], kwargs: openarray[PyNamedArg] = []): PPyObject =
   let argTuple = pyLib.PyTuple_New(args.len)
   for i, v in args:
@@ -1262,8 +1253,6 @@ proc getAttr*(o: PyObject, name: cstring): PyObject =
     # this would cause corruptions with try/except: raise newException(ValueError, "object has no attribute: " & $name)
   else:
     result = newPyObjectConsumingRef(r)
-
-proc getProperty*(o: PyObject, name: cstring): PyObject {.deprecated, inline.} = getAttr(o, name)
 
 proc setAttr*(o: PyObject, name: cstring, value: PyObject) =
   let r = pyLib.PyObject_SetAttrString(o.rawPyObj, name, value.rawPyObj)
@@ -1353,30 +1342,39 @@ proc pyBuiltinsModule*(): PyObject =
   pyImport(if pyLib.pythonVersion == 3: static(cstring("builtins")) else: static(cstring("__builtin__")))
 
 proc `==`*(a, b: PyObject): bool =
-  if a.isNil and b.isNil:
+  if pointer(a.rawPyObj) == pointer(b.rawPyObj):
     true
   elif (not a.isNil) and (not b.isNil):
     pyLib.PyObject_RichCompareBool(a.rawPyObj, b.rawPyObj, Py_EQ) == 1
   else:
     false
 
-macro toDict*(a: untyped): PPyObject =
+proc makePyDict(kv: varargs[(string, PPyObject)]): PPyObject =
+  result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
+  for (k, v) in kv:
+    let ret = pyLib.PyDict_SetItemString(result, k, v)
+    decRef v
+    if ret != 0:
+      cannotSerializeErr(k)
+
+macro toPyDictRaw(a: untyped): PPyObject =
   if a.kind == nnkTableConstr:
-    var dict = genSym(nskVar, "dict")
-    result = newStmtList()
-    result.add quote do:
-      var `dict` = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
+    result = newCall(bindSym"makePyDict")
     for ai in a:
       let key = ai[0]
       let val = ai[1]
-      result.add quote do:
-        let val2 = nimValueToPy(`val`)
-        let ret = pyLib.PyDict_SetItemString(`dict`, `key`, val2)
-        decRef val2
-        if ret != 0:
-          cannotSerializeErr(`key`)
-    result.add dict
+      result.add(newTree(nnkTupleConstr, key, newCall(bindSym"toPyObjectArgument", val)))
   else:
-    let toDictImpl = bindSym"nimValueToPyDict"
-    result = quote do:
-      `toDictImpl`(`a`)
+    result = newCall(bindSym"nimValueToPyDict", a)
+
+template toPyDict*(a: untyped): PyObject =
+  newPyObjectConsumingRef(toPyDictRaw(a))
+
+
+################################################################################
+################################################################################
+################################################################################
+# Deprecated API
+proc getProperty*(o: PyObject, name: cstring): PyObject {.deprecated: "Use getAttr instead", inline.} = getAttr(o, name)
+template toDict*(a: untyped): PPyObject {.deprecated: "Use toPyDict instead".} = toPyDictRaw(a)
+proc toJson*(v: PyObject): JsonNode {.deprecated: "Use myObj.to(JsonNode) instead".} = pyObjToJson(v.rawPyObj)
