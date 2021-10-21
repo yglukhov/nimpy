@@ -1,4 +1,4 @@
-import dynlib, sequtils, strutils, complex, py_types, strutils
+import dynlib, sequtils, strutils, complex, py_types
 
 {.pragma: pyfunc, cdecl, gcsafe.}
 
@@ -445,7 +445,7 @@ proc loadModulesFromThisProcess(pyLibHandle: LibHandle) {.gcsafe.} =
         let msg = "Init function pointer not found for module: " & $moduleName
         raise newException(ValueError, msg)
 
-      let rc = PyImport_AppendInittab(moduleName, modInitFuncPtr)
+      let rc = PyImport_AppendInittab(cstring(moduleName), modInitFuncPtr)
       if rc != 0:
         raise newException(ValueError, "Could not add module: " & $moduleName)
 

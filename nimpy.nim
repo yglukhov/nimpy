@@ -201,7 +201,7 @@ proc toNim(p: PPyObject, t: typedesc): t {.inline.} =
   cast[t](cast[uint](p) - uint(sizeof(PyObject_HEAD_EXTRA) + sizeof(pointer)))
 
 proc freeNimObj(p: pointer) {.cdecl.} =
-  raise newException(AssertionError, "Internal pynim error. Free called on Nim object.")
+  raise newException(AssertionDefect, "Internal pynim error. Free called on Nim object.")
 
 proc destructNimObj(o: PPyObject) {.cdecl.} =
   let n = toNim(o, PyNimObject)
@@ -308,9 +308,9 @@ proc updateStackBottom() {.inline.} =
         setupForeignThreadGC()
 
 proc pythonException(e: ref Exception): PPyObject =
-  let err = pyLib.PyErr_NewException("nimpy" & "." & $(e.name), pyLib.NimPyException, nil)
+  let err = pyLib.PyErr_NewException(cstring("nimpy" & "." & $(e.name)), pyLib.NimPyException, nil)
   decRef err
-  pyLib.PyErr_SetString(err, "Unexpected error encountered: " & e.msg)
+  pyLib.PyErr_SetString(err, cstring("Unexpected error encountered: " & e.msg))
 
 proc iterNext(i: PPyObject): PPyObject {.cdecl.} =
   updateStackBottom()
@@ -925,7 +925,7 @@ proc nimTabToPy[T: Table](t: T): PPyObject =
   for k, v in t:
     let vv = nimValueToPy(v)
     when type(k) is string:
-      let ret = pyLib.PyDict_SetItemString(result, k, vv)
+      let ret = pyLib.PyDict_SetItemString(result, cstring(k), vv)
     else:
       let kk = nimValueToPy(k)
       let ret = pyLib.PyDict_SetItem(result, kk, vv)
@@ -965,7 +965,7 @@ proc nimJsonToPy(node: JsonNode): PPyObject =
     result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
     for k, v in node:
       let vv = nimJsonToPy(v)
-      let ret = pyLib.PyDict_SetItemString(result, k, vv)
+      let ret = pyLib.PyDict_SetItemString(result, cstring(k), vv)
       decRef vv
       if ret != 0:
         cannotSerializeErr(k)
@@ -1030,12 +1030,12 @@ proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNa
     sz == argsLen
 
   if not result:
-    raisePyException(pyLib.PyExc_TypeError, funcName & "() takes exactly " & $argsLen & " arguments (" & $sz & " given)")
+    raisePyException(pyLib.PyExc_TypeError, cstring(funcName & "() takes exactly " & $argsLen & " arguments (" & $sz & " given)"))
 
   for i in nargs ..< argsLen:
     if i < argsLenReq and nkwargs != 0: # we get required kwarg
       if not pyDictHasKey(kwargsDict, argNames[i]):
-        raisePyException(pyLib.PyExc_TypeError, funcName & "() missing 1 required positional argument: " & $argNames[i])
+        raisePyException(pyLib.PyExc_TypeError, cstring(funcName & "() missing 1 required positional argument: " & $argNames[i]))
       else:
         dec nkwarg_left
     elif nkwargs != 0: # we get optional kwarg
@@ -1048,7 +1048,7 @@ proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNa
     if nargs > 0:
       for i in 0..nargs:
         if pyDictHasKey(kwargsDict, argNames[i]):
-          raisePyException(pyLib.PyExc_TypeError, funcName & "() got multiple values for argument " & $argNames[i])
+          raisePyException(pyLib.PyExc_TypeError, cstring(funcName & "() got multiple values for argument " & $argNames[i]))
 
     # maybe we have an invalid kwarg
     for k in kwargsDict.rawItems:
@@ -1062,7 +1062,7 @@ proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNa
       else:
         let kStr = $k
         decRef k
-        raisePyException(pyLib.PyExc_TypeError, funcName & "() got an unexpected keyword argument " & kStr)
+        raisePyException(pyLib.PyExc_TypeError, cstring(funcName & "() got an unexpected keyword argument " & kStr))
 
 template seqTypeForOpenarrayType[T](t: type openarray[T]): typedesc = seq[T]
 template valueTypeForArgType(t: typedesc): typedesc =
@@ -1283,9 +1283,7 @@ proc pyObjToProc[T](o: PPyObject, v: var T) =
     let o = newPyObject(o)
     v = pyObjToProcAux(o, T)
 
-proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode =
-  let modulename = modulename.splitFile.name
-
+proc exportProc(prc: NimNode, procName: string, wrap: bool): NimNode =
   var comment: NimNode
   if prc.body.kind == nnkStmtList and prc.body.len != 0 and prc.body[0].kind == nnkCommentStmt:
     comment = newLit($prc.body[0])
@@ -1322,16 +1320,16 @@ proc exportProc(prc: NimNode, modulename, procName: string, wrap: bool): NimNode
   # echo "procname: ", procName
   # echo repr result
 
-macro exportpyAux(prc: untyped, modulename, procName: static[string], wrap: static[bool]): untyped =
-  exportProc(prc, modulename, procName, wrap)
+macro exportpyAux(prc: untyped, procName: static[string], wrap: static[bool]): untyped =
+  exportProc(prc, procName, wrap)
 
 template exportpyAuxAux(prc: untyped{nkProcDef|nkFuncDef|nkIteratorDef}, procName: static[string]) =
   declarePyModuleIfNeeded()
-  exportpyAux(prc, instantiationInfo().filename, procName, true)
+  exportpyAux(prc, procName, true)
 
 template exportpyraw*(prc: untyped) =
   declarePyModuleIfNeeded()
-  exportpyAux(prc, instantiationInfo().filename, nil, false)
+  exportpyAux(prc, nil, false)
 
 # template exportpyIdent(i: typed, exportName: static[string]) =
 #   discard
@@ -1510,7 +1508,7 @@ proc dir*(v: PyObject): seq[string] =
 
 proc pyBuiltinsModule*(): PyObject =
   initPyLibIfNeeded()
-  pyImport(if pyLib.pythonVersion == 3: "builtins" else: "__builtin__")
+  pyImport(if pyLib.pythonVersion == 3: static(cstring("builtins")) else: static(cstring("__builtin__")))
 
 proc `==`*(a, b: PyObject): bool =
   if a.isNil and b.isNil:

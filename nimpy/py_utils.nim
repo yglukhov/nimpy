@@ -133,7 +133,7 @@ proc raisePythonError*() =
   let typs = pyLib.PyObject_Str(typ)
   var typns, valns: string
   if unlikely(not (pyStringToNim(vals, valns) and pyStringToNim(typs, typns))):
-    raise newException(AssertionError, "Can not stringify exception")
+    raise newException(AssertionDefect, "Can not stringify exception")
   decRef vals
   decRef typs
 
