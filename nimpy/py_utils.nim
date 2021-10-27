@@ -3,6 +3,9 @@ import strutils, macros
 import py_lib as lib
 import py_types
 
+when not declared(AssertionDefect):
+  type AssertionDefect = AssertionError
+
 proc incRef*(p: PPyObject) {.inline.} =
   inc p.to(PyObjectObj).ob_refcnt
 
