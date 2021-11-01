@@ -55,6 +55,7 @@ type
     PyList_Type*: PyTypeObject
     PyBytes_Type*: PyTypeObject
     PyUnicode_Type*: PyTypeObject
+    PySuper_Type*: PyTypeObject
 
     PyType_IsSubtype*: proc(t1, t2: PyTypeObject): cint {.pyfunc.}
 
@@ -232,6 +233,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
   load PyTuple_Type
   load PyList_Type
   load PyUnicode_Type
+  load PySuper_Type
   maybeLoad PyBytes_Type
   if pl.PyBytes_Type.isNil:
     # Needed for compatibility with Python 2

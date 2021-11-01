@@ -155,7 +155,7 @@ proc test*() {.gcsafe.} =
     let pfn = pyImport("pyfromnim")
     let dict = pfn.test_dict_json()
 
-    let jsonDict = dict.toJson
+    let jsonDict = dict.to(JsonNode)
     doAssert jsonDict["Hello"].getInt == 0
     doAssert jsonDict["World"].getInt == 1
     doAssert jsonDict["Yay"].getFloat == 5.5
@@ -262,6 +262,45 @@ proc test*() {.gcsafe.} =
     doAssert(pfn.test_nil_marshalling(myNil).to(bool))
     # myNil = nil # XXX: This doesn't compile with ARC
     doAssert(pfn.test_nil_marshalling(myNil).to(bool))
+
+  block: # Kinda subclassing python objects in nim and calling super
+    if pyImport("sys").version_info.major.to(int) >= 3: # Only test with python 3
+      let py = pyBuiltinsModule()
+
+      # Let's say there's this python code:
+      discard py.exec("""
+      class Foo:
+        def overrideMe(self):
+          return 2
+
+      def useFoo(foo):
+        return foo.overrideMe()
+      """.dedent())
+
+      # Create a subclass of Foo in Nim:
+      proc createFooSubclassInstance(): PyObject =
+        # The subclass is created with python `type` function
+        # Currently we don't have means to get `self` argument inside a method,
+        # so we keep `self` around in the closure environment
+
+        var self: PyObject
+
+        proc overrideMe(): int =
+          self.super.overrideMe().to(int) + 123 # Call super
+
+        self = py.`type`("_", (pyGlobals()["Foo"], ), toPyDict({
+          "overrideMe": overrideMe
+        })).to(proc(): PyObject {.gcsafe.})()
+        return self
+
+      # Create an instance of Bar
+      let b = createFooSubclassInstance()
+
+      # Get `useFoo` proc
+      let useFoo = pyGlobals()["useFoo"].to(proc(self: PyObject): int {.gcsafe.})
+
+      # Pass b to `useFoo`
+      doAssert(useFoo(b) == 125)
 
 when isMainModule:
   test()

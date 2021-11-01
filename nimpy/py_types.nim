@@ -69,7 +69,7 @@ type
   Iternextfunc* = proc(a: PPyObject): PPyObject {.cdecl.}
   Descrgetfunc* = proc(a, b, c: PPyObject): PPyObject {.cdecl.}
   Descrsetfunc* = proc(a, b, c: PPyObject): cint {.cdecl.}
-  Initproc* = proc(a, b, c: PPyObject): cint {.cdecl.}
+  Initproc* = proc(a, b, c: PPyObject): cint {.cdecl, gcsafe.}
   Newfunc* = proc(typ: PyTypeObject, a, b: PPyObject): PPyObject {.cdecl.}
   Allocfunc* = proc(typ: PyTypeObject, sz: Py_ssize_t): PPyObject {.cdecl.}
   Freefunc* = proc(p: pointer) {.cdecl.}
