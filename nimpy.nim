@@ -697,7 +697,7 @@ proc makeIteratorConstructor(name, prc: NimNode): NimNode =
 
 proc callObjectRaw(o: PyObject, args: varargs[PPyObject, toPyObjectArgument]): PPyObject
 
-template objToNimAux(res: untyped) =
+template objToNimResult(res: untyped) =
   when declared(result):
     pyValueToNim(res, result)
 
@@ -707,13 +707,20 @@ macro pyObjToProcAux(o: PyObject, T: type): untyped =
   if inst.len < 2 or inst.kind != nnkBracketExpr or inst[1].kind != nnkProcTy:
     echo "Unexpected closure type AST: ", treeRepr(inst)
     assert(false)
-  result.params = T.getTypeInst[1][0]
+
+  let params = inst[1][0]
+  let newParams = newNimNode(nnkFormalParams)
   let theCall = newCall(bindSym"callObjectRaw", o)
-  for a in inst[1].getFormalParams.arguments:
-    theCall.add(a.name)
+  newParams.add(params[0])
+  for a in params.arguments:
+    let p = ident($a.name)
+    newParams.add(newIdentDefs(p, a.typ))
+    theCall.add(p)
+
+  result.params = newParams
   result.body = quote do:
     let res = `theCall`
-    objToNimAux(res)
+    objToNimResult(res)
     decRef res
 
 proc pyValueToNim*[T: proc {.closure.}](o: PPyObject, v: var T) =
@@ -953,6 +960,23 @@ proc `==`*(a, b: PyObject): bool =
     pyLib.PyObject_RichCompareBool(a.rawPyObj, b.rawPyObj, Py_EQ) == 1
   else:
     false
+
+proc super*(self: PyObject): PyObject {.gcsafe.} =
+  let self = self.rawPyObj
+  let superArgs = pyLib.PyTuple_New(2)
+
+  let selfTyp = cast[PPyObject](self.to(PyObjectObj).ob_type)
+  incRef(selfTyp)
+  discard pyLib.PyTuple_SetItem(superArgs, 0, selfTyp)
+
+  incRef(self)
+  discard pyLib.PyTuple_SetItem(superArgs, 1, self)
+
+  let res = pyLib.PyType_GenericNew(pyLib.PySuper_Type, superArgs, nil)
+  discard cast[PPyObject](res.to(PyObjectObj).ob_type).to(PyTypeObject3Obj).tp_init(res, superArgs, nil)
+  decRef(superArgs)
+
+  newPyObjectConsumingRef(res)
 
 proc makePyDict(kv: varargs[(string, PPyObject)]): PPyObject =
   result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
