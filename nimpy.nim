@@ -12,6 +12,9 @@ else:
   type PyObject* = ref object
     rawPyObj: PPyObject
 
+when not declared(AssertionDefect):
+  type AssertionDefect = AssertionError
+
 type
   PyNimObject {.inheritable.} = ref object
     py_extra_dont_use: PyObject_HEAD_EXTRA
