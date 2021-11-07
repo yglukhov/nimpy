@@ -275,3 +275,15 @@ proc pyValueToNim*[T: tuple](v: PPyObject, o: var T) =
       inc i
   else:
     pyValueToNimRaiseConversionError($type(o))
+
+proc pyValueToNim*[T: enum](v: PPyObject, o: var T) =
+  let bType = v.baseType
+  case bType
+  of pbLong:
+    var x: int
+    pyValueToNim(v, x)
+    o = T(x)
+  of pbBytes, pbUnicode, pbString:
+    o = parseEnum[T](pyValueStringify(v))
+  else:
+    pyValueToNimRaiseConversionError($T)

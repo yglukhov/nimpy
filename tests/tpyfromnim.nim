@@ -243,6 +243,9 @@ proc test*() {.gcsafe.} =
     doAssert(pfn.test_enum2(obj1).to(string) == $(obj1.e2))
     doAssert(pfn.test_enum3(obj1).to(string) == $(obj1.e3))
 
+    doAssert(pfn.test_enum1(obj1).to(Enum1) == A1)
+    doAssert(pfn.test_enum2(obj1).to(Enum2) == A2)
+
     var obj2 = MyObj(e1: B1, e2: B2, e3: B3)
     doAssert(pfn.test_enum1(obj2).to(int) == ord(obj2.e1))
     doAssert(pfn.test_enum2(obj2).to(string) == $(obj2.e2))
