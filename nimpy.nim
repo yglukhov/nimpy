@@ -367,11 +367,6 @@ proc toString*(b: RawPyBuffer): string =
     if ln != 0:
       copyMem(addr result[0], b.buf, ln)
 
-proc unknownTypeCompileError() {.inline.} =
-  # This function never compiles, it is needed to see somewhat informative
-  # compile time error
-  discard
-
 when not defined(gcDestructors):
   proc finalizePyObject(o: PyObject) =
     decRef o.rawPyObj
@@ -987,7 +982,7 @@ proc super*(self: PyObject): PyObject {.gcsafe.} =
 proc makePyDict(kv: varargs[(string, PPyObject)]): PPyObject =
   result = PyObject_CallObject(cast[PPyObject](pyLib.PyDict_Type))
   for (k, v) in kv:
-    let ret = pyLib.PyDict_SetItemString(result, k, v)
+    let ret = pyLib.PyDict_SetItemString(result, cstring(k), v)
     decRef v
     if ret != 0:
       cannotSerializeErr(k)
