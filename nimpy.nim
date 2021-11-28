@@ -135,6 +135,9 @@ proc iterDescrGet(a, b, c: PPyObject): PPyObject {.cdecl.} =
 proc typDescrGet(a, b, c: PPyObject): PPyObject {.cdecl.} =
   strToPyObject("nim type")
 
+proc defaultTPFLAGS(): culong =
+  if pyLib.pythonVersion >= (3, 10, 0): 0 else: Py_TPFLAGS_DEFAULT_EXTERNAL
+
 proc initPyNimObjectType[PyTypeObj](td: var PyTypeDesc) =
   assert(not pyLib.isNil)
   assert(td.pyType.isNil)
@@ -147,7 +150,7 @@ proc initPyNimObjectType[PyTypeObj](td: var PyTypeDesc) =
   # Nim objects have an m_type* in front, we're stripping that away for python,
   # so we're telling python that the size is less by one pointer
   ty.tp_basicsize = td.origSize.cint - sizeof(pointer).cint
-  ty.tp_flags = Py_TPFLAGS_DEFAULT_EXTERNAL
+  ty.tp_flags = defaultTPFLAGS()
   ty.tp_doc = td.doc
   ty.tp_new = td.newFunc
   ty.tp_free = freeNimObj
@@ -258,7 +261,7 @@ proc initModuleTypes[PyTypeObj](p: PPyObject, m: var PyModuleDesc) =
     ty.tp_name = m.iterators[i].name
 
     ty.tp_basicsize = sizeof(PyIteratorObj)
-    ty.tp_flags = Py_TPFLAGS_DEFAULT_EXTERNAL
+    ty.tp_flags = defaultTPFLAGS()
     ty.tp_doc = m.iterators[i].doc
     ty.tp_new = m.iterators[i].newFunc
     ty.tp_free = freeNimObj
@@ -954,7 +957,7 @@ proc dir*(v: PyObject): seq[string] =
 
 proc pyBuiltinsModule*(): PyObject =
   initPyLibIfNeeded()
-  pyImport(if pyLib.pythonVersion == 3: static(cstring("builtins")) else: static(cstring("__builtin__")))
+  pyImport(if pyLib.pythonVersion.major == 3: static(cstring("builtins")) else: static(cstring("__builtin__")))
 
 proc `==`*(a, b: PyObject): bool =
   if pointer(a.rawPyObj) == pointer(b.rawPyObj):

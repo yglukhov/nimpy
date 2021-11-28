@@ -102,7 +102,7 @@ type
 
     PyCFunction_NewEx*: proc(md: ptr PyMethodDef, self, module: PPyObject): PPyObject {.pyfunc.}
 
-    pythonVersion*: int
+    pythonVersion*: tuple[major, minor, micro: int]
 
     when not defined(release):
       PyErr_Print*: proc() {.pyfunc.}
@@ -160,6 +160,18 @@ proc deallocPythonObj[TypeObjectType](p: PPyObject) {.gcsafe.} =
 
 proc symNotLoadedErr(s: cstring) =
   raise newException(ValueError, "Symbol not loaded: " & $s)
+
+proc getVersionTupleLong(pl: PyLib, version_info: PPyObject, field: cstring): int =
+  let v = pl.PyObject_GetAttrString(version_info, field)
+  pl.PyLong_AsLongLong(v).int
+
+proc getPythonVersion(pl: PyLib) =
+  let sys = pl.PyImport_ImportModule("sys")
+  let version_info = pl.PyObject_GetAttrString(sys, "version_info")
+  let major = getVersionTupleLong(pl, version_info, "major")
+  let minor = getVersionTupleLong(pl, version_info, "minor")
+  let micro = getVersionTupleLong(pl, version_info, "micro")
+  pl.pythonVersion = (major, minor, micro)
 
 proc loadPyLibFromModule(m: LibHandle): PyLib =
   assert(not m.isNil)
@@ -261,14 +273,11 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     if pl.PyUnicode_AsUTF8String.isNil:
       load PyUnicode_AsUTF8String, "PyUnicodeUCS2_AsUTF8String"
 
-  pl.pythonVersion = 3
-
   maybeLoad PyBytes_AsStringAndSize
   maybeLoad PyBytes_FromStringAndSize
   if pl.PyBytes_AsStringAndSize.isNil:
     load PyBytes_AsStringAndSize, "PyString_AsStringAndSize"
     load PyBytes_FromStringAndSize, "PyString_FromStringAndSize"
-    pl.pythonVersion = 2
 
   load PyDict_Type
   load PyDict_New
@@ -280,11 +289,6 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
   load PyDict_Keys
   load PyDict_Values
   load PyDict_Contains
-
-  if pl.pythonVersion == 3:
-    pl.PyDealloc = deallocPythonObj[PyTypeObject3]
-  else:
-    pl.PyDealloc = deallocPythonObj[PyTypeObject3] # Why does PyTypeObject3Obj work here and PyTypeObject2Obj does not???
 
   load PyErr_Clear
   load PyErr_SetString
@@ -323,6 +327,13 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
   loadVar PyExc_MemoryError
   loadVar PyExc_IndexError
   loadVar PyExc_KeyError
+
+  getPythonVersion(pl)
+
+  if pl.pythonVersion.major == 3:
+    pl.PyDealloc = deallocPythonObj[PyTypeObject3]
+  else:
+    pl.PyDealloc = deallocPythonObj[PyTypeObject3] # Why does PyTypeObject3Obj work here and PyTypeObject2Obj does not???
 
 when defined(windows):
   import winlean, os
@@ -499,7 +510,7 @@ proc initPyThreadFrame() =
     pyThreadStateGet = cast[proc(): pointer {.pyfunc.}](pyLib.module.symAddr("PyThreadState_Get"))
     pyThread = pyThreadStateGet()
 
-  case pyLib.pythonVersion
+  case pyLib.pythonVersion.major
   of 2:
     if not cast[ptr PyThreadState2](pyThread).frame.isNil: return
   of 3:
@@ -520,7 +531,7 @@ proc initPyThreadFrame() =
       code_object = pyCodeNewEmpty("null.py", "f", 0)
       root_frame = pyFrameNew(pyThread, code_object, main_dict, main_dict)
 
-    case pyLib.pythonVersion
+    case pyLib.pythonVersion.major
     of 2:
       cast[ptr PyThreadState2](pyThread).frame = root_frame
     of 3:
