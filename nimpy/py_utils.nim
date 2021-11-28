@@ -69,9 +69,6 @@ macro generateRaiseCase(typ: PPyObject, typns, valns: string): untyped =
   ## .. # and so on
   result = newStmtList()
   let
-    # identifiers for pyLib
-    pyLib = ident("pyLib")
-    pyVersion = ident("pythonVersion")
     givenExcMatch = ident("PyErr_GivenExceptionMatches")
     peKind = ident("peKind")
   # bind `PythonErrorKind` and get its implementation
@@ -105,7 +102,7 @@ macro generateRaiseCase(typ: PPyObject, typns, valns: string): untyped =
       let fieldVal = x[1].strVal
       let pyError = ident("PyExc_" & fieldVal)
       excIfStmts.add quote do:
-        if `pyLib`.`givenExcMatch`(`typ`, `pyLib`.`pyError`) == 1.cint:
+        if pyLib.`givenExcMatch`(`typ`, pyLib.`pyError`) == 1.cint:
           `peKind` = `peNode`
 
   # perform check if Python 2 or 3 is run, due to `IOError` == `OSError` in
@@ -113,7 +110,7 @@ macro generateRaiseCase(typ: PPyObject, typns, valns: string): untyped =
   let peOSError = ident("peOSError")
   let peIOError = ident("peIOError")
   let py3Check = quote do:
-    if `pyLib`.`pyVersion` == 3 and `peKind` == `peIOError`:
+    if pyLib.pythonVersion.major == 3 and `peKind` == `peIOError`:
       # if Py3 and `IOError`, rewrite to `OSError`
       `peKind` = `peOSError`
 
