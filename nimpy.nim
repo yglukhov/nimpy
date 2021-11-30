@@ -65,10 +65,10 @@ when defined(gcDestructors):
 
   proc `=copy`*(dst: var PyObject, src: PyObject) =
     if pointer(dst.rawPyObj) != pointer(src.rawPyObj):
+      if not src.rawPyObj.isNil:
+        incRef src.rawPyObj
       `=destroy`(dst)
       dst.rawPyObj = src.rawPyObj
-      if not dst.rawPyObj.isNil:
-        incRef dst.rawPyObj
 
   converter nilToPyObject*(_: typeof(nil)): PyObject {.inline.} = discard
 
