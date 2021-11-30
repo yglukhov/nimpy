@@ -161,23 +161,34 @@ proc deallocPythonObj[TypeObjectType](p: PPyObject) {.gcsafe.} =
 proc symNotLoadedErr(s: cstring) =
   raise newException(ValueError, "Symbol not loaded: " & $s)
 
-proc getVersionTupleLong(pl: PyLib, version_info: PPyObject, field: cstring): int =
-  let v = pl.PyObject_GetAttrString(version_info, field)
-  pl.PyLong_AsLongLong(v).int
+proc getPyVersion(pyLibHandle: LibHandle): tuple[major, minor, micro: int] =
+  # Py_GetVersion is documented to be OK to call before
+  # Py_Initialize so we can use it for determining which
+  # init function to supply to PyImport_AppendInittab
+  # (although there seems to be at least one Python distro
+  #  that may have issues with this, so maybe a different
+  #  approach is warranted?
+  #  See https://modwsgi.readthedocs.io/en/develop/release-notes/version-4.5.7.html
+  #  and https://twitter.com/grahamdumpleton/status/773383080002269184 )
+  let pyVersionFuncPtr = cast[proc() : cstring {.pyfunc.}](pyLibHandle.symAddr("Py_GetVersion"))
+  if pyVersionFuncPtr.isNil:
+    raise newException(ValueError, "Could not determine Python version")
 
-proc getPythonVersion(pl: PyLib) =
-  let sys = pl.PyImport_ImportModule("sys")
-  let version_info = pl.PyObject_GetAttrString(sys, "version_info")
-  let major = getVersionTupleLong(pl, version_info, "major")
-  let minor = getVersionTupleLong(pl, version_info, "minor")
-  let micro = getVersionTupleLong(pl, version_info, "micro")
-  pl.pythonVersion = (major, minor, micro)
+  let pyVersion = pyVersionFuncPtr()
+  proc c_sscanf(str, fmt: cstring): cint {.varargs, importc: "sscanf", header: "<stdio.h>".}
+
+  var major, minor, micro: cint
+  if unlikely c_sscanf(pyVersion, "%d.%d.%d", addr major, addr minor, addr micro) <= 0:
+    raise newException(ValueError, "Could not determine Python version: " & $pyVersion)
+  (major.int, minor.int, micro.int)
 
 proc loadPyLibFromModule(m: LibHandle): PyLib =
   assert(not m.isNil)
   result = cast[PyLib](allocShared0(sizeof(result[])))
   let pl = result
   pl.module = m
+  pl.pythonVersion = getPyVersion(m)
+
   if not (m.symAddr("PyModule_Create2").isNil or
       m.symAddr("Py_InitModule4_64").isNil or
       m.symAddr("Py_InitModule4").isNil):
@@ -328,8 +339,6 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
   loadVar PyExc_IndexError
   loadVar PyExc_KeyError
 
-  getPythonVersion(pl)
-
   if pl.pythonVersion.major == 3:
     pl.PyDealloc = deallocPythonObj[PyTypeObject3]
   else:
@@ -414,31 +423,11 @@ proc pythonLibHandleFromExternalLib(): LibHandle {.inline.} =
 proc loadPyLibFromThisProcess*(): PyLib {.inline.} =
   loadPyLibFromModule(pythonLibHandleForThisProcess())
 
-proc getPyMajorVersion(pyLibHandle: LibHandle) : int =
-  # Py_GetVersion is documented to be OK to call before
-  # Py_Initialize so we can use it for determining which
-  # init function to supply to PyImport_AppendInittab
-  # (although there seems to be at least one Python distro
-  #  that may have issues with this, so maybe a different
-  #  approach is warranted?
-  #  See https://modwsgi.readthedocs.io/en/develop/release-notes/version-4.5.7.html
-  #  and https://twitter.com/grahamdumpleton/status/773383080002269184 )
-  let pyVersionFuncPtr = cast[proc() : cstring {.pyfunc.}](pyLibHandle.symAddr("Py_GetVersion"))
-  if pyVersionFuncPtr.isNil:
-    raise newException(ValueError, "Could not determine Python version")
-
-  let pyVersion = pyVersionFuncPtr()
-  if pyVersion.len() > 0 and pyVersion[0].isDigit():
-    result = (pyVersion[0] & "").parseInt()
-  else:
-    let msg = "Could not determine Python version: " & $pyVersion
-    raise newException(ValueError, msg)
-
 proc loadModulesFromThisProcess(pyLibHandle: LibHandle) {.gcsafe.} =
   assert(pyLib.isNil, "Can't load built-in module after Python initialization")
 
   let
-    pyMajorVer = pyLibHandle.getPyMajorVersion()
+    pyMajorVer = pyLibHandle.getPyVersion().major
     PyImport_AppendInittab = cast[proc(name: cstring, initfuncPtr: PPyObject) : cint {.pyfunc.}](pyLibHandle.symAddr("PyImport_AppendInittab"))
   
   if PyImport_AppendInittab.isNil:
