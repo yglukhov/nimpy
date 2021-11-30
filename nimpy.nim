@@ -70,6 +70,8 @@ when defined(gcDestructors):
       if not dst.rawPyObj.isNil:
         incRef dst.rawPyObj
 
+  converter nilToPyObject*(_: typeof(nil)): PyObject {.inline.} = discard
+
 proc privateRawPyObj*(p: PyObject): PPyObject {.inline.} =
   # Don't use this
   p.rawPyObj

@@ -263,7 +263,7 @@ proc test*() {.gcsafe.} =
     doAssert(pfn.test_nil_marshalling(nil).to(bool))
     var myNil: PyObject
     doAssert(pfn.test_nil_marshalling(myNil).to(bool))
-    # myNil = nil # XXX: This doesn't compile with ARC
+    myNil = nil
     doAssert(pfn.test_nil_marshalling(myNil).to(bool))
 
   block: # Kinda subclassing python objects in nim and calling super
