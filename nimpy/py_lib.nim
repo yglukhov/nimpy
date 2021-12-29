@@ -429,7 +429,6 @@ proc loadModulesFromThisProcess(pyLibHandle: LibHandle) {.gcsafe.} =
   let
     pyMajorVer = pyLibHandle.getPyVersion().major
     PyImport_AppendInittab = cast[proc(name: cstring, initfuncPtr: PPyObject) : cint {.pyfunc.}](pyLibHandle.symAddr("PyImport_AppendInittab"))
-
   if PyImport_AppendInittab.isNil:
     symNotLoadedErr("PyImport_AppendInittab")
 
