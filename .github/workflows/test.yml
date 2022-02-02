@@ -1,21 +1,32 @@
 name: CI
 
-on: [push]
+on: [push, pull_request]
 jobs:
   Test:
+    if: |
+      !contains(github.event.head_commit.message, '[skip ci]')
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-        nim-channel: [stable, devel]
+        os:             [ubuntu-latest, windows-latest, macos-latest]
+        architecture:   [x64, x86]
+        nim-channel:    [stable, devel]
+        python-version: ["3.5", "3.6", "3.7"]  # FIXME: "2.7", "3.8", "3.9", "3.10" are failing Tests.
+    name: ${{ matrix.os }}-${{ matrix.architecture }}-${{ matrix.python-version }}-${{ matrix.nim-channel }}
     runs-on: ${{ matrix.os }}
-    steps:    
+    steps:
     - uses: actions/checkout@v2
+
+    - uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
     - name: Setup nim
       uses: jiro4989/setup-nim-action@v1
       with:
         nim-version: ${{ matrix.nim-channel }}
-    - name: Prepare
+
+    - name: Install Numpy
       shell: bash
       run: |
         if [ ${{matrix.os}} = ubuntu-latest ]
@@ -35,6 +46,7 @@ jobs:
           # python2 -m pip install numpy
           python3 -m pip install numpy
         fi
+        pip install numpy
 
     - name: Test
       shell: bash

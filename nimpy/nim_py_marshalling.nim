@@ -107,7 +107,7 @@ proc nimValueToPy*(v: Complex): PPyObject {.inline.} =
   else:
     pyLib.Py_BuildValue("D", unsafeAddr v)
 
-proc nimValueToPy*[T](v: openarray[T]): PPyObject =
+proc nimValueToPy*[T](v: openArray[T]): PPyObject =
   when T is byte:
     result = pyLib.PyBytesFromStringAndSize(cast[ptr char](v), v.len)
   else:
@@ -146,7 +146,7 @@ proc nimValueToPy*(t: object): PPyObject {.inline.} =
 
 proc nimValueToPy*[T: tuple](o: T): PPyObject =
   const sz = tupleSize[T]()
-  result = pyLib.PyTuple_new(sz)
+  result = pyLib.PyTuple_New(sz)
   var i = 0
   for f in fields(o):
     discard pyLib.PyTuple_SetItem(result, i, nimValueToPy(f))

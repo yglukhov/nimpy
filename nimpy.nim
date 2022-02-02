@@ -451,7 +451,7 @@ template raisePyException(tp, msg: untyped): untyped =
   pyLib.PyErr_SetString(tp, cstring(msg))
   return false
 
-proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNames: openarray[cstring], funcName: string): bool =
+proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNames: openArray[cstring], funcName: string): bool =
   let
     nargs = if argTuple.isNil: 0 else: pyLib.PyTuple_Size(argTuple)
     nkwargs = if kwargsDict.isNil: 0 else: pyLib.PyDict_Size(kwargsDict)
@@ -501,9 +501,9 @@ proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNa
         decRef k
         raisePyException(pyLib.PyExc_TypeError, funcName & "() got an unexpected keyword argument " & kStr)
 
-template seqTypeForOpenarrayType[T](t: type openarray[T]): typedesc = seq[T]
+template seqTypeForOpenarrayType[T](t: type openArray[T]): typedesc = seq[T]
 template valueTypeForArgType(t: typedesc): typedesc =
-  when t is openarray:
+  when t is openArray:
     seqTypeForOpenarrayType(t)
   else:
     t
@@ -817,7 +817,7 @@ proc to*(v: PyObject, T: typedesc): T {.inline.} =
   else:
     pyValueToNim(v.rawPyObj, result)
 
-proc callObjectAux(callable: PPyObject, args: openarray[PPyObject], kwargs: openarray[PyNamedArg] = []): PPyObject =
+proc callObjectAux(callable: PPyObject, args: openArray[PPyObject], kwargs: openArray[PyNamedArg] = []): PPyObject =
   let argTuple = pyLib.PyTuple_New(args.len)
   for i, v in args:
     assert(not v.isNil, "nimpy internal error v.isNil")
@@ -836,7 +836,7 @@ proc callObjectAux(callable: PPyObject, args: openarray[PPyObject], kwargs: open
   decRef argTuple
   if not argDict.isNil: decRef(argDict)
 
-proc callMethodAux(o: PyObject, name: cstring, args: openarray[PPyObject], kwargs: openarray[PyNamedArg] = []): PPyObject =
+proc callMethodAux(o: PyObject, name: cstring, args: openArray[PPyObject], kwargs: openArray[PyNamedArg] = []): PPyObject =
   let callable = pyLib.PyObject_GetAttrString(o.rawPyObj, name)
   if callable.isNil:
     raise newException(ValueError, "No callable attribute: " & $name)

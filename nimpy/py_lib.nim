@@ -263,7 +263,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
     load PyBytes_Type, "PyString_Type"
 
 
-  maybeload PyUnicode_FromString
+  maybeLoad PyUnicode_FromString
   if pl.PyUnicode_FromString.isNil:
     load PyUnicode_FromString, "PyString_FromString"
 
@@ -429,7 +429,6 @@ proc loadModulesFromThisProcess(pyLibHandle: LibHandle) {.gcsafe.} =
   let
     pyMajorVer = pyLibHandle.getPyVersion().major
     PyImport_AppendInittab = cast[proc(name: cstring, initfuncPtr: PPyObject) : cint {.pyfunc.}](pyLibHandle.symAddr("PyImport_AppendInittab"))
-  
   if PyImport_AppendInittab.isNil:
     symNotLoadedErr("PyImport_AppendInittab")
 

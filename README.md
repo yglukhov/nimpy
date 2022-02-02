@@ -62,7 +62,7 @@ process has launched your module.
 
 <details>
 <summary> <b>Nimpy fails to find (proper) libpython</b> </summary>
-  
+
   The most reliable way to find libpython is `find_libpython` python package:
   ```
   pip3 install find_libpython
