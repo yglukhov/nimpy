@@ -1,4 +1,4 @@
-import ../nimpy
+import nimpy
 import os
 import modules/other_module
 
