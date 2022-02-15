@@ -13,9 +13,9 @@ proc greet(name: string): string {.exportpy.} =
 
 ```bash
 # Compile on Windows:
-nim c --threads:on --app:lib --tlsEmulation:off --out:mymodule.pyd mymodule
+nim c --app:lib --out:mymodule.pyd --threads:on --tlsEmulation:off --passL:-static mymodule
 # Compile on everything else:
-nim c --threads:on --app:lib --out:mymodule.so mymodule
+nim c --app:lib --out:mymodule.so --threads:on mymodule
 ```
 
 ```py
@@ -86,8 +86,8 @@ API for performance critical numpy interop, and it is advised to consider it fir
 
 Nimpy also exposes lower level [Buffer protocol](https://docs.python.org/3/c-api/buffer.html),
 see [raw_buffers.nim](https://github.com/yglukhov/nimpy/blob/master/nimpy/raw_buffers.nim).
-[tpyfromnim.nim](https://github.com/yglukhov/nimpy/blob/master/tests/tpyfromnim.nim)
-contains a very basic test for this (grep `numpy`).
+[tpyfromnim.nim](https://github.com/yglukhov/nimpy/blob/master/tests/numpytest.nim)
+contains a very basic test for this.
 </details>
 
 <details>
@@ -105,6 +105,22 @@ contains a very basic test for this (grep `numpy`).
     nim shared libraries.
   - If you hit any GC problems with nimpy, whether you followed these guidelines or not,
     please report them to nimpy tracker :)
+
+</details>
+
+<details>
+<summary> <b>Windows, threads and MinGW</b> </summary>
+
+  When compiling with `--threads:on` Nim will imply `--tlsEmulation:on` (Windows only) which
+  prevents Nim runtime from initing properly when being called from a foreign thread (which is
+  always the case in case of Python module).
+
+  Adding `--tlsEmulation:off` when using MinGW toolchain (Nim's default on Windows) will
+  introduce a dependency on `libgcc_s_seh-*.dll`, that newer python versions are often unable
+  to find.
+
+  One way to overcome this is to link with libgcc statically, by passing `-static` to linker,
+  or `--passL:-static` to Nim.
 
 </details>
 

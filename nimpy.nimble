@@ -45,11 +45,18 @@ proc calcLibPythons() : seq[string] =
 proc runTests(nimFlags = "") =
   let pluginExtension = when defined(windows): "pyd" else: "so"
 
+  let staticFlag = when defined(windows):
+                     ## Compiling with --threads:on --tlsEmulation:off with mingw will introduce a dependency on libgcc_s_seh-1.dll which python will
+                     ## not be able to load. The workaround is to link with this lib statically, by adding -static flag to the linker
+                     "--passL:-static"
+                   else:
+                     ""
+
   for f in oswalkdir.walkDir("tests"):
     # Compile all nim modules, except those starting with "t"
     let sf = f.path.splitFile()
     if sf.ext == ".nim" and not sf.name.startsWith("t"):
-      exec "nim c --passC:-g --threads:on --app:lib " & nimFlags & " --out:" & f.path.changeFileExt(pluginExtension) & " " & f.path
+      exec "nim c --passC:-g --threads:on --tlsEmulation:off --app:lib " & staticFlag & " " & nimFlags & " --out:" & f.path.changeFileExt(pluginExtension) & " " & f.path
 
   let
     sourceFile = "tests/custommodulename".changeFileExt(pluginExtension)

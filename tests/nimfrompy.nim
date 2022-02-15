@@ -1,4 +1,4 @@
-import ../nimpy
+import nimpy
 import algorithm, complex, tables, json
 from tpyfromnim import nil
 

@@ -1,6 +1,6 @@
 name: CI
 
-on: [push, pull_request]
+on: push
 jobs:
   Test:
     if: |
@@ -9,10 +9,15 @@ jobs:
       fail-fast: false
       matrix:
         os:             [ubuntu-latest, windows-latest, macos-latest]
-        architecture:   [x64, x86]
         nim-channel:    [stable, devel]
-        python-version: ["3.5", "3.6", "3.7"]  # FIXME: "2.7", "3.8", "3.9", "3.10" are failing Tests.
-    name: ${{ matrix.os }}-${{ matrix.architecture }}-${{ matrix.python-version }}-${{ matrix.nim-channel }}
+        python-version: ["2.7", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10"]
+        exclude:
+          - os: windows-latest
+            python-version: "2.7" # DLL not found, specific to CI?
+          - os: windows-latest
+            python-version: "3.10" # FIXME: eval doesn't work
+
+    name: ${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.nim-channel }}
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
@@ -29,32 +34,13 @@ jobs:
     - name: Install Numpy
       shell: bash
       run: |
-        if [ ${{matrix.os}} = ubuntu-latest ]
-        then
-          sudo apt-get update
-          sudo apt-get install -y python-numpy python3-numpy
-        elif [ ${{matrix.os}} = macos-latest ]
-        then
-          curl -L -O https://bootstrap.pypa.io/pip/2.7/get-pip.py
-          sudo python2 get-pip.py
-          python2 -m pip install numpy
-          python3 -m pip install numpy
-        elif [ ${{matrix.os}} = windows-latest ]
-        then
-          # curl -L -O https://bootstrap.pypa.io/pip/2.7/get-pip.py
-          # python2 get-pip.py # This fails :(
-          # python2 -m pip install numpy
-          python3 -m pip install numpy
-        fi
-        pip install numpy
+        python -m pip install numpy
 
     - name: Test
       shell: bash
       run: |
-        # Could not install numpy for python2 on windows
-        if [ ${{matrix.os}} = windows-latest ]
-        then
-          export NIMPY_PY_EXES=python3
-        fi
+        export NIMPY_PY_EXES=python
+        python --version
+        python -c "import numpy; print('numpy: ', numpy.__version__)"
         nim --version
         nimble test

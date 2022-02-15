@@ -1,5 +1,6 @@
 import cmath, os
 import nimfrompy as s
+import numpytest
 
 assert(s.greet("world") == "Hello, world!")
 assert(s.greet("world", "Hello", "!") == "Hello, world!")
@@ -155,5 +156,7 @@ assert(numbers == [0, 1, 2, 3, 4])
 assert(s.other_other_proc() == 5)
 
 s.testPyFromNim()
+
+numpytest.test()
 
 print("Tests complete!")
