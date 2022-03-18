@@ -233,14 +233,15 @@ proc pyObjToJson(o: PPyObject): JsonNode =
 proc pyValueToNim*(v: PPyObject, o: var JsonNode) {.inline.} =
   o = pyObjToJson(v)
 
-proc pyValueToNim*[T; U](v: PPyObject, o: var Table[T, U]) =
+proc pyValueToNim*[T; U](
+    v: PPyObject, o: var (Table[T, U] or OrderedTable[T, U])) =
   ## call this either:
   ## - if you want to check whether T and U are valid types for
   ##   the python dict (i.e. to check whether all python types
   ##   are convertible to T and U)
   ## - you know the python dict conforms to T and U and you wish
   ##   to get a correct Nim table from that
-  o = initTable[T, U]()
+
   let
     sz = int(pyLib.PyDict_Size(v))
     ks = pyLib.PyDict_Keys(v)
