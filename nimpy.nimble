@@ -88,7 +88,7 @@ proc runTests(nimFlags = "") =
 
 task test, "Run tests":
   runTests()
-  runTests("--gc:orc")
+  runTests("--mm:orc")
 
-task test_orc, "Run tests with --gc:orc":
-  runTests("--gc:orc")
+task test_orc, "Run tests with --mm:orc":
+  runTests("--mm:orc")
