@@ -235,7 +235,7 @@ proc updateStackBottom() {.inline.} =
         setupForeignThreadGC()
 
 proc pythonException(e: ref Exception): PPyObject =
-  let err = pyLib.PyErr_NewException(cstring("nimpy" & "." & $(e.name)), pyLib.NimPyException, nil)
+  let err = pyLib.PyErr_NewException(cstring("nimpy" & "." & $(e.name)), pyLib.NimPyException, PPyObject(nil))
   decRef err
   pyLib.PyErr_SetString(err, cstring("Unexpected error encountered: " & e.msg))
 
@@ -277,7 +277,7 @@ proc initModuleTypes[PyTypeObj](p: PPyObject, m: var PyModuleDesc) =
     discard pyLib.PyModule_AddObject(p, m.iterators[i].name, typ)
 
 
-  pyLib.NimPyException = pyLib.PyErr_NewException("nimpy.NimPyException", nil, nil)
+  pyLib.NimPyException = pyLib.PyErr_NewException("nimpy.NimPyException", PPyObject(nil), PPyObject(nil))
   discard pyLib.PyModule_AddObject(p, "NimPyException", pyLib.NimPyException)
 
 proc initModule2(m: var PyModuleDesc) =
@@ -289,7 +289,7 @@ proc initModule2(m: var PyModuleDesc) =
   if Py_InitModule4.isNil:
     Py_InitModule4 = cast[type(Py_InitModule4)](pyLib.module.symAddr("Py_InitModule4_64"))
   if not Py_InitModule4.isNil:
-    let py = Py_InitModule4(m.name, addr m.methods[0], m.doc, nil, PYTHON_ABI_VERSION)
+    let py = Py_InitModule4(m.name, addr m.methods[0], m.doc, PPyObject(nil), PYTHON_ABI_VERSION)
     initModuleTypes[PyTypeObject3Obj](py, m) # Why does PyTypeObject3Obj work here and PyTypeObject2Obj does not???
 
 proc initPyModule(p: ptr PyModuleDef, m: var PyModuleDesc) {.inline.} =
@@ -637,7 +637,7 @@ proc nimValueToPy*[T: proc](o: T): PPyObject =
 
   let np = NimProcS[T](p: o, c: doCall)
   let self = newPyCapsule(np)
-  result = pyLib.PyCFunction_NewEx(addr md, self, nil)
+  result = pyLib.PyCFunction_NewEx(addr md, self, PPyObject(nil))
   decRef self
 
 proc makeProcWrapper(name, prc: NimNode, isMethod: bool): NimNode =
@@ -694,7 +694,7 @@ proc makeIteratorConstructor(name, prc: NimNode): NimNode =
         newPyIterator self, iterator(): PPyObject =
           for i in `call`:
             yield nimValueToPy(i)
-          yield nil
+          yield PPyObject(nil)
       var p {.volatile.}: proc(s: PyTypeObject, a, kwg: PPyObject): PPyObject {.nimcall.} = noinline
       p(self, `argsIdent`, `kwargsIdent`)
 
@@ -824,7 +824,7 @@ proc callObjectAux(callable: PPyObject, args: openArray[PPyObject], kwargs: open
     discard pyLib.PyTuple_SetItem(argTuple, i, v)
     # No decRef here. PyTuple_SetItem "steals" the reference to v
 
-  var argDict: PPyObject = nil
+  var argDict: PPyObject = PPyObject(nil)
   if kwargs.len != 0:
     argDict = pyLib.PyDict_New()
     for v in kwargs:
@@ -975,8 +975,8 @@ proc super*(self: PyObject): PyObject {.gcsafe.} =
   incRef(self)
   discard pyLib.PyTuple_SetItem(superArgs, 1, self)
 
-  let res = pyLib.PyType_GenericNew(pyLib.PySuper_Type, superArgs, nil)
-  discard cast[PPyObject](res.to(PyObjectObj).ob_type).to(PyTypeObject3Obj).tp_init(res, superArgs, nil)
+  let res = pyLib.PyType_GenericNew(pyLib.PySuper_Type, superArgs, PPyObject(nil))
+  discard cast[PPyObject](res.to(PyObjectObj).ob_type).to(PyTypeObject3Obj).tp_init(res, superArgs, PPyObject(nil))
   decRef(superArgs)
 
   newPyObjectConsumingRef(res)
