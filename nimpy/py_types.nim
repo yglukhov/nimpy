@@ -3,7 +3,7 @@ when (NimMajor, NimMinor) < (1, 2):
   type csize_t = csize
 
 type
-  PPyObject* = distinct pointer
+  PPyObject* = ptr object
   Py_ssize_t* = int
 
   PyCFunction* = proc(s, a: PPyObject): PPyObject {.cdecl.}
@@ -420,5 +420,3 @@ const
   Py_NE* = 3
   Py_GT* = 4
   Py_GE* = 5
-
-proc isNil*(p: PPyObject): bool {.borrow.}
