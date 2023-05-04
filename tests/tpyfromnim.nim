@@ -48,8 +48,8 @@ proc test*() {.gcsafe.} =
 
   block: # eval
     let py = pyBuiltinsModule()
-    doAssert(py.eval("3+3").to(int) == 6)
-    doAssert(py.eval(""" "hello" * 2 """).to(string) == "hellohello")
+    doAssert(py.eval("3+3", pyDict(), pyDict()).to(int) == 6)
+    doAssert(py.eval(""" "hello" * 2 """, pyDict(), pyDict()).to(string) == "hellohello")
 
   block:
     var ints = newSeq[int]()
@@ -246,6 +246,7 @@ proc test*() {.gcsafe.} =
   block: # Kinda subclassing python objects in nim and calling super
     if pyImport("sys").version_info.major.to(int) >= 3: # Only test with python 3
       let py = pyBuiltinsModule()
+      let locals = toPyDict(()) # Create empty dict
 
       # Let's say there's this python code:
       discard py.exec("""
@@ -255,7 +256,9 @@ proc test*() {.gcsafe.} =
 
       def useFoo(foo):
         return foo.overrideMe()
-      """.dedent())
+      """.dedent(), pyDict(), locals)
+
+      let fooClass = locals["Foo"]
 
       # Create a subclass of Foo in Nim:
       proc createFooSubclassInstance(): PyObject =
@@ -268,7 +271,7 @@ proc test*() {.gcsafe.} =
         proc overrideMe(): int =
           self.super.overrideMe().to(int) + 123 # Call super
 
-        self = py.`type`("_", (pyGlobals()["Foo"], ), toPyDict({
+        self = py.`type`("_", (fooClass, ), toPyDict({
           "overrideMe": overrideMe
         })).to(proc(): PyObject {.gcsafe.})()
         return self
@@ -277,7 +280,7 @@ proc test*() {.gcsafe.} =
       let b = createFooSubclassInstance()
 
       # Get `useFoo` proc
-      let useFoo = pyGlobals()["useFoo"].to(proc(self: PyObject): int {.gcsafe.})
+      let useFoo = locals["useFoo"].to(proc(self: PyObject): int {.gcsafe.})
 
       # Pass b to `useFoo`
       doAssert(useFoo(b) == 125)

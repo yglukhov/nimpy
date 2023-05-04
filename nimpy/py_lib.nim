@@ -488,10 +488,13 @@ proc initPyThreadFrame() =
       echo "Testing libpython: ", nimpyTestLibPython
       pyInitLibPath(nimpyTestLibPython)
 
-  # https://stackoverflow.com/questions/42974139/valueerror-call-stack-is-not-deep-enough-when-calling-ipython-embed-method
-  # needed for eval and stuff like pandas.query() otherwise crash (call stack is not deep enough)
   if unlikely pyLib.isNil:
     initPyLib(pythonLibHandleFromExternalLib())
+
+  # https://stackoverflow.com/questions/42974139/valueerror-call-stack-is-not-deep-enough-when-calling-ipython-embed-method
+  # needed for eval and stuff like pandas.query() otherwise crash (call stack is not deep enough)
+  #
+  # XXX Unfortunately this doesn't work with python 3.11 and later.
   pyThreadFrameInited = true
 
   let
@@ -502,7 +505,8 @@ proc initPyThreadFrame() =
   of 2:
     if not cast[ptr PyThreadState2](pyThread).frame.isNil: return
   of 3:
-    if not cast[ptr PyThreadState3](pyThread).frame.isNil: return
+    if pyLib.pythonVersion < (3, 11, 0):
+      if not cast[ptr PyThreadState3](pyThread).frame.isNil: return
   else:
     doAssert(false, "unreachable")
 
@@ -513,17 +517,19 @@ proc initPyThreadFrame() =
     pyFrameNew = cast[proc(p1, p2, p3, p4: pointer): pointer {.pyfunc.}](pyLib.module.symAddr("PyFrame_New"))
 
   if not pyImportAddModule.isNil and not pyModuleGetDict.isNil and not pyCodeNewEmpty.isNil and not pyFrameNew.isNil:
-    let
-      main_module = pyImportAddModule("__main__")
-      main_dict = pyModuleGetDict(main_module)
-      code_object = pyCodeNewEmpty("null.py", "f", 0)
-      root_frame = pyFrameNew(pyThread, code_object, main_dict, main_dict)
+    proc makeRootFrame(): pointer =
+      let
+        main_module = pyImportAddModule("__main__")
+        main_dict = pyModuleGetDict(main_module)
+        code_object = pyCodeNewEmpty("null.py", "f", 0)
+      pyFrameNew(pyThread, code_object, main_dict, main_dict)
 
     case pyLib.pythonVersion.major
     of 2:
-      cast[ptr PyThreadState2](pyThread).frame = root_frame
+      cast[ptr PyThreadState2](pyThread).frame = makeRootFrame()
     of 3:
-      cast[ptr PyThreadState3](pyThread).frame = root_frame
+      if pyLib.pythonVersion < (3, 11, 0):
+        cast[ptr PyThreadState3](pyThread).frame = makeRootFrame()
     else:
       doAssert(false, "unreachable")
 
