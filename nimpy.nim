@@ -941,11 +941,15 @@ proc pyBuiltins*(): PyObject =
 
 proc pyGlobals*(): PyObject =
   initPyLibIfNeeded()
-  newPyObject(pyLib.PyEval_GetGlobals())
+  let r = pyLib.PyEval_GetGlobals()
+  if not r.isNil:
+    result = newPyObject(r)
 
 proc pyLocals*(): PyObject =
   initPyLibIfNeeded()
-  newPyObject(pyLib.PyEval_GetLocals())
+  let r = pyLib.PyEval_GetLocals()
+  if not r.isNil:
+    result = newPyObject(r)
 
 proc dir*(v: PyObject): seq[string] =
   let lst = pyLib.PyObject_Dir(v.rawPyObj)
@@ -1002,6 +1006,8 @@ macro toPyDictRaw(a: untyped): PPyObject =
 template toPyDict*(a: untyped): PyObject =
   newPyObjectConsumingRef(toPyDictRaw(a))
 
+proc pyDict*(): PyObject =
+  newPyObjectConsumingRef(toPyDictRaw(()))
 
 ################################################################################
 ################################################################################
