@@ -237,7 +237,12 @@ proc updateStackBottom() {.inline.} =
 proc pythonException(e: ref Exception): PPyObject =
   let err = pyLib.PyErr_NewException(cstring("nimpy" & "." & $(e.name)), pyLib.NimPyException, nil)
   decRef err
-  pyLib.PyErr_SetString(err, cstring("Unexpected error encountered: " & e.msg))
+  let errMsg: string =
+    when compileOption("stackTrace"):
+      "Unexpected error encountered: " & e.msg & "\nstack trace: (most recent call last)\n" & e.getStackTrace()
+    else:
+      "Unexpected error encountered: " & e.msg
+  pyLib.PyErr_SetString(err, errmsg.cstring)
 
 proc iterNext(i: PPyObject): PPyObject {.cdecl.} =
   updateStackBottom()
