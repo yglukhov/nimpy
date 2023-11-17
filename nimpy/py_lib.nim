@@ -463,9 +463,11 @@ proc initPyLib(m: LibHandle) =
 
   Py_InitializeEx(0)
 
-  let PySys_SetArgvEx = cast[proc(argc: cint, argv: pointer, updatepath: cint){.pyfunc.}](m.symAddr("PySys_SetArgvEx"))
-  if not PySys_SetArgvEx.isNil:
-    PySys_SetArgvEx(0, nil, 0)
+  when not compileOption("app", "lib"):
+    let PySys_SetArgvEx = cast[proc(argc: cint, argv: pointer, updatepath: cint){.pyfunc.}](m.symAddr("PySys_SetArgvEx"))
+    if not PySys_SetArgvEx.isNil:
+      # TODO: Set sys.argv to actual command line params
+      PySys_SetArgvEx(0, nil, 0)
 
   pyLib = loadPyLibFromModule(m)
 
