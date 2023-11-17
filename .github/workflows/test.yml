@@ -10,12 +10,7 @@ jobs:
       matrix:
         os:             [ubuntu-latest, windows-latest, macos-latest]
         nim-channel:    [stable, devel]
-        python-version: ["2.7", "3.7", "3.8", "3.9", "3.10", "3.11"]
-        exclude:
-          - os: windows-latest
-            python-version: "2.7" # DLL not found, specific to CI?
-          - os: macos-latest
-            python-version: "2.7" # DLL not found, specific to CI?
+        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11"]
 
     name: ${{ matrix.os }}-${{ matrix.python-version }}-${{ matrix.nim-channel }}
     runs-on: ${{ matrix.os }}
@@ -42,11 +37,8 @@ jobs:
       run: |
         export NIMPY_PY_EXES=python
         python --version
-        if [ "${{ matrix.python-version }}" != "2.7" ]
-        then
-          LIBPYTHON=$(python -c 'import find_libpython; print(find_libpython.find_libpython())')
-          echo "libpython: $LIBPYTHON"
-        fi
+        LIBPYTHON=$(python -c 'import find_libpython; print(find_libpython.find_libpython())')
+        echo "libpython: $LIBPYTHON"
 
         python -c "import numpy; print('numpy: ', numpy.__version__)"
         nim --version
