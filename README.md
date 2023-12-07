@@ -1,4 +1,4 @@
-# nimpy [![Build Status](https://github.com/yglukhov/nimpy/workflows/CI/badge.svg?branch=master)](https://github.com/yglukhov/nimpy/actions?query=branch%3Amaster) [![nimble](https://img.shields.io/badge/nimble-black?logo=nim&style=flat&labelColor=171921&color=%23f3d400)](https://nimble.directory/pkg/nimpy)
+# nimpy [![CI](https://github.com/yglukhov/nimpy/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/yglukhov/nimpy/actions/workflows/test.yml) [![nimble](https://img.shields.io/badge/nimble-black?logo=nim&style=flat&labelColor=171921&color=%23f3d400)](https://nimble.directory/pkg/nimpy)
 
 Native language integration with Python has never been easier!
 
