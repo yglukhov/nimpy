@@ -189,6 +189,8 @@ proc nimValueToPy*(v: PyObject): PPyObject {.inline.} =
 proc nimExceptionToPy(e: ref Exception): PPyObject =
   if e of AssertionDefect:
     pyLib.PyExc_AssertionError
+  elif e of FieldDefect:  # Right mapping?
+    pyLib.PyExc_AttributeError
   elif e of DivByZeroDefect or e of FloatDivByZeroDefect:
     pyLib.PyExc_ZeroDivisionError
   else:

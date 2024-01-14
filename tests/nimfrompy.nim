@@ -172,6 +172,11 @@ proc assertFalse(): void {.exportpy} =
     # AssertionDefect
     doAssert false
 
+proc attributeError(): string {.exportpy} =
+    # FieldDefect
+    var obj: MyObj
+    obj.c
+
 proc intDivideByZero(): int {.exportpy} =
     # DivByZeroDefect
     1 mod 0

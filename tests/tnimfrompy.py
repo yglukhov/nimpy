@@ -46,6 +46,10 @@ try:
 except AssertionError as e:
   assert("`false`" in repr(e))
 try:
+  s.attributeError()
+except AttributeError as e:
+  pass
+try:
   s.intDivideByZero()
 except ZeroDivisionError as e:
   expected = "division by zero"
