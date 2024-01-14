@@ -151,3 +151,23 @@ proc nimValueToPy*[T: tuple](o: T): PPyObject =
   for f in fields(o):
     discard pyLib.PyTuple_SetItem(result, i, nimValueToPy(f))
     inc i
+
+proc nimValueToPy*(e: ref Exception): PPyObject =
+  if e of AssertionDefect:
+    pyLib.PyExc_AssertionError
+  elif e of EOFError:
+    pyLib.PyExc_EOFError
+  elif e of FieldDefect:  # Right mapping?
+    pyLib.PyExc_AttributeError
+  elif e of IndexDefect:
+    pyLib.PyExc_IndexError
+  elif e of IOError:
+    pyLib.PyExc_IOError
+  elif e of KeyError:
+    pyLib.PyExc_KeyError
+  elif e of DivByZeroDefect or e of FloatDivByZeroDefect:
+    pyLib.PyExc_ZeroDivisionError
+  elif e of FloatingPointDefect:
+    pyLib.PyExc_FloatingPointError
+  else:
+    pyLib.PyErr_NewException(cstring("nimpy" & "." & $(e.name)), pyLib.NimPyException, nil)
