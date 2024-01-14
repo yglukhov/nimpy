@@ -187,7 +187,9 @@ proc nimValueToPy*(v: PyObject): PPyObject {.inline.} =
     v.rawPyObj
 
 proc nimExceptionToPy(e: ref Exception): PPyObject =
-  if e of DivByZeroDefect or e of FloatDivByZeroDefect:
+  if e of AssertionDefect:
+    pyLib.PyExc_AssertionError
+  elif e of DivByZeroDefect or e of FloatDivByZeroDefect:
     pyLib.PyExc_ZeroDivisionError
   else:
     pyLib.PyErr_NewException(cstring("nimpy" & "." & $(e.name)), pyLib.NimPyException, nil)

@@ -39,6 +39,12 @@ try:
 except TypeError as e:
   expected = "TypeError(\"Can't convert python obj of type 'int' to string\",)"
   assert(expected[:-2] in repr(e))
+
+# Generic exception raising
+try:
+  s.assertFalse()
+except AssertionError as e:
+  assert("`false`" in repr(e))
 try:
   s.intDivideByZero()
 except ZeroDivisionError as e:

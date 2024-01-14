@@ -166,8 +166,16 @@ proc setMyFieldFromTt(self: AnotherTestType, value: TestType) {.exportpy.} =
 proc getMyField(self: AnotherTestType): int {.exportpy.} =
   self.myIntField
 
+# Raising Defects
+
+proc assertFalse(): void {.exportpy} =
+    # AssertionDefect
+    doAssert false
+
 proc intDivideByZero(): int {.exportpy} =
+    # DivByZeroDefect
     1 mod 0
 
 proc floatDivideByZero(): float {.exportpy} =
+    # FloatDivByZeroDefect
     1 / 0
