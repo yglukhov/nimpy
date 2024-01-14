@@ -177,6 +177,11 @@ proc attributeError(): string {.exportpy} =
     var obj: MyObj
     obj.c
 
+proc invalidIndex(): int {.exportpy} =
+    # IndexDefect
+    let mySequence = @[1, 2, 3]
+    mySequence[4]
+
 proc endOfFile(): char {.exportpy} =
     # EOFError
     let file = open("/dev/null", fmRead)

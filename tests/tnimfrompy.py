@@ -54,6 +54,10 @@ try:
 except EOFError as e:
   assert("EOF reached" in repr(e))
 try:
+  s.invalidIndex()
+except IndexError as e:
+  pass
+try:
   s.readImpossibleFile()
 except IOError as e:
   assert("/dev/null/impossible" in repr(e))
