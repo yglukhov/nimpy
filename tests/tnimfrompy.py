@@ -66,6 +66,10 @@ try:
   s.floatDivideByZero()
 except ZeroDivisionError as e:
   assert (expected in repr(e))
+try:
+  s.genericFloatingPointDefect()
+except FloatingPointError as e:
+  assert("Generic FloatingPointDefect" in repr(e))
 
 assert(s.greetEveryoneExceptJack("world") == "Hello, world!")
 try:

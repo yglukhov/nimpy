@@ -197,6 +197,8 @@ proc nimExceptionToPy(e: ref Exception): PPyObject =
       pyLib.PyExc_IOError
   elif e of DivByZeroDefect or e of FloatDivByZeroDefect:
     pyLib.PyExc_ZeroDivisionError
+  elif e of FloatingPointDefect:
+    pyLib.PyExc_FloatingPointError
   else:
     pyLib.PyErr_NewException(cstring("nimpy" & "." & $(e.name)), pyLib.NimPyException, nil)
 

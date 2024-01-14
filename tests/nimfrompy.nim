@@ -193,3 +193,7 @@ proc intDivideByZero(): int {.exportpy} =
 proc floatDivideByZero(): float {.exportpy} =
     # FloatDivByZeroDefect
     1 / 0
+
+proc genericFloatingPointDefect(): float {.exportpy} =
+    # FloatingPointDefect
+    raise newException(FloatingPointDefect, "Generic FloatingPointDefect")
