@@ -8,6 +8,7 @@ type
 
     Py_BuildValue*: proc(f: cstring): PPyObject {.pyfunc, varargs.}
     PyTuple_New*: proc(sz: Py_ssize_t): PPyObject {.pyfunc.}
+    PyTuple_Pack*: proc(sz: Py_ssize_t): PPyObject {.pyfunc, varargs.}
     PyTuple_Size*: proc(f: PPyObject): Py_ssize_t {.pyfunc.}
     PyTuple_GetItem*: proc(f: PPyObject, i: Py_ssize_t): PPyObject {.pyfunc.}
     PyTuple_SetItem*: proc(f: PPyObject, i: Py_ssize_t, v: PPyObject): cint {.pyfunc.}
@@ -252,6 +253,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
 
   load Py_BuildValue, "_Py_BuildValue_SizeT"
   load PyTuple_New
+  load PyTuple_Pack
   load PyTuple_Size
   load PyTuple_GetItem
   load PyTuple_SetItem
