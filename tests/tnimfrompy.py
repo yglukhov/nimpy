@@ -50,6 +50,10 @@ try:
 except AttributeError as e:
   pass
 try:
+  s.endOfFile()
+except EOFError as e:
+  assert("EOF reached" in repr(e))
+try:
   s.readImpossibleFile()
 except IOError as e:
   assert("/dev/null/impossible" in repr(e))

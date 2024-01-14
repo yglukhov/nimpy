@@ -177,10 +177,14 @@ proc attributeError(): string {.exportpy} =
     var obj: MyObj
     obj.c
 
+proc endOfFile(): char {.exportpy} =
+    # EOFError
+    let file = open("/dev/null", fmRead)
+    readChar(file)
+
 proc readImpossibleFile(): void {.exportpy} =
     # IOError
-    let filename = "/dev/null/impossible"
-    discard open(filename, fmRead)
+    discard open("/dev/null/impossible", fmRead)
 
 proc intDivideByZero(): int {.exportpy} =
     # DivByZeroDefect
