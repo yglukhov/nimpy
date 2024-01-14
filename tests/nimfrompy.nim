@@ -191,6 +191,11 @@ proc readImpossibleFile(): void {.exportpy} =
     # IOError
     discard open("/dev/null/impossible", fmRead)
 
+proc invalidKey(): string {.exportpy} =
+    # KeyError
+    let myTable = {1: "one", 2: "two"}.toTable
+    myTable[3]
+
 proc intDivideByZero(): int {.exportpy} =
     # DivByZeroDefect
     1 mod 0

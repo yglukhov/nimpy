@@ -56,11 +56,15 @@ except EOFError as e:
 try:
   s.invalidIndex()
 except IndexError as e:
-  pass
+  assert("index 4 not in 0" in repr(e))
 try:
   s.readImpossibleFile()
 except IOError as e:
   assert("/dev/null/impossible" in repr(e))
+try:
+  s.invalidKey()
+except KeyError as e:
+  assert("key not found" in repr(e))
 try:
   s.intDivideByZero()
 except ZeroDivisionError as e:

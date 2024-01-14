@@ -197,6 +197,8 @@ proc nimExceptionToPy(e: ref Exception): PPyObject =
     pyLib.PyExc_IndexError
   elif e of IOError:
       pyLib.PyExc_IOError
+  elif e of KeyError:
+      pyLib.PyExc_KeyError
   elif e of DivByZeroDefect or e of FloatDivByZeroDefect:
     pyLib.PyExc_ZeroDivisionError
   elif e of FloatingPointDefect:
