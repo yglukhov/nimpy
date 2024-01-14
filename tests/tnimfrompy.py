@@ -44,39 +44,47 @@ except TypeError as e:
 try:
   s.assertFalse()
 except AssertionError as e:
+  assert(isinstance(e, s.NimPyException))
   assert("`false`" in repr(e))
 try:
   s.attributeError()
 except AttributeError as e:
-  pass
+  assert (isinstance(e, s.NimPyException))
 try:
   s.endOfFile()
 except EOFError as e:
+  assert(isinstance(e, s.NimPyException))
   assert("EOF reached" in repr(e))
 try:
   s.invalidIndex()
 except IndexError as e:
+  assert(isinstance(e, s.NimPyException))
   assert("index 4 not in 0" in repr(e))
 try:
   s.readImpossibleFile()
 except IOError as e:
+  assert(isinstance(e, s.NimPyException))
   assert("/dev/null/impossible" in repr(e))
 try:
   s.invalidKey()
 except KeyError as e:
+  assert(isinstance(e, s.NimPyException))
   assert("key not found" in repr(e))
 try:
   s.intDivideByZero()
 except ZeroDivisionError as e:
+  assert(isinstance(e, s.NimPyException))
   expected = "division by zero"
   assert(expected in repr(e))
 try:
   s.floatDivideByZero()
 except ZeroDivisionError as e:
+  assert(isinstance(e, s.NimPyException))
   assert (expected in repr(e))
 try:
   s.genericFloatingPointDefect()
 except FloatingPointError as e:
+  assert(isinstance(e, s.NimPyException))
   assert("Generic FloatingPointDefect" in repr(e))
 
 assert(s.greetEveryoneExceptJack("world") == "Hello, world!")
