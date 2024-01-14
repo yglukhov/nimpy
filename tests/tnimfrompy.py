@@ -50,6 +50,10 @@ try:
 except AttributeError as e:
   pass
 try:
+  s.readImpossibleFile()
+except IOError as e:
+  assert("/dev/null/impossible" in repr(e))
+try:
   s.intDivideByZero()
 except ZeroDivisionError as e:
   expected = "division by zero"

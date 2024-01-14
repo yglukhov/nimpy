@@ -191,6 +191,8 @@ proc nimExceptionToPy(e: ref Exception): PPyObject =
     pyLib.PyExc_AssertionError
   elif e of FieldDefect:  # Right mapping?
     pyLib.PyExc_AttributeError
+  elif e of IOError:
+      pyLib.PyExc_IOError
   elif e of DivByZeroDefect or e of FloatDivByZeroDefect:
     pyLib.PyExc_ZeroDivisionError
   else:

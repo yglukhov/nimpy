@@ -177,6 +177,11 @@ proc attributeError(): string {.exportpy} =
     var obj: MyObj
     obj.c
 
+proc readImpossibleFile(): void {.exportpy} =
+    # IOError
+    let filename = "/dev/null/impossible"
+    discard open(filename, fmRead)
+
 proc intDivideByZero(): int {.exportpy} =
     # DivByZeroDefect
     1 mod 0
