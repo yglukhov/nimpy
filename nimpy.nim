@@ -186,6 +186,12 @@ proc nimValueToPy*(v: PyObject): PPyObject {.inline.} =
     incRef v.rawPyObj
     v.rawPyObj
 
+proc nimExceptionToPy(e: ref Exception): PPyObject =
+  if e of DivByZeroDefect or e of FloatDivByZeroDefect:
+    pyLib.PyExc_ZeroDivisionError
+  else:
+    pyLib.PyErr_NewException(cstring("nimpy" & "." & $(e.name)), pyLib.NimPyException, nil)
+
 proc newPyNimObject[T](typ: PyTypeObject, args, kwds: PPyObject): PPyObject {.cdecl.} =
   let o = T()
   initPyNimObjectWithPyType(o, typ)
@@ -235,8 +241,7 @@ proc updateStackBottom() {.inline.} =
         setupForeignThreadGC()
 
 proc pythonException(e: ref Exception): PPyObject =
-  let err = pyLib.PyErr_NewException(cstring("nimpy" & "." & $(e.name)), pyLib.NimPyException, nil)
-  decRef err
+  let err = nimExceptionToPy(e)
   let errMsg: string =
     when compileOption("stackTrace"):
       "Unexpected error encountered: " & e.msg & "\nstack trace: (most recent call last)\n" & e.getStackTrace()

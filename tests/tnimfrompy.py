@@ -39,6 +39,15 @@ try:
 except TypeError as e:
   expected = "TypeError(\"Can't convert python obj of type 'int' to string\",)"
   assert(expected[:-2] in repr(e))
+try:
+  s.intDivideByZero()
+except ZeroDivisionError as e:
+  expected = "division by zero"
+  assert(expected in repr(e))
+try:
+  s.floatDivideByZero()
+except ZeroDivisionError as e:
+  assert (expected in repr(e))
 
 assert(s.greetEveryoneExceptJack("world") == "Hello, world!")
 try:

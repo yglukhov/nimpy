@@ -165,3 +165,9 @@ proc setMyFieldFromTt(self: AnotherTestType, value: TestType) {.exportpy.} =
 
 proc getMyField(self: AnotherTestType): int {.exportpy.} =
   self.myIntField
+
+proc intDivideByZero(): int {.exportpy} =
+    1 mod 0
+
+proc floatDivideByZero(): float {.exportpy} =
+    1 / 0
