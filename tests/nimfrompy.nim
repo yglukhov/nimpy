@@ -1,5 +1,5 @@
 import nimpy
-import algorithm, complex, tables, json
+import algorithm, complex, dynlib, tables, json
 from tpyfromnim import nil
 
 import modules/other_module
@@ -207,3 +207,7 @@ proc floatDivideByZero(): float {.exportpy} =
 proc genericFloatingPointDefect(): float {.exportpy} =
     # FloatingPointDefect
     raise newException(FloatingPointDefect, "Generic FloatingPointDefect")
+
+proc readFakeLibrary(): void {.exportpy} =
+    # LibraryError
+    discard checkedSymAddr(nil, "fake_library")

@@ -86,6 +86,11 @@ try:
 except FloatingPointError as e:
   assert(isinstance(e, s.NimPyException))
   assert("Generic FloatingPointDefect" in repr(e))
+try:
+  s.readFakeLibrary()
+except ImportError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("could not find symbol: fake_library" in repr(e))
 
 assert(s.greetEveryoneExceptJack("world") == "Hello, world!")
 try:

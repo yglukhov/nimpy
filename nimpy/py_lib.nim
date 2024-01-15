@@ -130,7 +130,7 @@ type
     # PyExc_FileNotFoundError
     PyExc_FloatingPointError*: PPyObject
     # PyExc_GeneratorExit
-    # PyExc_ImportError
+    PyExc_ImportError*: PPyObject
     # PyExc_IndentationError # no
     PyExc_IndexError*: PPyObject
     # PyExc_InterruptedError
@@ -373,6 +373,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
   loadVar PyExc_AttributeError
   loadVar PyExc_EOFError
   loadVar PyExc_FloatingPointError
+  loadVar PyExc_ImportError
   loadVar PyExc_IndexError
   loadVar PyExc_IOError
   loadVar PyExc_KeyError

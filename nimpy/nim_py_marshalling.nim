@@ -161,6 +161,8 @@ proc nimValueToPy*(e: ref Exception): PPyObject =
     pyExc = pyLib.PyExc_EOFError
   elif e of FieldDefect:  # Right mapping?
     pyExc = pyLib.PyExc_AttributeError
+  elif e of LibraryError:
+    pyExc = pyLib.PyExc_ImportError
   elif e of IndexDefect:
     pyExc = pyLib.PyExc_IndexError
   elif e of IOError:
