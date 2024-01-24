@@ -97,11 +97,17 @@ except Exception as e:
   pass
 except RecursionError as e:
   assert(isinstance(e, s.NimPyException))
+  assert("Generic StackOverflowDefect" in repr(e))
+try:
+  s.osError()
+except OSError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("Generic OSError" in repr(e))
 try:
   s.outOfMemory()
 except MemoryError as e:
   assert(isinstance(e, s.NimPyException))
-  assert ("Generic OutOfMemDefect" in repr(e))
+  assert("Generic OutOfMemDefect" in repr(e))
 
 assert(s.greetEveryoneExceptJack("world") == "Hello, world!")
 try:
