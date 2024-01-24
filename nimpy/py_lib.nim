@@ -91,7 +91,6 @@ type
     PyErr_Clear*: proc() {.pyfunc.}
     PyErr_SetString*: proc(o: PPyObject, s: cstring) {.pyfunc.}
     PyErr_Occurred*: proc(): PPyObject {.pyfunc.}
-    PyExc_TypeError*: PPyObject
 
     PyCapsule_New*: proc(p: pointer, name: cstring, destr: proc(o: PPyObject) {.pyfunc.}): PPyObject {.pyfunc.}
     PyCapsule_GetPointer*: proc(c: PPyObject, name: cstring): pointer {.pyfunc.}
@@ -158,7 +157,7 @@ type
     # PyExc_SystemExit
     # PyExc_TabError
     # PyExc_TimeoutError
-    # PyExc_TypeError
+    PyExc_TypeError*: PPyObject
     # PyExc_UnboundLocalError
     # PyExc_UnicodeDecodeError
     # PyExc_UnicodeEncodeError
@@ -381,6 +380,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
   loadVar PyExc_OSError
   loadVar PyExc_OverflowError
   loadVar PyExc_RecursionError
+  loadVar PyExc_TypeError
   loadVar PyExc_ValueError
   loadVar PyExc_ZeroDivisionError
 

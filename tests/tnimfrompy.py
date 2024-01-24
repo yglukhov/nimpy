@@ -71,6 +71,11 @@ except KeyError as e:
   assert(isinstance(e, s.NimPyException))
   assert("key not found" in repr(e))
 try:
+  x = s.invalidObjectConversion()
+except TypeError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("Generic ObjectConversionDefect" in repr(e))
+try:
   s.intDivideByZero()
 except ZeroDivisionError as e:
   assert(isinstance(e, s.NimPyException))

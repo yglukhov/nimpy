@@ -196,6 +196,10 @@ proc invalidKey(): string {.exportpy} =
     let myTable = {1: "one", 2: "two"}.toTable
     myTable[3]
 
+proc invalidObjectConversion(): void {.exportpy} =
+    # ObjectConversionDefect
+    raise newException(ObjectConversionDefect, "Generic ObjectConversionDefect")
+
 proc intDivideByZero(): int {.exportpy} =
     # DivByZeroDefect
     1 mod 0
