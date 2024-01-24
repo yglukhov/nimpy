@@ -115,7 +115,7 @@ type
     PyExc_Exception*: PPyObject
     PyExc_ArithmeticError*: PPyObject
     PyExc_AssertionError*: PPyObject
-    PyExc_AttributeError*: PPyObject
+    #PyExc_AttributeError*: PPyObject
     # PyExc_BlockingIOError # no
     # PyExc_BrokenPipeError
     # PyExc_BufferError
@@ -369,7 +369,6 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
 
   loadVar PyExc_ArithmeticError
   loadVar PyExc_AssertionError
-  loadVar PyExc_AttributeError
   loadVar PyExc_EOFError
   loadVar PyExc_FloatingPointError
   loadVar PyExc_ImportError

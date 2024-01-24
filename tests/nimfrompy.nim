@@ -172,11 +172,6 @@ proc assertFalse(): void {.exportpy} =
     # AssertionDefect
     doAssert false
 
-proc attributeError(): string {.exportpy} =
-    # FieldDefect
-    var obj: MyObj
-    obj.c
-
 proc invalidIndex(): int {.exportpy} =
     # IndexDefect
     let mySequence = @[1, 2, 3]
@@ -206,11 +201,11 @@ proc intDivideByZero(): int {.exportpy} =
 
 proc floatDivideByZero(): float {.exportpy} =
     # FloatDivByZeroDefect
-    1 / 0
+    raise newException(FloatDivByZeroDefect, "Generic FloatDivByZeroDefect")
 
 proc genericFloatingPointDefect(): float {.exportpy} =
-    # FloatingPointDefect
-    raise newException(FloatingPointDefect, "Generic FloatingPointDefect")
+    # FloatOverflowDefect of FloatingPointDefect
+    1 / 0
 
 proc readFakeLibrary(): void {.exportpy} =
     # LibraryError
