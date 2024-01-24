@@ -6,7 +6,7 @@ import modules/other_module
 
 
 type
-  JackError* = object of Exception
+  JackError* = object of CatchableError
 
 
 proc greet(name: string, greeting: string="Hello", suffix: string="!"): string {.exportpy.} =
