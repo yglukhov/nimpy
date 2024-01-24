@@ -211,3 +211,7 @@ proc genericFloatingPointDefect(): float {.exportpy} =
 proc readFakeLibrary(): void {.exportpy} =
     # LibraryError
     discard checkedSymAddr(nil, "fake_library")
+
+proc stackOverflow(): void {.exportpy} =
+    # StackOverflowDefect
+    raise newException(StackOverflowDefect, "Generic StackOverFlowDefect")

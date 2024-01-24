@@ -91,6 +91,12 @@ try:
 except ImportError as e:
   assert(isinstance(e, s.NimPyException))
   assert("could not find symbol: fake_library" in repr(e))
+try:
+  s.stackOverflow()
+except Exception as e:
+  pass
+except RecursionError as e:
+  assert(isinstance(e, s.NimPyException))
 
 assert(s.greetEveryoneExceptJack("world") == "Hello, world!")
 try:

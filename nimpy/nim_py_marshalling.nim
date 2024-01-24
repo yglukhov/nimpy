@@ -169,6 +169,8 @@ proc nimValueToPy*(e: ref Exception): PPyObject =
     pyExc = pyLib.PyExc_IOError
   elif e of KeyError:
     pyExc = pyLib.PyExc_KeyError
+  elif e of StackOverflowDefect:
+    pyExc = pyLib.PyExc_RecursionError
   elif e of DivByZeroDefect or e of FloatDivByZeroDefect:
     pyExc = pyLib.PyExc_ZeroDivisionError
   elif e of FloatingPointDefect:

@@ -148,7 +148,7 @@ type
     PyExc_OverflowError*: PPyObject
     # PyExc_PermissionError
     # PyExc_ProcessLookupError
-    # PyExc_RecursionError
+    PyExc_RecursionError*: PPyObject
     # PyExc_ReferenceError
     # PyExc_RuntimeError
     # PyExc_StopAsyncIteration
@@ -380,6 +380,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
   loadVar PyExc_MemoryError
   loadVar PyExc_OSError
   loadVar PyExc_OverflowError
+  loadVar PyExc_RecursionError
   loadVar PyExc_ValueError
   loadVar PyExc_ZeroDivisionError
 
