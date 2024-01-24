@@ -40,6 +40,75 @@ except TypeError as e:
   expected = "TypeError(\"Can't convert python obj of type 'int' to string\",)"
   assert(expected[:-2] in repr(e))
 
+# Generic exception raising
+try:
+  s.assertFalse()
+except AssertionError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("`false`" in repr(e))
+else:
+  assert(False)
+try:
+  s.endOfFile(); assert(False)
+except EOFError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("EOF reached" in repr(e))
+try:
+  s.invalidIndex(); assert(False)
+except IndexError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("index 4 not in 0" in repr(e))
+try:
+  s.readImpossibleFile(); assert(False)
+except IOError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("/dev/null/impossible" in repr(e))
+try:
+  s.invalidKey(); assert(False)
+except KeyError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("key not found" in repr(e))
+try:
+  x = s.invalidObjectConversion(); assert(False)
+except TypeError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("Generic ObjectConversionDefect" in repr(e))
+try:
+  s.intDivideByZero(); assert(False)
+except ZeroDivisionError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("division by zero" in repr(e))
+try:
+  x = s.floatDivideByZero(); assert(False)
+except ZeroDivisionError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("Generic FloatDivByZeroDefect" in repr(e))
+try:
+  s.genericFloatingPointDefect(); assert(False)
+except FloatingPointError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("FPU operation caused an overflow" in repr(e))
+try:
+  s.readFakeLibrary(); assert(False)
+except ImportError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("could not find symbol: fake_library" in repr(e))
+try:
+  s.stackOverflow(); assert(False)
+except RecursionError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("Generic StackOverflowDefect" in repr(e))
+try:
+  s.osError(); assert(False)
+except OSError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("Generic OSError" in repr(e))
+try:
+  s.outOfMemory(); assert(False)
+except MemoryError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert("Generic OutOfMemDefect" in repr(e))
+
 assert(s.greetEveryoneExceptJack("world") == "Hello, world!")
 try:
   s.greetEveryoneExceptJack("Jack")
