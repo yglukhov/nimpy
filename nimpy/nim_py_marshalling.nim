@@ -175,6 +175,8 @@ proc nimValueToPy*(e: ref Exception): PPyObject =
     pyExc = pyLib.PyExc_ZeroDivisionError
   elif e of FloatingPointDefect:
     pyExc = pyLib.PyExc_FloatingPointError
+  elif e of OutOfMemDefect:
+    pyExc = pyLib.PyExc_MemoryError
   else:
     return pyLib.PyErr_NewException(pyExcName, pyLib.NimPyException, nil)
   decRef pyExc

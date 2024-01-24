@@ -97,6 +97,11 @@ except Exception as e:
   pass
 except RecursionError as e:
   assert(isinstance(e, s.NimPyException))
+try:
+  s.outOfMemory()
+except MemoryError as e:
+  assert(isinstance(e, s.NimPyException))
+  assert ("Generic OutOfMemDefect" in repr(e))
 
 assert(s.greetEveryoneExceptJack("world") == "Hello, world!")
 try:

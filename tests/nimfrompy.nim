@@ -215,3 +215,8 @@ proc readFakeLibrary(): void {.exportpy} =
 proc stackOverflow(): void {.exportpy} =
     # StackOverflowDefect
     raise newException(StackOverflowDefect, "Generic StackOverFlowDefect")
+
+proc outOfMemory(): void {.exportpy} =
+    # OutOfMemDefect
+    raise newException(OutOfMemDefect, "Generic OutOfMemDefect")
+
