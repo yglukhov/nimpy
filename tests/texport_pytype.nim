@@ -37,7 +37,7 @@ import unittest
 import math
 
 suite "Test Exporting NimObject as Python Type with __init__, __del__, __repr__, __doc__":
-    let m = pyImport("export_pytype")
+    let m = pyImport("texport_pytype")
     
     test "Test __doc__":
         check getAttr(m, "__doc__").`$` == "This is a test module"
