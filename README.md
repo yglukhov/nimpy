@@ -88,6 +88,8 @@ Nimpy also exposes lower level [Buffer protocol](https://docs.python.org/3/c-api
 see [raw_buffers.nim](https://github.com/yglukhov/nimpy/blob/master/nimpy/raw_buffers.nim).
 [tpyfromnim.nim](https://github.com/yglukhov/nimpy/blob/master/tests/numpytest.nim)
 contains a very basic test for this.
+
+[Examples to use raw_buffers with numpy](./docs/numpy.md)
 </details>
 
 <details>
@@ -124,11 +126,13 @@ contains a very basic test for this.
 
 </details>
 
-## Exporting Nim types as Python classes
+## [Exporting Nim types as Python classes]
 Warning! This is experimental.
 * An exported type should be a ref object and inherit `PyNimObjectExperimental` directly or indirectly.
 * The type will only be exported if at least one exported "method" is defined.
 * A proc will be exported as python type method *only* if it's first argument is of the corresponding type and is called `self`. If the first argument is not called `self`, the proc will exported as a global module function.
+* If you define functions that looks like initTestType, destroyTestType, `$`, they can be exported as __init__, __del__, and __repr__ if the requirements are met. [Export Python Types](./docs/export_python_type.md)
+
 ```nim
 # mymodule.nim
 type TestType = ref object of PyNimObjectExperimental
