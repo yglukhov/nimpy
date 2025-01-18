@@ -38,38 +38,38 @@ import strformat
 pyExportModule("simple") # only needed if your filename is not simple.nim
 
 type
-    SimpleObj* = ref object of PyNimObjectExperimental
-        a* : int
+  SimpleObj* = ref object of PyNimObjectExperimental
+    a* : int
 
 ## if 
-##    1) the function name is like `init##TypeName`
-##    2) there is only one argument
-##    3) the first argument name is "self"
-##    4) the first argument type is `##TypeName`
-##    5) there is no return type
+##  1) the function name is like `init##TypeName`
+##  2) there is at least one argument
+##  3) the first argument name is "self"
+##  4) the first argument type is `##TypeName`
+##  5) there is no return type
 ## we export this function as a python object method __init__ (tp_init in PyTypeObject)
 proc initSimpleObj*(self : SimpleObj, a : int = 1) {.exportpy} =
-    echo "Calling initSimpleObj for SimpleObj"
-    self.a = a
+  echo "Calling initSimpleObj for SimpleObj"
+  self.a = a
 
 ## if 
-##    1) the function name is like `destroy##TypeName`
-##    2) there is only one argument
-##    3) the first argument name is "self"
-##    4) the first argument type is `##TypeName`
-##    5) there is no return type
+##  1) the function name is like `destroy##TypeName`
+##  2) there is only one argument
+##  3) the first argument name is "self"
+##  4) the first argument type is `##TypeName`
+##  5) there is no return type
 ## we export this function as a python object method __del__ (tp_finalize in PyTypeObject)
 ## !! Warning, this is only available since Python3.4, for older versions, the destroySimpleObj
 ## below will be ignore.
 proc destroySimpleObj*(self : SimpleObj) {.exportpy.} =
-    echo "Calling destroySimpleObj for SimpleObj"
+  echo "Calling destroySimpleObj for SimpleObj"
 
 ## if
-##    1) the function name is like `$`
-##    2) there is only one argument
-##    3) the first argument name is "self"
-##    4) the first argument type is `##TypeName`
-##    5) the return type is `string`
+##  1) the function name is like `$`
+##  2) there is only one argument
+##  3) the first argument name is "self"
+##  4) the first argument type is `##TypeName`
+##  5) the return type is `string`
 ## we export this function as a python object method __repr__ (tp_repr in PyTypeObject)
 proc `$`*(self : SimpleObj): string {.exportpy.} =
    &"SimpleObj : a={self.a}" 
