@@ -40,7 +40,6 @@ type
     doc: cstring
     newFunc: Newfunc
     initFunc: Initproc
-    desctructorFunc: Destructor
     reprFunc: ReprFunc
     methods: seq[PyMethodDef]
     members: seq[PyMemberDef]
@@ -164,10 +163,6 @@ proc initPyNimObjectType[PyTypeObj](td: var PyTypeDesc) =
   ty.tp_init = td.initFunc
   ty.tp_repr = td.reprFunc
   
-  if pyLib.pythonVersion.major >= 3 and pyLib.pythonVersion.minor >= 4:
-    ## tp_finalize is only available since 3.4
-    ty.tp_finalize = td.desctructorFunc
-
   if td.methods.len != 0:
     td.methods.add(PyMethodDef()) # Add sentinel
     ty.tp_methods = unsafeAddr td.methods[0]
@@ -209,7 +204,7 @@ proc addTypedefToModuleDef(md: ptr PyModuleDesc, T: typedesc, idx: int) =
   assert(md.types.len == idx)
   md.types.add(pTypeDesc(T))
 
-template registerTypeMethod(T: typedesc, name, doc: cstring, f: pointer, isInitializer, isDestructor, isReprFunc : bool) =
+template registerTypeMethod(T: typedesc, name, doc: cstring, f: pointer, isInitializer, isReprFunc : bool) =
   when T isnot PyNimObjectExperimental:
     {.error: "Type " & $T & " is not a subclass of PyNimObjectExperimental, while trying to export type method " & $name & " because its first argument is named `self`"}
   assert(not curModuleDef.isNil)
@@ -219,10 +214,6 @@ template registerTypeMethod(T: typedesc, name, doc: cstring, f: pointer, isIniti
     # Initproc
     {.hint: "Exporting __init__ for " & $T & " with " & name & " in python." .}
     curModuleDef.types[typeIdx].initFunc = cast[Initproc](f)
-  elif isDestructor:
-    # Destructor
-    {.hint: "Exporting __del__ for " & $T & " with " & name & " in python." .}
-    curModuleDef.types[typeIdx].desctructorFunc = cast[Destructor](f)
   elif isReprFunc:
     # Reprfunc
     {.hint: "Exporting __repr__ for " & $T & " with " & name & " in python." .}
@@ -480,44 +471,6 @@ template raisePyException(tp, msg: untyped): untyped =
   pyLib.PyErr_SetString(tp, cstring(msg))
   return false
 
-# proc verifyArgsKwargs(args, kwargs: PPyObject, numArgsHasDefault: int, argNames: openArray[cstring], funcName: string): bool =
-#   let nargs = if args.isNil: 0 else: pyLib.PyTuple_Size(args)
-#   let nkwargs = if kwargs.isNil: 0 else: pyLib.PyDict_Size(kwargs)
-#   let totalExpectedArgs = argNames.len
-  
-#   # Check if the total number of arguments (positional + keyword) exceeds the expected range
-#   if nargs + nkwargs > totalExpectedArgs:
-#     raisePyException(pyLib.PyExc_TypeError, &"{funcName}() takes at most {totalExpectedArgs} arguments but {nargs + nkwargs} were given!")
-  
-#   # Check if the number of positional arguments exceeds the maximum allowed (totalExpectedArgs)
-#   if nargs > totalExpectedArgs:
-#     raisePyException(pyLib.PyExc_TypeError, &"{funcName}() takes at most {totalExpectedArgs} positional arguments but {nargs} were given!")
-  
-#   # Check for unexpected keyword arguments
-#   if not kwargs.isNil:
-#     # Iterate over all expected argument names
-#     for i in 0..<argNames.len:
-#       if i >= nargs and pyDictHasKey(kwargs, argNames[i]):
-#         # If the argument is not provided positionally and is provided as a keyword argument, it's fine
-#         continue
-#       elif i < nargs and pyDictHasKey(kwargs, argNames[i]):
-#         # If the argument is provided both positionally and as a keyword argument, it's an error
-#         raisePyException(pyLib.PyExc_TypeError, &"{funcName}() got multiple values for argument '{argNames[i]}'!")
-  
-#     # Now, check if there are any extra keys in kwargs that are not in argNames
-#     # We rely on the fact that the total number of kwargs should match the number of valid kwargs.
-#     # If nkwargs > the number of valid kwargs, there must be unexpected kwargs.
-#     var validKwargsCount = 0
-#     for i in 0..<argNames.len:
-#       if pyDictHasKey(kwargs, argNames[i]):
-#         validKwargsCount += 1
-    
-#     if validKwargsCount < nkwargs:
-#       raisePyException(pyLib.PyExc_TypeError, &"{funcName}() got unexpected keyword arguments!")
-  
-#   # If all checks pass, return true
-#   return true
-
 proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNames: openArray[cstring], funcName: string): bool =
   if argsLen == 0:
     return true
@@ -722,7 +675,7 @@ proc nimValueToPy*[T: proc](o: T): PPyObject =
   result = pyLib.PyCFunction_NewEx(addr md, self, nil)
   decRef self
 
-proc makeInitAndDestructorProcWrapper(name, parseArgs : NimNode, procName : string, call, argsIdent, kwargsIdent: NimNode): NimNode =
+proc makeInitProcWrapper(name, parseArgs : NimNode, procName : string, call, argsIdent, kwargsIdent: NimNode): NimNode =
   let selfIdent = newIdentNode("self")
   let procNameIdent = newStrLitNode(procName)
   result = quote do:
@@ -758,15 +711,15 @@ proc makeReprProcWrapper(name, prc: NimNode): NimNode =
       except Exception as e:
         return pythonException(e)
 
-proc makeProcWrapper(name, prc: NimNode, isMethod: bool, isInitializer, isFinalizer, isReprFunc : bool): NimNode =
+proc makeProcWrapper(name, prc: NimNode, isMethod: bool, isInitializer, isReprFunc : bool): NimNode =
   let argsIdent = newIdentNode("args")
   let kwargsIdent = newIdentNode("kwargs")
   if isMethod:
     let selfIdent = newIdentNode("self")
-    let (parseArgs, call) = makeCallNimProcWithPythonArgs(prc.name, prc.getFormalParams, argsIdent, kwargsIdent, selfIdent, isInitializer or isFinalizer)
-    if isInitializer or isFinalizer:
+    let (parseArgs, call) = makeCallNimProcWithPythonArgs(prc.name, prc.getFormalParams, argsIdent, kwargsIdent, selfIdent, isInitializer)
+    if isInitializer:
       let procName = $prc.name
-      result = makeInitAndDestructorProcWrapper(name, parseArgs, procName, call, argsIdent, kwargsIdent)
+      result = makeInitProcWrapper(name, parseArgs, procName, call, argsIdent, kwargsIdent)
       return result
 
     if isReprFunc:
@@ -884,7 +837,7 @@ proc exportProc(prc: NimNode, procName: string, wrap: bool): NimNode =
       isMethod = true
     if (prc.params.len == 1 and prc.params[0].kind == nnkIdent and $prc.params[0] == "self"):
       isMethod = true
-  var isInitializer, isFinalizer, isReprFunc : bool 
+  var isInitializer, isReprFunc : bool 
   if isMethod:
     var typename : string
     if prc.params[1][1].kind == nnkIdent:
@@ -892,17 +845,11 @@ proc exportProc(prc: NimNode, procName: string, wrap: bool): NimNode =
     else:
       typename = $prc.params[1][1][0]
     isInitializer = "init" & typeName == procName
-    isFinalizer = "destroy" & typeName == procName
     isReprFunc = "$" == procName
 
     if isInitializer:
       if prc.params[0].kind != nnkEmpty:
         raise newException(ValueError, "Initializer method should not return anything!")
-    if isFinalizer:
-      if prc.params[0].kind != nnkEmpty:
-        raise newException(ValueError, "Finalizer method should not return anything!")
-      if prc.params.len != 2:
-        raise newException(ValueError, "Finalizer method should only have one argument (self)!")
     if isReprFunc:
       if prc.params[0].kind != nnkIdent or $prc.params[0] != "string":
         raise newException(ValueError, "Repr method should return string!")
@@ -916,12 +863,12 @@ proc exportProc(prc: NimNode, procName: string, wrap: bool): NimNode =
   else:
     if wrap:
       procIdent = genSym(nskProc, $procIdent & "Py_wrapper")
-      result.add(makeProcWrapper(procIdent, prc, isMethod, isInitializer, isFinalizer, isReprFunc))
+      result.add(makeProcWrapper(procIdent, prc, isMethod, isInitializer, isReprFunc))
 
     if isMethod:
       var typ = prc.params[1][^2]
       typ = newCall("type", typ) # Workaround nim bug???
-      result.add(newCall(bindSym"registerTypeMethod", typ, newLit(procName), comment, procIdent, isInitializer.newLit, isFinalizer.newLit, isReprFunc.newLit))
+      result.add(newCall(bindSym"registerTypeMethod", typ, newLit(procName), comment, procIdent, isInitializer.newLit, isReprFunc.newLit))
     else:
       result.add(newCall(bindSym"registerMethod", newLit(procName), comment, procIdent))
 

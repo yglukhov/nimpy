@@ -36,7 +36,7 @@ setDocStringForType(PyCustomType, "This is a test type")
 import unittest
 import math
 
-suite "Test Exporting NimObject as Python Type with __init__, __del__, __repr__, __doc__":
+suite "Test Exporting NimObject as Python Type with __init__, __repr__, __doc__":
   let m = pyImport("texport_pytype")
   
   test "Test __doc__":
@@ -47,13 +47,7 @@ suite "Test Exporting NimObject as Python Type with __init__, __del__, __repr__,
     let constructor = getAttr(m, "PyCustomType")
     let obj = callObject(constructor, 99, 3.14, "hello")
     check obj.get_a().to(int) == 99
-  
-  test "Test __del__":
-    let constructor = getAttr(m, "PyCustomType")
-    let obj = callObject(constructor, 99, 3.14, "hello")
-    let destructor = getAttr(obj, "__del__")
-    discard callObject(destructor)
-  
+    
   test "Test __repr__":
     let constructor = getAttr(m, "PyCustomType")
     let obj = callObject(constructor, 99, 3.14, "hello")

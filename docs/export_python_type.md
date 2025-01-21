@@ -4,6 +4,7 @@ Warning! This is experimental.
 * An exported type should be a ref object and inherits `PyNimObjectExperimental` directly or indirectly.
 * The type will only be exported if at least one exported "method" is defined.
 * A proc will be exported as python type method *only* if it's first argument is of the corresponding type and is called `self`. If the first argument is not called `self`, the proc will exported as a global module function.
+* If you define functions that looks like initTestType or `$`, they will be exported as `__init__` and `__repr__` if the requirements are met.
 
 #### Simple Example
 ```nim
@@ -26,7 +27,7 @@ tt.setMyField("Hello")
 assert(tt.getMyField() == "Hello")
 ```
 
-#### `__init__`, `__del__`, and `__repr__`
+#### `__init__`, and `__repr__`
 * [example](../tests/export_pytype.nim)
 ```nim
 # simple.nim
@@ -51,18 +52,6 @@ type
 proc initSimpleObj*(self : SimpleObj, a : int = 1) {.exportpy} =
   echo "Calling initSimpleObj for SimpleObj"
   self.a = a
-
-## if 
-##  1) the function name is like `destroy##TypeName`
-##  2) there is only one argument
-##  3) the first argument name is "self"
-##  4) the first argument type is `##TypeName`
-##  5) there is no return type
-## we export this function as a python object method __del__ (tp_finalize in PyTypeObject)
-## !! Warning, this is only available since Python3.4, for older versions, the destroySimpleObj
-## below will be ignore.
-proc destroySimpleObj*(self : SimpleObj) {.exportpy.} =
-  echo "Calling destroySimpleObj for SimpleObj"
 
 ## if
 ##  1) the function name is like `$`
@@ -92,5 +81,4 @@ print(simple.__doc__)
 print(simple.SimpleObj.__doc__)
 obj = simple.SimpleObj(a = 2)
 print(obj)
-obj.__del__()
 ```
