@@ -5,3 +5,5 @@ tests/tbuiltinpyfromnim
 *.pyc
 *.pyd
 *.so
+nimble.develop
+nimble.paths

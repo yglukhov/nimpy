@@ -1,4 +1,4 @@
-import dynlib, macros, os, strutils, typetraits, tables, json,
+import dynlib, macros, os, strutils, typetraits, tables, json, strformat,
   nimpy/[py_types, py_utils, nim_py_marshalling, py_nim_marshalling]
 
 import nimpy/py_lib as lib
@@ -39,6 +39,8 @@ type
     name: cstring
     doc: cstring
     newFunc: Newfunc
+    initFunc: Initproc
+    reprFunc: ReprFunc
     methods: seq[PyMethodDef]
     members: seq[PyMemberDef]
     origSize: int
@@ -158,7 +160,9 @@ proc initPyNimObjectType[PyTypeObj](td: var PyTypeDesc) =
   ty.tp_free = freeNimObj
   ty.tp_dealloc = destructNimObj
   ty.tp_descr_get = typDescrGet
-
+  ty.tp_init = td.initFunc
+  ty.tp_repr = td.reprFunc
+  
   if td.methods.len != 0:
     td.methods.add(PyMethodDef()) # Add sentinel
     ty.tp_methods = unsafeAddr td.methods[0]
@@ -200,14 +204,25 @@ proc addTypedefToModuleDef(md: ptr PyModuleDesc, T: typedesc, idx: int) =
   assert(md.types.len == idx)
   md.types.add(pTypeDesc(T))
 
-template registerTypeMethod(T: typedesc, name, doc: cstring, f: PyCFunctionWithKeywords) =
+template registerTypeMethod(T: typedesc, name, doc: cstring, f: pointer, isInitializer, isReprFunc : bool) =
   when T isnot PyNimObjectExperimental:
     {.error: "Type " & $T & " is not a subclass of PyNimObjectExperimental, while trying to export type method " & $name & " because its first argument is named `self`"}
   assert(not curModuleDef.isNil)
   const typeIdx = getTypeIdxInModule(T)
   if typeIdx > curModuleDef.types.high: addTypedefToModuleDef(curModuleDef, T, typeIdx)
-  curModuleDef.types[typeIdx].methods.add(PyMethodDef(ml_name: name, ml_meth: f, ml_flags: Py_MLFLAGS_VARARGS or Py_MLFLAGS_KEYWORDS,
-              ml_doc: doc))
+  when isInitializer:
+    # Initproc
+    {.hint: "Exporting __init__ for " & $T & " with " & name & " in python." .}
+    curModuleDef.types[typeIdx].initFunc = cast[Initproc](f)
+  elif isReprFunc:
+    # Reprfunc
+    {.hint: "Exporting __repr__ for " & $T & " with " & name & " in python." .}
+    curModuleDef.types[typeIdx].reprFunc = cast[Reprfunc](f)
+  else:
+    # PyCFunctionWithKeywords
+    {.hint: "Exporting method for " & $T & " with " & name & " in python." .}
+    curModuleDef.types[typeIdx].methods.add(PyMethodDef(ml_name: name, ml_meth: f, ml_flags: Py_MLFLAGS_VARARGS or Py_MLFLAGS_KEYWORDS,
+                ml_doc: doc))
 
 proc initPythonModuleDesc(m: var PyModuleDesc, name, doc: cstring) =
   m.name = name
@@ -457,13 +472,16 @@ template raisePyException(tp, msg: untyped): untyped =
   return false
 
 proc verifyArgs(argTuple, kwargsDict: PPyObject, argsLen, argsLenReq: int, argNames: openArray[cstring], funcName: string): bool =
+  if argsLen == 0:
+    return true
+  
   let
     nargs = if argTuple.isNil: 0 else: pyLib.PyTuple_Size(argTuple)
     nkwargs = if kwargsDict.isNil: 0 else: pyLib.PyDict_Size(kwargsDict)
     sz = nargs + nkwargs
   var
     nkwarg_left = nkwargs
-
+  
   result = if argsLen > argsLenReq:
     # We have some optional arguments, argsLen is the upper limit
     sz >= argsLenReq and sz <= argsLen
@@ -543,7 +561,7 @@ iterator arguments(formalParams: NimNode): tuple[idx: int, name, typ, default: N
       yield (iParam, pp[j], copyNimTree(stripSinkFromArgType(pp[^2])), pp[^1])
       inc iParam
 
-proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: NimNode, selfArg: NimNode = nil): tuple[parseArgs, call: NimNode] =
+proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: NimNode, selfArg: NimNode = nil, noReturnType : bool = false): tuple[parseArgs, call: NimNode] =
   let
     pyValueVarSection = newNimNode(nnkVarSection)
     parseArgsStmts = newNimNode(nnkStmtList)
@@ -585,20 +603,32 @@ proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: Nim
     origCall.add(argIdent)
     inc numArgs
 
-  let
+  var
     argsLen = newLit(numArgs)
     argsLenReq = newLit(numArgsReq - extraArg)
     nameLit = newLit($prc)
 
-  result.parseArgs = quote do:
-    if not verifyArgs(`argsTuple`, `kwargsDict`, `argsLen`, `argsLenReq`, `argNames`, `nameLit`):
-      return PPyObject(nil)
-    `pyValueVarSection`
-    try:
-      `parseArgsStmts`
-    except CatchableError as e:
-      pyLib.PyErr_SetString(pyLib.PyExc_TypeError, cstring(e.msg))
-      return PPyObject(nil)
+  if not noReturnType:    
+    result.parseArgs = quote do:
+      if not verifyArgs(`argsTuple`, `kwargsDict`, `argsLen`, `argsLenReq`, `argNames`, `nameLit`):
+        return PPyObject(nil)
+      `pyValueVarSection`
+      try:
+        `parseArgsStmts`
+      except CatchableError as e:
+        pyLib.PyErr_SetString(pyLib.PyExc_TypeError, cstring(e.msg))
+        return PPyObject(nil)
+  else:
+    argsLen = newLit(numArgs - 1)
+    result.parseArgs = quote do:
+      if not verifyArgs(`argsTuple`, `kwargsDict`, `argsLen`, `argsLenReq`, `argNames`, `nameLit`):
+        return -1
+      `pyValueVarSection`
+      try:
+        `parseArgsStmts`
+      except CatchableError as e:
+        pyLib.PyErr_SetString(pyLib.PyExc_TypeError, cstring(e.msg))
+        return -1
 
   result.call = origCall
 
@@ -645,12 +675,57 @@ proc nimValueToPy*[T: proc](o: T): PPyObject =
   result = pyLib.PyCFunction_NewEx(addr md, self, nil)
   decRef self
 
-proc makeProcWrapper(name, prc: NimNode, isMethod: bool): NimNode =
+proc makeInitProcWrapper(name, parseArgs : NimNode, procName : string, call, argsIdent, kwargsIdent: NimNode): NimNode =
+  let selfIdent = newIdentNode("self")
+  let procNameIdent = newStrLitNode(procName)
+  result = quote do:
+    proc `name`(`selfIdent`, `argsIdent`, `kwargsIdent`: PPyObject): cint {.cdecl.} =
+      updateStackBottom()
+      # Prevent inlining (See #67)
+      proc noinline(`selfIdent`, `argsIdent`, `kwargsIdent`: PPyObject): cint {.nimcall, stackTrace: off.} =
+        try:
+          `parseArgs`
+          `call`
+          return 0
+        except Exception as e:
+          pyLib.PyErr_SetString(pyLib.PyExc_TypeError, cstring(e.msg))
+          return -1
+      var p {.volatile.}: proc(s, a, kwg: PPyObject): cint {.nimcall.} = noinline
+      p(`selfIdent`, `argsIdent`, `kwargsIdent`)
+
+proc makeReprProcWrapper(name, prc: NimNode): NimNode =
+  let selfIdent = newIdentNode("self")
+  let reprIdent = newIdentNode("repr")
+  var selfType : NimNode
+  for arg in prc.getFormalParams.arguments:
+    selfType = arg.typ
+  result = quote do:
+    proc `name`(`selfIdent`: PPyObject): PPyObject {.cdecl.} =
+      updateStackBottom()
+      var arg0self: valueTypeForArgType(type(`selfType`))
+      try:
+        pyValueToNim(self, arg0self)
+        result = nimValueToPy($arg0self)
+        if result.isNil:
+          raise newException(ValueError, "repr failed")
+      except Exception as e:
+        return pythonException(e)
+
+proc makeProcWrapper(name, prc: NimNode, isMethod: bool, isInitializer, isReprFunc : bool): NimNode =
   let argsIdent = newIdentNode("args")
   let kwargsIdent = newIdentNode("kwargs")
   if isMethod:
     let selfIdent = newIdentNode("self")
-    let (parseArgs, call) = makeCallNimProcWithPythonArgs(prc.name, prc.getFormalParams, argsIdent, kwargsIdent, selfIdent)
+    let (parseArgs, call) = makeCallNimProcWithPythonArgs(prc.name, prc.getFormalParams, argsIdent, kwargsIdent, selfIdent, isInitializer)
+    if isInitializer:
+      let procName = $prc.name
+      result = makeInitProcWrapper(name, parseArgs, procName, call, argsIdent, kwargsIdent)
+      return result
+
+    if isReprFunc:
+      result = makeReprProcWrapper(name, prc)
+      return result
+    
     result = quote do:
       proc `name`(`selfIdent`, `argsIdent`, `kwargsIdent`: PPyObject): PPyObject {.cdecl.} =
         updateStackBottom()
@@ -663,6 +738,7 @@ proc makeProcWrapper(name, prc: NimNode, isMethod: bool): NimNode =
             pythonException(e)
         var p {.volatile.}: proc(s, a, kwg: PPyObject): PPyObject {.nimcall.} = noinline
         p(`selfIdent`, `argsIdent`, `kwargsIdent`)
+    
   else:
     let (parseArgs, call) = makeCallNimProcWithPythonArgs(prc.name, prc.getFormalParams, argsIdent, kwargsIdent)
     result = quote do:
@@ -754,8 +830,31 @@ proc exportProc(prc: NimNode, procName: string, wrap: bool): NimNode =
   var procName = procName
   if procName.len == 0:
     procName = $procIdent
+  
+  var isMethod = false
+  if prc.params.kind == nnkFormalParams:
+    if (prc.params.len > 1 and $prc.params[1][0] == "self"):
+      isMethod = true
+    if (prc.params.len == 1 and prc.params[0].kind == nnkIdent and $prc.params[0] == "self"):
+      isMethod = true
+  var isInitializer, isReprFunc : bool 
+  if isMethod:
+    var typename : string
+    if prc.params[1][1].kind == nnkIdent:
+      typename = $prc.params[1][1]
+    else:
+      typename = $prc.params[1][1][0]
+    isInitializer = "init" & typeName == procName
+    isReprFunc = "$" == procName
 
-  let isMethod = prc.params.len > 1 and $prc.params[1][0] == "self"
+    if isInitializer:
+      if prc.params[0].kind != nnkEmpty:
+        raise newException(ValueError, "Initializer method should not return anything!")
+    if isReprFunc:
+      if prc.params[0].kind != nnkIdent or $prc.params[0] != "string":
+        raise newException(ValueError, "Repr method should return string!")
+      if prc.params.len != 2:
+        raise newException(ValueError, "Repr method should only have one argument (self)!")
 
   if prc.kind == nnkIteratorDef:
     procIdent = newIdentNode($procIdent & "Py_newIter")
@@ -764,16 +863,18 @@ proc exportProc(prc: NimNode, procName: string, wrap: bool): NimNode =
   else:
     if wrap:
       procIdent = genSym(nskProc, $procIdent & "Py_wrapper")
-      result.add(makeProcWrapper(procIdent, prc, isMethod))
+      result.add(makeProcWrapper(procIdent, prc, isMethod, isInitializer, isReprFunc))
 
     if isMethod:
       var typ = prc.params[1][^2]
       typ = newCall("type", typ) # Workaround nim bug???
-      result.add(newCall(bindSym"registerTypeMethod", typ, newLit(procName), comment, procIdent))
+      result.add(newCall(bindSym"registerTypeMethod", typ, newLit(procName), comment, procIdent, isInitializer.newLit, isReprFunc.newLit))
     else:
       result.add(newCall(bindSym"registerMethod", newLit(procName), comment, procIdent))
-  # echo "procname: ", procName
-  # echo repr result
+
+    when defined(DEBUG_NIMPY):
+      echo result.repr
+      echo "==============="
 
 macro exportpyAux(prc: untyped, procName: static[string], wrap: static[bool]): untyped =
   exportProc(prc, procName, wrap)
@@ -1013,6 +1114,24 @@ template toPyDict*(a: untyped): PyObject =
 
 proc pyDict*(): PyObject =
   newPyObjectConsumingRef(toPyDictRaw(()))
+
+proc setModuleDocString*(doc : string) =
+  let m = curModuleDef
+  if not m.isNil:
+    m.doc = cstring(doc)
+  else:
+    raise newException(ValueError, "No python module defined")
+
+proc setDocStringForType*(T: typedesc, doc : string) =
+  let m = curModuleDef
+  if not m.isNil:
+    for t in m.types:
+      if t.name == ($T).cstring:
+        t.doc = cstring(doc)
+        return
+    raise newException(ValueError, "Type " & $T & " not found in current python module")
+  else:
+    raise newException(ValueError, "No python module defined")
 
 ################################################################################
 ################################################################################

@@ -1,4 +1,4 @@
-version     = "0.2.0"
+version     = "0.2.1"
 author      = "Yuriy Glukhov"
 description = "Nim python integration lib"
 license     = "MIT"
@@ -87,8 +87,15 @@ proc runTests(nimFlags = "") =
         exec "nim c -d:nimpyTestLibPython=" & libPython & " -r " & nimFlags & " " & f.path
 
 task test, "Run tests":
-  runTests()
+  runTests("--mm:refc")
   runTests("--mm:orc")
+  runTests("--mm:arc")
 
 task test_orc, "Run tests with --mm:orc":
   runTests("--mm:orc")
+
+task test_arc, "Run tests with --mm:arc":
+  runTests("--mm:arc")
+
+task test_refc, "Run tests with --mm:refc":
+  runTests("--mm:refc")
