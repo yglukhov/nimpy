@@ -250,8 +250,7 @@ proc updateStackBottom() {.inline.} =
         setupForeignThreadGC()
 
 proc pythonException(e: ref Exception): PPyObject =
-  let err = pyLib.PyErr_NewException(cstring("nimpy" & "." & $(e.name)), pyLib.NimPyException, nil)
-  decRef err
+  let err = nimValueToPy(e)
   let errMsg: string =
     when compileOption("stackTrace"):
       "Unexpected error encountered: " & e.msg & "\nstack trace: (most recent call last)\n" & e.getStackTrace()

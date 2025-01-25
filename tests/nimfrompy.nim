@@ -1,12 +1,12 @@
 import nimpy
-import algorithm, complex, tables, json
+import algorithm, complex, dynlib, tables, json
 from tpyfromnim import nil
 
 import modules/other_module
 
 
 type
-  JackError* = object of Exception
+  JackError* = object of CatchableError
 
 
 proc greet(name: string, greeting: string="Hello", suffix: string="!"): string {.exportpy.} =
@@ -165,3 +165,61 @@ proc setMyFieldFromTt(self: AnotherTestType, value: TestType) {.exportpy.} =
 
 proc getMyField(self: AnotherTestType): int {.exportpy.} =
   self.myIntField
+
+# Raising Defects
+
+proc assertFalse(): void {.exportpy} =
+    # AssertionDefect
+    doAssert false
+
+proc invalidIndex(): int {.exportpy} =
+    # IndexDefect
+    let mySequence = @[1, 2, 3]
+    mySequence[4]
+
+proc endOfFile(): char {.exportpy} =
+    # EOFError
+    let file = open("/dev/null", fmRead)
+    readChar(file)
+
+proc readImpossibleFile(): void {.exportpy} =
+    # IOError
+    discard open("/dev/null/impossible", fmRead)
+
+proc invalidKey(): string {.exportpy} =
+    # KeyError
+    let myTable = {1: "one", 2: "two"}.toTable
+    myTable[3]
+
+proc invalidObjectConversion(): void {.exportpy} =
+    # ObjectConversionDefect
+    raise newException(ObjectConversionDefect, "Generic ObjectConversionDefect")
+
+proc intDivideByZero(): int {.exportpy} =
+    # DivByZeroDefect
+    1 mod 0
+
+proc floatDivideByZero(): float {.exportpy} =
+    # FloatDivByZeroDefect
+    raise newException(FloatDivByZeroDefect, "Generic FloatDivByZeroDefect")
+
+proc genericFloatingPointDefect(): float {.exportpy} =
+    # FloatOverflowDefect of FloatingPointDefect
+    1 / 0
+
+proc readFakeLibrary(): void {.exportpy} =
+    # LibraryError
+    discard checkedSymAddr(nil, "fake_library")
+
+proc stackOverflow(): void {.exportpy} =
+    # StackOverflowDefect
+    raise newException(StackOverflowDefect, "Generic StackOverflowDefect")
+
+proc osError(): void {.exportpy} =
+    # OSError
+    raise newException(OSError, "Generic OSError")
+
+proc outOfMemory(): void {.exportpy} =
+    # OutOfMemDefect
+    raise newException(OutOfMemDefect, "Generic OutOfMemDefect")
+

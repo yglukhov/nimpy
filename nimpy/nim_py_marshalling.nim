@@ -151,3 +151,38 @@ proc nimValueToPy*[T: tuple](o: T): PPyObject =
   for f in fields(o):
     discard pyLib.PyTuple_SetItem(result, i, nimValueToPy(f))
     inc i
+
+proc nimValueToPy*(e: ref Exception): PPyObject =
+  let pyExcName = cstring("nimpy" & "." & $(e.name))
+  var pyExc: PPyObject
+  if e of AssertionDefect:
+    pyExc = pyLib.PyExc_AssertionError
+  elif e of EOFError:
+    pyExc = pyLib.PyExc_EOFError
+  elif e of LibraryError:
+    pyExc = pyLib.PyExc_ImportError
+  elif e of IndexDefect:
+    pyExc = pyLib.PyExc_IndexError
+  elif e of IOError:
+    pyExc = pyLib.PyExc_IOError
+  elif e of KeyError:
+    pyExc = pyLib.PyExc_KeyError
+  elif e of ObjectConversionDefect:
+    pyExc = pyLib.PyExc_TypeError
+  elif e of StackOverflowDefect:
+    pyExc = pyLib.PyExc_RecursionError
+  elif e of DivByZeroDefect or e of FloatDivByZeroDefect:
+    pyExc = pyLib.PyExc_ZeroDivisionError
+  elif e of FloatingPointDefect:
+    pyExc = pyLib.PyExc_FloatingPointError
+  elif e of OsError:
+    pyExc = pyLib.PyExc_OSError
+  elif e of OutOfMemDefect:
+    pyExc = pyLib.PyExc_MemoryError
+  else:
+    return pyLib.PyErr_NewException(pyExcName, pyLib.NimPyException, nil)
+  decRef pyExc
+  let nimpyExceptionSubclass = pyLib.PyTuple_Pack(2, pyLib.NimPyException, pyExc)
+  result = pyLib.PyErr_NewException(pyExcName, nimpyExceptionSubclass, nil)
+  decref nimpyExceptionSubclass
+  decref result

@@ -307,19 +307,19 @@ type
   # the string value corresponds to the Python Exception
   # while the enum identifier corresponds to the Nim exception (excl. "pe")
   PythonErrorKind* = enum
-    peException = "Exception" # general exception, if no equivalent Nim Exception
-    peArithmeticError = "ArithmeticError"
-    peFloatingPointError = "FloatingPointError"
-    peOverflowError = "OverflowError"
-    peDivByZeroError = "ZeroDivisionError"
-    peAssertionError = "AssertionError"
+    peCatchableError = "Exception" # general exception, if no equivalent Nim Exception
+    peArithmeticDefect = "ArithmeticError"
+    peFloatingPointDefect = "FloatingPointError"
+    peOverflowDefect = "OverflowError"
+    peDivByZeroDefect = "ZeroDivisionError"
+    peAssertionDefect = "AssertionError"
     peOSError = "OSError"
     peIOError = "IOError"
     peValueError = "ValueError"
     peEOFError = "EOFError"
-    peOutOfMemError = "MemoryError"
+    peOutOfMemDefect = "MemoryError"
     peKeyError = "KeyError"
-    peIndexError = "IndexError"
+    peIndexDefect = "IndexError"
 
 const
   #  PyBufferProcs contains bf_getcharbuffer
