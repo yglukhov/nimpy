@@ -373,7 +373,7 @@ proc pythonLibHandleForThisProcess(): LibHandle {.inline.} =
     loadLib()
 
 iterator libPythonNames(): string {.closure.} =
-  for v in ["3.12", "3.11", "3.10", "3.9", "3.8", "3.7", "3.6", "3.5", "3",
+  for v in ["3.13", "3.12", "3.11", "3.10", "3.9", "3.8", "3.7", "3.6", "3.5", "3",
             "",
             "2.7", "2.6", "2"]:
     when defined(macosx):
