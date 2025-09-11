@@ -44,6 +44,10 @@ proc initPyThread*() =
   # This should be called once at the start of your program
   mainThreadState = PyEval_SaveThread()
 
+proc deinitPyThread*() =
+  # Restore the main thread's state before exiting
+  PyEval_RestoreThread(mainThreadState)
+
 # A way to template your code, and uses a similar structure as the withGIL macro in cython
 template withPyGIL*(code: untyped) =
   let state = PyGILState_Ensure()
@@ -61,7 +65,7 @@ proc withoutPyGIL*(body: proc()) =
     PyEval_RestoreThread(threadState)
 
 # Example usage
-proc pyThreadSafeFunction() {.gcsafe.} =
+proc pyThreadSafeFunction() {.thread, gcsafe.} =
   #[
     We are explicitly creating a python object on every function call (nx, g) then we modify the objects. If we would have used a global variable for nx, the GIL should be held as potential modifications would be subject to racing conditions.
   ]#
@@ -70,15 +74,15 @@ proc pyThreadSafeFunction() {.gcsafe.} =
     let g = nx.path_graph(3)
     g.nodes()[0]["example_trait"] = "example_value"
 
-# Initialize Python threading
-initPyThread()
+if isMainModule:
+  # Initialize Python threading
+  initPyThread()
 
-# Use in your code
-# We are using malebolgia here, but the principle holds for other threading libraries
-import malebolgia
-var m = malebolgia.createMaster()
-m.awaitAll:
-  for idx in (0 .. 10000):
-    m.spawn:
-      pyThreadSafeFunction()
-pyThreadSafeFunction()
+  # Use in your code
+  # We are using std/threading here, but the principle holds for other threading libraries
+  var threads: seq[Thread[void]] = @[]
+  for idx in (0 .. 10): # Start with a small number of threads
+    threads.add(Thread[void]())
+    createThread(threads[idx], pyThreadSafeFunction)
+  joinThreads(threads)
+  deinitPyThread()
