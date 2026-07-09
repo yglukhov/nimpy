@@ -8,6 +8,7 @@ type
 
     Py_BuildValue*: proc(f: cstring): PPyObject {.pyfunc, varargs.}
     PyTuple_New*: proc(sz: Py_ssize_t): PPyObject {.pyfunc.}
+    PyTuple_Pack*: proc(sz: Py_ssize_t): PPyObject {.pyfunc, varargs.}
     PyTuple_Size*: proc(f: PPyObject): Py_ssize_t {.pyfunc.}
     PyTuple_GetItem*: proc(f: PPyObject, i: Py_ssize_t): PPyObject {.pyfunc.}
     PyTuple_SetItem*: proc(f: PPyObject, i: Py_ssize_t, v: PPyObject): cint {.pyfunc.}
@@ -90,7 +91,6 @@ type
     PyErr_Clear*: proc() {.pyfunc.}
     PyErr_SetString*: proc(o: PPyObject, s: cstring) {.pyfunc.}
     PyErr_Occurred*: proc(): PPyObject {.pyfunc.}
-    PyExc_TypeError*: PPyObject
 
     PyCapsule_New*: proc(p: pointer, name: cstring, destr: proc(o: PPyObject) {.pyfunc.}): PPyObject {.pyfunc.}
     PyCapsule_GetPointer*: proc(c: PPyObject, name: cstring): pointer {.pyfunc.}
@@ -114,17 +114,57 @@ type
     PyExc_BaseException*: PPyObject # should always match any exception?
     PyExc_Exception*: PPyObject
     PyExc_ArithmeticError*: PPyObject
-    PyExc_FloatingPointError*: PPyObject
-    PyExc_OverflowError*: PPyObject
-    PyExc_ZeroDivisionError*: PPyObject
     PyExc_AssertionError*: PPyObject
-    PyExc_OSError*: PPyObject
-    PyExc_IOError*: PPyObject # in Python 3 IOError *is* OSError
-    PyExc_ValueError*: PPyObject
+    #PyExc_AttributeError*: PPyObject
+    # PyExc_BlockingIOError # no
+    # PyExc_BrokenPipeError
+    # PyExc_BufferError
+    # PyExc_ChildProcessError
+    # PyExc_ConnectionAbortedError
+    # PyExc_ConnectionError
+    # PyExc_ConnectionRefusedError
+    # PyExc_ConnectionResetError
     PyExc_EOFError*: PPyObject
-    PyExc_MemoryError*: PPyObject
+    # PyExc_FileExistsError
+    # PyExc_FileNotFoundError
+    PyExc_FloatingPointError*: PPyObject
+    # PyExc_GeneratorExit
+    PyExc_ImportError*: PPyObject
+    # PyExc_IndentationError # no
     PyExc_IndexError*: PPyObject
+    # PyExc_InterruptedError
+    PyExc_IOError*: PPyObject # in Python 3 IOError *is* OSError
+    # PyExc_IsADirectoryError
     PyExc_KeyError*: PPyObject
+    # PyExc_KeyboardInterrupt
+    # PyExc_LookupError
+    PyExc_MemoryError*: PPyObject
+    # PyExc_ModuleNotFoundError
+    # PyExc_NameError
+    # PyExc_NotADirectoryError
+    # PyExc_NotImplementedError
+    PyExc_OSError*: PPyObject
+    PyExc_OverflowError*: PPyObject
+    # PyExc_PermissionError
+    # PyExc_ProcessLookupError
+    PyExc_RecursionError*: PPyObject
+    # PyExc_ReferenceError
+    # PyExc_RuntimeError
+    # PyExc_StopAsyncIteration
+    # PyExc_StopIteration
+    # PyExc_SyntaxError
+    # PyExc_SystemError
+    # PyExc_SystemExit
+    # PyExc_TabError
+    # PyExc_TimeoutError
+    PyExc_TypeError*: PPyObject
+    # PyExc_UnboundLocalError
+    # PyExc_UnicodeDecodeError
+    # PyExc_UnicodeEncodeError
+    # PyExc_UnicodeError
+    # PyExc_UnicodeTranslateError
+    PyExc_ValueError*: PPyObject
+    PyExc_ZeroDivisionError*: PPyObject
 
     NimPyException*: PPyObject
 
@@ -212,6 +252,7 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
 
   load Py_BuildValue, "_Py_BuildValue_SizeT"
   load PyTuple_New
+  load PyTuple_Pack
   load PyTuple_Size
   load PyTuple_GetItem
   load PyTuple_SetItem
@@ -327,17 +368,20 @@ proc loadPyLibFromModule(m: LibHandle): PyLib =
   load PyErr_NewException
 
   loadVar PyExc_ArithmeticError
-  loadVar PyExc_FloatingPointError
-  loadVar PyExc_OverflowError
-  loadVar PyExc_ZeroDivisionError
   loadVar PyExc_AssertionError
-  loadVar PyExc_OSError
-  loadVar PyExc_IOError
-  loadVar PyExc_ValueError
   loadVar PyExc_EOFError
-  loadVar PyExc_MemoryError
+  loadVar PyExc_FloatingPointError
+  loadVar PyExc_ImportError
   loadVar PyExc_IndexError
+  loadVar PyExc_IOError
   loadVar PyExc_KeyError
+  loadVar PyExc_MemoryError
+  loadVar PyExc_OSError
+  loadVar PyExc_OverflowError
+  loadVar PyExc_RecursionError
+  loadVar PyExc_TypeError
+  loadVar PyExc_ValueError
+  loadVar PyExc_ZeroDivisionError
 
   if pl.pythonVersion.major == 3:
     pl.PyDealloc = deallocPythonObj[PyTypeObject3]
