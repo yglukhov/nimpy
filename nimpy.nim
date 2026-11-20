@@ -604,7 +604,7 @@ proc makeCallNimProcWithPythonArgs(prc, formalParams, argsTuple, kwargsDict: Nim
     inc numArgs
 
   var
-    argsLen = newLit(numArgs)
+    argsLen = newLit(numArgs - extraArg)
     argsLenReq = newLit(numArgsReq - extraArg)
     nameLit = newLit($prc)
 
